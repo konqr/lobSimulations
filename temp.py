@@ -5,11 +5,13 @@
 #     z.extractall()
 import datetime as dt
 
-from hawkes import dataLoader
+from hawkes import dataLoader, fit
 
 def main():
     l = dataLoader.Loader("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,3), nlevels = 2)
-    data = l.loadBinned()
-    return
+    data = l.loadBinned(binLength = 0.5)
+    cls = fit.ConditionalLeastSquares(data, 300, 0.5)
+    thetas = cls.fit()
+    return thetas
 
 main()

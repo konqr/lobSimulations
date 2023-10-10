@@ -107,6 +107,10 @@ class Loader():
         return data
 
     def loadBinned(self, binLength = 1):
+        # TODO : binLength = 0.01 gives me memory error already -
+        #   - will pyKX help?
+        #   - store binned data to disk and use later?
+
         data = self.load()
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
         binnedData = {}
@@ -117,10 +121,10 @@ class Loader():
                     side = "bid" if s == 1 else "ask"
                     l = d.loc[(d.Type.apply(lambda x: x in v)) & (d.TradeDirection == s)]
                     l['count'] = 1
-                    bins = np.arange(l.Time.min() - 1e-3, l.Time.max(), binLength)
-                    labels = np.arange(0, len(bins)-1, binLength)
-                    l['second'] = pd.cut(l['Time'], bins=bins, labels=labels)
-                    binL = l.groupby("second").sum()[['count','Size']]
+                    bins = np.arange(d.Time.min() - 1e-3, d.Time.max(), binLength)
+                    labels = np.arange(0, len(bins)-1)
+                    l['binIndex'] = pd.cut(l['Time'], bins=bins, labels=labels)
+                    binL = l.groupby("binIndex").sum()[['count','Size']]
                     binL.reset_index(inplace=True)
                     binnedL[k + "_" + side] = binL
             binnedData[d.Date.iloc[0]] = binnedL
