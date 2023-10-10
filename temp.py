@@ -9,8 +9,7 @@ from hawkes import dataLoader
 
 def main():
     l = dataLoader.Loader("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,3), nlevels = 2)
-    data = l.load()
-    print(data[0].head())
+    data = l.loadBinned()
     return
 
 main()

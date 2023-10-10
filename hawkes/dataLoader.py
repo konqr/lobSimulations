@@ -30,7 +30,7 @@ class Loader():
     #
     #                   Direction:
     #                       - '-1'  Sell limit order
-    #                       - '-2'  Buy limit order
+    #                       - '1'  Buy limit order
     #                       - NOTE: Execution of a sell (buy)
     #                               limit order corresponds to
     #                               a buyer-(seller-) initiated
@@ -109,18 +109,20 @@ class Loader():
     def loadBinned(self, binLength = 1):
         data = self.load()
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
-        binnedData = []
+        binnedData = {}
         for d in data:
-            binnedL = []
+            binnedL = {}
             for k, v in orderTypeDict.items():
-                l = d.loc[d.Type.apply(lambda x: x in v)]
-                l['count'] = 1
-                bins = np.arange(l.Time.min() - 1e-3, l.Time.max(), binLength)
-                labels = np.arange(0, len(bins)-1, binLength)
-                l['second'] = pd.cut(l['Time'], bins=bins, labels=labels)
-                binL = l.groupby("second").sum()[['count','Size']]
-                binL.reset_index(inplace=True)
-                binnedL.append(binL)
-            binnedData.append(binnedL)
+                for s in [1, -1]:
+                    side = "bid" if s == 1 else "ask"
+                    l = d.loc[(d.Type.apply(lambda x: x in v)) & (d.TradeDirection == s)]
+                    l['count'] = 1
+                    bins = np.arange(l.Time.min() - 1e-3, l.Time.max(), binLength)
+                    labels = np.arange(0, len(bins)-1, binLength)
+                    l['second'] = pd.cut(l['Time'], bins=bins, labels=labels)
+                    binL = l.groupby("second").sum()[['count','Size']]
+                    binL.reset_index(inplace=True)
+                    binnedL[k + "_" + side] = binL
+            binnedData[d.Date.iloc[0]] = binnedL
         return binnedData
 
