@@ -9,7 +9,7 @@ from hawkes import dataLoader, fit
 
 def main():
     l = dataLoader.Loader("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,3), nlevels = 2)
-    data = l.loadBinned(binLength = 0.5)
+    data = l.loadRollingWindows(binLength = 1, filterTop = True)
     cls = fit.ConditionalLeastSquares(data, 300, 0.5)
     thetas = cls.fit()
     return thetas

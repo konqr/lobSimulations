@@ -63,7 +63,7 @@ class Loader():
     def load(self):
         data = []
         ric = self.ric.split(".")[0]
-        for d in pd.date_range(self.sDate, self.eDate):
+        for d in pd.date_range(self.sDate, self.eDate): # TODO: business days try catch
             theMessageBookFileName = self.dataPath + ric + "_" + d.strftime("%Y-%m-%d") + "_34200000_57600000_message_10.csv"
             theOrderBookFileName = self.dataPath +  ric + "_" + d.strftime("%Y-%m-%d") + "_34200000_57600000_orderbook_10.csv"
             theMessageBook = pd.read_csv(theMessageBookFileName,
@@ -127,6 +127,24 @@ class Loader():
                     binL = l.groupby("binIndex").sum()[['count','Size']]
                     binL.reset_index(inplace=True)
                     binnedL[k + "_" + side] = binL
+            binnedData[d.Date.iloc[0]] = binnedL
+        return binnedData
+
+    def loadRollingWindows(self, binLength = 1, filterTop = False):
+        data = self.load()
+        orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
+        binnedData = {}
+        for d in data:
+            binnedL = {}
+            for k, v in orderTypeDict.items():
+                for s in [1, -1]:
+                    side = "bid" if s == 1 else "ask"
+                    l = d.loc[(d.Type.apply(lambda x: x in v)) & (d.TradeDirection == s)]
+                    if filterTop:
+                        l = l.loc[l.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1)]
+                    l['count'] = 1
+                    binL =l.set_index(l.Time.apply(lambda x : dt.datetime.strptime(l.Date.iloc[0], "%Y-%m-%d")+dt.timedelta(seconds=x)))[['count', 'Size']].rolling(window = dt.timedelta(seconds=binLength)).sum()
+                    binnedL[k + "_" + side] = binL.loc[binL.index[binL.index > binL.index[0] + dt.timedelta(seconds=binLength)]]
             binnedData[d.Date.iloc[0]] = binnedL
         return binnedData
 
