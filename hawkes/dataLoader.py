@@ -106,7 +106,7 @@ class Loader():
             data += [combinedDf]
         return data
 
-    def loadBinned(self, binLength = 1):
+    def loadBinned(self, binLength = 1, filterTop=False):
         # TODO : binLength = 0.01 gives me memory error already -
         #   - will pyKX help?
         #   - store binned data to disk and use later?
@@ -120,6 +120,8 @@ class Loader():
                 for s in [1, -1]:
                     side = "bid" if s == 1 else "ask"
                     l = d.loc[(d.Type.apply(lambda x: x in v)) & (d.TradeDirection == s)]
+                    if filterTop:
+                        l = l.loc[l.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1)]
                     l['count'] = 1
                     bins = np.arange(d.Time.min() - 1e-3, d.Time.max(), binLength)
                     labels = np.arange(0, len(bins)-1)

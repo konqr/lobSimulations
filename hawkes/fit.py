@@ -57,11 +57,12 @@ class ConditionalLeastSquares():
             Ys[k] = np.vstack(v.iloc[self.p:].values).T
         return Ys
 
-    def fitThetas(self, Ys, Zs):
+    def fitThetas(self):
         thetas = {}
-        for k in Ys.keys():
-            Y = Ys[k]
-            Z = Zs[k]
+        for k,v in self.windowedData.items():
+            if len(v) != self.n: continue
+            Z = self.constructOneDesignMatrix(v)
+            Y = np.vstack(v.iloc[self.p:].values).T
             theta = Y.dot((Z.T).dot(np.linalg.inv(Z.dot(Z.T))))
             thetas[k] = theta
         return thetas
@@ -76,10 +77,10 @@ class ConditionalLeastSquares():
         self.data = self.convertData()
         self.windowedData = self.getWindowedData()
         # construct Z := design matrix
-        Zs = self.constructDesignMatrices()
-        Ys = self.constructYs()
+        # Zs = self.constructDesignMatrices()
+        # Ys = self.constructYs()
         # fit
-        theta_cls = self.fitThetas(Ys, Zs)
+        theta_cls = self.fitThetas()
 
         return theta_cls
 
