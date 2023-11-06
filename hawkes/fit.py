@@ -99,7 +99,7 @@ class ConditionalLeastSquares():
         for i in self.dates:
             dictPerDate = self.dictBinnedData[i]
             l_df = []
-            for j in dictPerDate.keys()
+            for j in dictPerDate.keys():
                 l_df += [dictPerDate[i].rename(columns = {'count' : i})[i]]
             bigDf = pd.concat(l_df, axis= 1)
             bigDfs[i] = bigDf

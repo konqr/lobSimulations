@@ -18,7 +18,7 @@ def main():
     data = l.loadRollingWindows(binLength = binLength, filterTop = True)
     cls = fit.ConditionalLeastSquares(data, p, 1, T=T)
     thetas = cls.fit()
-    with open("/home/konajain/params/" + ric + "_" + str(sDate) + "_" + str(eDate) + "_" + str(binLength) + "_" + str(p) + "_" + str(T)) as f:
+    with open("/home/konajain/params/" + ric + "_" + str(sDate) + "_" + str(eDate) + "_" + str(binLength) + "_" + str(p) + "_" + str(T) , "wb") as f:
         pickle.dump(thetas, f)
     return thetas
 
