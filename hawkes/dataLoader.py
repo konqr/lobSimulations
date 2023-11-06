@@ -58,7 +58,7 @@ class Loader():
         self.sDate = sDate
         self.eDate = eDate
         self.nlevels = kwargs.get("nlevels", 10)
-        self.dataPath = "D:\\Work\\PhD\\Data\\"
+        self.dataPath = kwargs.get("dataPath", "D:\\Work\\PhD\\Data\\")
 
     def load(self):
         data = []
