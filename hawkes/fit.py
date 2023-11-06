@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
+from statsmodels.tsa.api import VAR
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
-    def __init__(self,  dictBinnedData, p, tau, **kwargs ):
+    def __init__(self,  dictBinnedData, p, tau = 1, **kwargs ):
         self.dictBinnedData = dictBinnedData
         self.dates = list(self.dictBinnedData.keys())
         self.dims  = list(self.dictBinnedData[self.dates[0]].keys())
@@ -59,15 +61,19 @@ class ConditionalLeastSquares():
 
     def fitThetas(self):
         thetas = {}
+        i = 0
         for k,v in self.windowedData.items():
+            if i == 1: break
             if len(v) != self.n: continue
             Z = self.constructOneDesignMatrix(v)
             Y = np.vstack(v.iloc[self.p:].values).T
             theta = Y.dot((Z.T).dot(np.linalg.inv(Z.dot(Z.T))))
+
             thetas[k] = theta
+            i+=1
         return thetas
 
-    def fit(self):
+    def fit_old(self):
         # sanity check
         if self.p > len(self.dictBinnedData[self.dates[0]][self.dims[0]]):
             print("ERROR: p cannot be greater than num samples")
@@ -83,4 +89,24 @@ class ConditionalLeastSquares():
         theta_cls = self.fitThetas()
 
         return theta_cls
+
+    def fit(self):
+        # sanity check
+        if self.p > len(self.dictBinnedData[self.dates[0]][self.dims[0]]):
+            print("ERROR: p cannot be greater than num samples")
+            return 0
+        bigDfs = {}
+        for i in self.dates:
+            dictPerDate = self.dictBinnedData[i]
+            l_df = []
+            for j in dictPerDate.keys()
+                l_df += [dictPerDate[i].rename(columns = {'count' : i})[i]]
+            bigDf = pd.concat(l_df, axis= 1)
+            bigDfs[i] = bigDf
+        thetas = {}
+        for d, df in bigDfs.items():
+            model = VAR(df)
+            res = model.fit(self.p)
+            thetas[d] = res.params
+        return thetas
 
