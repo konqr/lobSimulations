@@ -10,7 +10,7 @@ class ConditionalLeastSquares():
         self.dims  = list(self.dictBinnedData[self.dates[0]].keys())
         self.p = p     # 300
         self.tau = tau # 0.01
-        self.T = kwargs.get("T", 1800) # 30 min window size by default
+        self.T = kwargs.get("T", np.nan) # 30 min window size by default
         self.n = int(np.floor(self.T/self.tau))
         self.col = kwargs.get("col", "count") # one of "count" or "size"
         self.data = {}
@@ -105,7 +105,8 @@ class ConditionalLeastSquares():
             bigDfs[i] = bigDf
         thetas = {}
         for d, df in bigDfs.items():
-            model = VAR(df)
+            if np.isnan(self.T): self.T = len(df)
+            model = VAR(df.iloc[0:self.T])
             res = model.fit(self.p)
             thetas[d] = res.params
         return thetas
