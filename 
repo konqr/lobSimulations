@@ -9,18 +9,16 @@ from hawkes import dataLoader, fit
 
 def main():
     ric = "AAPL.OQ"
-    sDate = dt.date(2020,9,14)
-    eDate = dt.date(2020,9,24)
-    binLength = 0.01
-    p = 30
-
+    sDate = dt.date(2020,9,25)
+    eDate = dt.date(2020,9,25)
+    binLength = 1
+    p = 300
+    T = 1000
     l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "/home/konajain/data/")
-    data = l.loadBinned(binLength = binLength, filterTop = True)
-    print(data.keys())
-    T = len(data[sDate.strftime("%Y-%m-%d")]['limit_bid'])
+    data = l.loadRollingWindows(binLength = binLength, filterTop = True)
     cls = fit.ConditionalLeastSquares(data, p, 1, T=T)
     thetas = cls.fit()
-    with open("/home/konajain/params/" + ric + "_" + str(sDate) + "_" + str(eDate) + "_" + str(binLength) + "_" + str(p) + "_" + str(T) , "wb") as f: #"/home/konajain/params/"
+    with open("/home/konajain/params/" + ric + "_" + str(sDate) + "_" + str(eDate) + "_" + str(binLength) + "_" + str(p) + "_" + str(T)) as f:
         pickle.dump(thetas, f)
     return thetas
 

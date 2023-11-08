@@ -65,6 +65,8 @@ class Loader():
         ric = self.ric.split(".")[0]
         for d in pd.date_range(self.sDate, self.eDate): # TODO: business days try catch
             theMessageBookFileName = self.dataPath + ric + "_" + d.strftime("%Y-%m-%d") + "_34200000_57600000_message_10.csv"
+            if (ric + "_" + d.strftime("%Y-%m-%d") + "_34200000_57600000_message_10.csv") not in os.listdir(self.dataPath): continue
+            print(theMessageBookFileName)
             theOrderBookFileName = self.dataPath +  ric + "_" + d.strftime("%Y-%m-%d") + "_34200000_57600000_orderbook_10.csv"
             theMessageBook = pd.read_csv(theMessageBookFileName,
                                          names=['Time', 'Type', 'OrderID', 'Size', 'Price', 'TradeDirection', 'tmp'])
