@@ -164,6 +164,7 @@ class Loader():
             df['BidDiff2']= df['Bid Price 2'].diff()
             df['AskDiff2']= df['Ask Price 2'].diff()
             arr = []
+            df_res_l = []
             for s in [1, -1]:
                 side = "Bid" if s == 1 else "Ask"
                 lo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['limit']))&(df.TradeDirection == s)]
@@ -182,10 +183,12 @@ class Loader():
                 mo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['market']))&(df.TradeDirection == s)]
                 mo['event'] = 'mo_' + side
                 df_res = pd.concat([lo_deep, co_deep, lo_top, co_top, mo, lo_inspread])
-                df_res.to_csv(self.dataPath + self.ric + "_" + df.Date.iloc[0] +"_12D.csv")
+                df_res_l += [df_res]
                 l = [lo_deep.Time.values, co_deep.Time.values, lo_top.Time.values, co_top.Time.values, mo.Time.values, lo_inspread.Time.values]
                 if s == 1: l.reverse()
                 arr += l
+            df_res_l = pd.concat(df_res_l)
+            df_res_l.to_csv(self.dataPath + self.ric + "_" + df.Date.iloc[0] +"_12D.csv")
             res[df.Date.iloc[0]] = arr
         return res
 
