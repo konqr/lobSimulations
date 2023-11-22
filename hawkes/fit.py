@@ -2,17 +2,18 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 
+
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
-    def __init__(self,  dictBinnedData, p, tau = 1, **kwargs ):
+    def __init__(self, dictBinnedData, p, tau=1, **kwargs):
         self.dictBinnedData = dictBinnedData
         self.dates = list(self.dictBinnedData.keys())
-        self.dims  = list(self.dictBinnedData[self.dates[0]].keys())
-        self.p = p     # 300
-        self.tau = tau # 0.01
-        self.T = kwargs.get("T", np.nan) # 30 min window size by default
-        self.n = int(np.floor(self.T/self.tau))
-        self.col = kwargs.get("col", "count") # one of "count" or "size"
+        self.dims = list(self.dictBinnedData[self.dates[0]].keys())
+        self.p = p  # 300
+        self.tau = tau  # 0.01
+        self.T = kwargs.get("T", np.nan)  # 30 min window size by default
+        self.n = int(np.floor(self.T / self.tau))
+        self.col = kwargs.get("col", "count")  # one of "count" or "size"
         self.data = {}
 
     def convertData(self):
@@ -30,14 +31,14 @@ class ConditionalLeastSquares():
         dictWindowedData = {}
         for d in self.dates:
             df = self.data[d]
-            for i in range(0,len(df), self.n):
-                dictWindowedData[d + "_" + str(i)] = df.iloc[i:i+self.n]
+            for i in range(0, len(df), self.n):
+                dictWindowedData[d + "_" + str(i)] = df.iloc[i:i + self.n]
         return dictWindowedData
 
     def constructOneDesignMatrix(self, df):
-        Z = np.ones([(len(self.dims)*self.p + 1), self.n - self.p])
+        Z = np.ones([(len(self.dims) * self.p + 1), self.n - self.p])
         for i in range(self.n - self.p):
-            Z[:,i] = np.append(np.vstack(np.flip(df.iloc[i:i+self.p].values).flatten()), [1])
+            Z[:, i] = np.append(np.vstack(np.flip(df.iloc[i:i + self.p].values).flatten()), [1])
         return Z
 
     def constructDesignMatrices(self):
@@ -47,14 +48,14 @@ class ConditionalLeastSquares():
         # TODO : look at alternate ways of utilizing multiday data - rolling windows not disjoint
         # this implementation follows Kirchner for baseline purposes - creates *disjoint* windows of 30 min each
         Zs = {}
-        for k,v in self.windowedData.items():
+        for k, v in self.windowedData.items():
             if len(v) != self.n: continue
             Zs[k] = self.constructOneDesignMatrix(v)
         return Zs
 
     def constructYs(self):
         Ys = {}
-        for k,v in self.windowedData.items():
+        for k, v in self.windowedData.items():
             if len(v) != self.n: continue
             Ys[k] = np.vstack(v.iloc[self.p:].values).T
         return Ys
@@ -62,7 +63,7 @@ class ConditionalLeastSquares():
     def fitThetas(self):
         thetas = {}
         i = 0
-        for k,v in self.windowedData.items():
+        for k, v in self.windowedData.items():
             if i == 1: break
             if len(v) != self.n: continue
             Z = self.constructOneDesignMatrix(v)
@@ -70,7 +71,7 @@ class ConditionalLeastSquares():
             theta = Y.dot((Z.T).dot(np.linalg.inv(Z.dot(Z.T))))
 
             thetas[k] = theta
-            i+=1
+            i += 1
         return thetas
 
     def fit_old(self):
@@ -100,8 +101,8 @@ class ConditionalLeastSquares():
             dictPerDate = self.dictBinnedData[i]
             l_df = []
             for j in dictPerDate.keys():
-                l_df += [dictPerDate[j].rename(columns = {'count' : j})[j]]
-            bigDf = pd.concat(l_df, axis= 1)
+                l_df += [dictPerDate[j].rename(columns={'count': j})[j]]
+            bigDf = pd.concat(l_df, axis=1)
             bigDfs[i] = bigDf
         thetas = {}
         for d, df in bigDfs.items():
@@ -111,3 +112,24 @@ class ConditionalLeastSquares():
             thetas[d] = res.params
         return thetas
 
+
+class ConditionalLaw():
+
+    def __init__(self, data):
+        from tick.hawkes import HawkesConditionalLaw
+        self.data = data
+        # df = pd.read_csv("/home/konajain/data/AAPL.OQ_2020-09-14_12D.csv")
+        # eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+        # timestamps = [list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)]
+
+    def fit(self):
+        # log : sampling is semi-log. It uses linear sampling on [0, min_lag] with sampling period delta_lag and log
+        # sampling on [min_lag, max_lag] using exp(delta_lag) sampling period.
+        hawkes_learner = HawkesConditionalLaw(
+            claw_method="log", delta_lag=1e-1, min_lag=1, max_lag=500,
+            quad_method="log", n_quad=10, min_support=1e-4, max_support=1, n_threads=4)
+        hawkes_learner.fit(self.data)
+        baseline = hawkes_learner.baseline
+        kernels = hawkes_learner.kernels
+        kernel_norms = hawkes_learner.kernels_norms
+        return (baseline, kernels, kernel_norms)

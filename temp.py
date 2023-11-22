@@ -7,6 +7,7 @@ import datetime as dt
 import pickle
 from hawkes import dataLoader, fit
 import pandas as pd
+import numpy as np
 
 def main():
     # ric = "AAPL.OQ"
@@ -26,8 +27,15 @@ def main():
     # return thetas
     ric = "AAPL.OQ"
     d = dt.date(2020,9,14)
-    l = dataLoader.Loader(ric, d, d, nlevels = 2)
-    a = l.load12DTimestamps()
-    return a
+    l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/home/konajain/data/")
+    #a = l.load12DTimestamps()
+    df = pd.read_csv("/home/konajain/data/AAPL.OQ_2020-09-14_12D.csv")
+    eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+    timestamps = [list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)]
+    cls = fit.ConditionalLaw(timestamps)
+    params = cls.fit()
+    with open("/home/konajain/params/" + ric + "_" + str(d) + "_" + str(d) + "_condLaw" , "wb") as f: #"/home/konajain/params/"
+        pickle.dump(params, f)
+    return params
 
 main()
