@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
-
+from tick.hawkes import HawkesConditionalLaw
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -116,7 +116,6 @@ class ConditionalLeastSquares():
 class ConditionalLaw():
 
     def __init__(self, data):
-        from tick.hawkes import HawkesConditionalLaw
         self.data = data
         # df = pd.read_csv("/home/konajain/data/AAPL.OQ_2020-09-14_12D.csv")
         # eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
