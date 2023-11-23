@@ -164,6 +164,7 @@ class ConditionalLeastSquaresLogLin():
         bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
         for arr, col in zip(arrs, self.cols):
             print(col)
+            arr = np.max(arr) - arr
             assignedBins = np.searchsorted(bins, arr, side="right")
             binDf = np.unique(assignedBins, return_counts = True)
             binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]})
@@ -181,7 +182,10 @@ class ConditionalLeastSquaresLogLin():
             print(i)
             idx = df.index[i]
             df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
-            binDf = df.loc[df.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
+            lastIdx = df['binIndexNew'].max()
+            dfFiltered = df.loc[df['binIndexNew'] != lastIdx]
+            binDf = dfFiltered.loc[dfFiltered.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
+
             binDf['const'] = 1.
             if len(binDf) < len(timegrid_new):
                 missing = np.setdiff1d(np.arange(1,len(timegrid_new)+1), binDf.index, assume_unique=True)
