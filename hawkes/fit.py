@@ -4,6 +4,7 @@ from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
 #from tick.hawkes import HawkesConditionalLaw
 import pickle
+import gc
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -162,16 +163,19 @@ class ConditionalLeastSquaresLogLin():
         ser = []
         bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
         for arr, col in zip(arrs, self.cols):
-            df = pd.DataFrame(arr, columns = [col])
-            df['count'] = 1
-            df['binIndex'] = pd.cut(df[col], bins=bins, labels=False)
-            binDf = df.groupby("binIndex").sum()['count']
-            binDf = binDf.to_frame()
+            print(col)
+            assignedBins = np.searchsorted(bins, arr, side="right")
+            binDf = np.unique(assignedBins, return_counts = True)
+            binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]})
+            binDf = binDf.set_index("bin")
             #binDf = binDf.reset_index()
-            ser += [binDf.rename(columns={'count': col})]
+            ser += [binDf]
+        print("done with binning")
         df = pd.concat(ser, axis = 1)
         df = df.fillna(0)
         df = df.sort_index()
+        del arrs
+        gc.collect()
         res = []
         for i in range(len(df)-1):
             print(i)
