@@ -190,6 +190,16 @@ class ConditionalLeastSquaresLogLin():
                 binDf = binDf.sort_index()
             lags = binDf.values
             res += [df[self.cols].loc[idx].values, lags]
+            if i%50 == 0 :
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                    pickle.dump(res, f)
+                res =[]
+                gc.collect()
+            elif i==len(df)-2:
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                    pickle.dump(res, f)
+                res =[]
+                gc.collect()
         return res
 
 
@@ -206,16 +216,14 @@ class ConditionalLeastSquaresLogLin():
         bigRes = {}
         for i in self.dates:
             dictPerDate = self.dictBinnedData[i]
-            res = self.transformData(timegrid, dictPerDate)
-            bigRes[i] = np.array(res)
-        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "wb") as f: #"/home/konajain/params/"
-            pickle.dump(bigRes, f)
+            self.transformData(timegrid, dictPerDate)
+
         thetas = {}
-        for d, res in bigRes.items():
-            Y = res[:,0]
-            X = res[:,1]
-            model = sm.OLS(Y, X)
-            res = model.fit()
-            thetas[d] = res.params
+        # for d, res in bigRes.items():
+        #     Y = res[:,0]
+        #     X = res[:,1]
+        #     model = sm.OLS(Y, X)
+        #     res = model.fit()
+        #     thetas[d] = res.params
         return thetas
 

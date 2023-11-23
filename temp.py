@@ -19,7 +19,7 @@ def main():
         l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/home/konajain/data/"
         #data = l.load12DTimestamps()
         df = pd.read_csv("D:\\Work\\PhD\\Data\\AAPL.OQ_2020-09-14_12D.csv")
-        #df = df.loc[df.Time < 1000]
+        df = df.loc[df.Time < 100]
         eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
         data = {'2020-09-14' : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
         cls = fit.ConditionalLeastSquaresLogLin(data, loader = l)
