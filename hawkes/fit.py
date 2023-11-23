@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
-from tick.hawkes import HawkesConditionalLaw
+import statsmodels.api as sm
+#from tick.hawkes import HawkesConditionalLaw
+import pickle
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -112,7 +114,6 @@ class ConditionalLeastSquares():
             thetas[d] = res.params
         return thetas
 
-
 class ConditionalLaw():
 
     def __init__(self, data, **kwargs):
@@ -142,3 +143,75 @@ class ConditionalLaw():
         kernels = hawkes_learner.kernels
         kernel_norms = hawkes_learner.kernels_norms
         return (baseline, kernels, kernel_norms)
+
+class ConditionalLeastSquaresLogLin():
+
+    def __init__(self, dictBinnedData, **kwargs):
+        self.dictBinnedData = dictBinnedData
+        self.dates = list(self.dictBinnedData.keys())
+        self.cfg = kwargs
+        self.cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                     "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        # df = pd.read_csv("/home/konajain/data/AAPL.OQ_2020-09-14_12D.csv")
+        # eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+        # timestamps = [list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)]
+        # list of list of 12 np arrays
+
+    def transformData(self, timegrid, arrs):
+        timegrid_new = np.floor(timegrid/(timegrid[1] - timegrid[0])).astype(int)
+        ser = []
+        bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
+        for arr, col in zip(arrs, self.cols):
+            df = pd.DataFrame(arr, columns = [col])
+            df['count'] = 1
+            df['binIndex'] = pd.cut(df[col], bins=bins, labels=False)
+            binDf = df.groupby("binIndex").sum()['count']
+            binDf = binDf.to_frame()
+            #binDf = binDf.reset_index()
+            ser += [binDf.rename(columns={'count': col})]
+        df = pd.concat(ser, axis = 1)
+        df = df.fillna(0)
+        df = df.sort_index()
+        res = []
+        for i in range(len(df)-1):
+            print(i)
+            idx = df.index[i]
+            df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
+            binDf = df.loc[df.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
+            binDf['const'] = 1.
+            if len(binDf) < len(timegrid_new):
+                missing = np.setdiff1d(np.arange(1,len(timegrid_new)+1), binDf.index, assume_unique=True)
+                empty = pd.DataFrame(index=missing)
+                binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
+                binDf = binDf.sort_index()
+            lags = binDf.values
+            res += [df[self.cols].loc[idx].values, lags]
+        return res
+
+
+    def fit(self):
+        num_datapoints = self.cfg.get("num_datapoints", 10)
+        min_lag = self.cfg.get("min_lag", 1e-3)
+        max_lag = self.cfg.get("max_lag" , 500)
+        timegridLin = np.linspace(0,min_lag, num_datapoints)
+        timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
+        timegrid = np.append(timegridLin[:-1], timegridLog)
+        # can either use np.histogram with custom binsize for adaptive grid
+        # or
+        # bin data by delta_lag*min_lag and then add bins for exponential lags
+        bigRes = {}
+        for i in self.dates:
+            dictPerDate = self.dictBinnedData[i]
+            res = self.transformData(timegrid, dictPerDate)
+            bigRes[i] = np.array(res)
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "wb") as f: #"/home/konajain/params/"
+            pickle.dump(bigRes, f)
+        thetas = {}
+        for d, res in bigRes.items():
+            Y = res[:,0]
+            X = res[:,1]
+            model = sm.OLS(Y, X)
+            res = model.fit()
+            thetas[d] = res.params
+        return thetas
+
