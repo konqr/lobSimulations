@@ -184,7 +184,7 @@ class ConditionalLeastSquaresLogLin():
                     res.append(pickle.load(f))
                 except EOFError:
                     break
-        restartIdx = len(res)
+        restartIdx = np.sum([len(r) for r in res])//2
         res = []
         for i in range(restartIdx+1,len(df)-1):
             print(i)
