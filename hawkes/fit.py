@@ -201,7 +201,7 @@ class ConditionalLeastSquaresLogLin():
                 binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
                 binDf = binDf.sort_index()
             lags = binDf.values
-            res.append(df[self.cols].loc[idx].values, lags)
+            res.append([df[self.cols].loc[idx].values, lags])
             if i%50 == 0 :
                 with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
