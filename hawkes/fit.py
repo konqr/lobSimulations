@@ -178,7 +178,15 @@ class ConditionalLeastSquaresLogLin():
         del arrs
         gc.collect()
         res = []
-        for i in range(len(df)-1):
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+            while True:
+                try:
+                    res.append(pickle.load(f))
+                except EOFError:
+                    break
+        restartIdx = len(res)
+        res = []
+        for i in range(restartIdx+1,len(df)-1):
             print(i)
             idx = df.index[i]
             df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
@@ -193,7 +201,7 @@ class ConditionalLeastSquaresLogLin():
                 binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
                 binDf = binDf.sort_index()
             lags = binDf.values
-            res += [df[self.cols].loc[idx].values, lags]
+            res.append(df[self.cols].loc[idx].values, lags)
             if i%50 == 0 :
                 with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
