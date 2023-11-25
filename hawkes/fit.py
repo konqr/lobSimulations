@@ -255,7 +255,7 @@ class ConditionalLeastSquaresLogLin():
             # params = (lr.intercept_, lr.coef_)
             model = sm.OLS(Ys, Xs)
             res = model.fit()
-            print(res.summary())
+            #print(res.summary())
             params = res.params
             paramsUncertainty = res.bse
             thetas[i] = (params, paramsUncertainty)
