@@ -5,6 +5,7 @@ import statsmodels.api as sm
 #from tick.hawkes import HawkesConditionalLaw
 import pickle
 import gc
+from sklearn.linear_model import LinearRegression
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -158,7 +159,7 @@ class ConditionalLeastSquaresLogLin():
         # timestamps = [list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)]
         # list of list of 12 np arrays
 
-    def transformData(self, timegrid, arrs):
+    def transformData(self, timegrid, date, arrs):
         timegrid_new = np.floor(timegrid/(timegrid[1] - timegrid[0])).astype(int)
         ser = []
         bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
@@ -178,7 +179,7 @@ class ConditionalLeastSquaresLogLin():
         del arrs
         gc.collect()
         res = []
-        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
             while True:
                 try:
                     res.append(pickle.load(f))
@@ -203,19 +204,18 @@ class ConditionalLeastSquaresLogLin():
             lags = binDf.values
             res.append([df[self.cols].loc[idx].values, lags])
             if i%50 == 0 :
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
             elif i==len(df)-2:
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(self.cfg.get("loader").sDate) + "_" + str(self.cfg.get("loader").eDate) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
         return res
 
-
-    def fit(self):
+    def runTransformDate(self):
         num_datapoints = self.cfg.get("num_datapoints", 10)
         min_lag = self.cfg.get("min_lag", 1e-3)
         max_lag = self.cfg.get("max_lag" , 500)
@@ -225,17 +225,38 @@ class ConditionalLeastSquaresLogLin():
         # can either use np.histogram with custom binsize for adaptive grid
         # or
         # bin data by delta_lag*min_lag and then add bins for exponential lags
-        bigRes = {}
+
         for i in self.dates:
             dictPerDate = self.dictBinnedData[i]
-            self.transformData(timegrid, dictPerDate)
+            self.transformData(timegrid, i, dictPerDate)
+        return
+
+    def fit(self):
 
         thetas = {}
-        # for d, res in bigRes.items():
-        #     Y = res[:,0]
-        #     X = res[:,1]
-        #     model = sm.OLS(Y, X)
-        #     res = model.fit()
-        #     thetas[d] = res.params
+        for i in self.dates:
+            res_d = []
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+                while True:
+                    try:
+                        r_d = pickle.load(f)
+                        if len(r_d[0]) == 2:
+                            r_d = sum(r_d, [])
+                        res_d.append(r_d)
+                    except EOFError:
+                        break
+            res_d = sum(res_d, [])
+            Ys = [res_d[i] for i in range(0,len(res_d),2)]
+            Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
+            Xs = [r[:-1,:-1].flatten() for r in Xs]
+            print(len(Xs))
+            # lr = LinearRegression().fit(Xs, Ys)
+            # print(lr.score(Xs, Ys))
+            # params = (lr.intercept_, lr.coef_)
+            model = sm.OLS(Ys, Xs)
+            res = model.fit()
+            params = res.params
+            thetas[i] = params
         return thetas
+
 
