@@ -248,15 +248,17 @@ class ConditionalLeastSquaresLogLin():
             res_d = sum(res_d, [])
             Ys = [res_d[i] for i in range(0,len(res_d),2)]
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
-            Xs = [r[:-1,:-1].flatten() for r in Xs]
+            Xs = [np.append([1],r[:-1,:-1].flatten()) for r in Xs]
             print(len(Xs))
             # lr = LinearRegression().fit(Xs, Ys)
             # print(lr.score(Xs, Ys))
             # params = (lr.intercept_, lr.coef_)
             model = sm.OLS(Ys, Xs)
             res = model.fit()
+            print(res.summary())
             params = res.params
-            thetas[i] = params
+            paramsUncertainty = res.bse
+            thetas[i] = (params, paramsUncertainty)
         return thetas
 
 
