@@ -104,7 +104,7 @@ class Loader():
             for i in list(range(0,len(theOrderBookFiltered.columns),2)):
                 theOrderBookFiltered[theOrderBookFiltered.columns[i]]  = theOrderBookFiltered[theOrderBookFiltered.columns[i]]/10000
             combinedDf = pd.concat([theMessageBookFiltered , theOrderBookFiltered], axis = 1)
-            combinedDf["Date"] = theMessageBookFileName.split("_")[1]
+            combinedDf["Date"] = d.strftime("%Y-%m-%d")
             data += [combinedDf]
         return data
 
@@ -190,7 +190,8 @@ class Loader():
                 arr += l
             df_res_l = pd.concat(df_res_l)
             df_res_l.to_csv(self.dataPath + self.ric + "_" + df.Date.iloc[0] +"_12D.csv")
-            res[df.Date.iloc[0]] = arr
+            res[df.Date.iloc[0]] = arr:q
+
         return res
 
 
