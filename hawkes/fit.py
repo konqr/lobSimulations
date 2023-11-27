@@ -222,7 +222,7 @@ class ConditionalLeastSquaresLogLin():
             bin_df = np.zeros((len(timegrid_new) - 1, len(self.cols)))
             df_filtered = df_filtered.loc[df_filtered.index[i+1]:]
             for j, col in enumerate(self.cols):
-                bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(timegrid_new) - 1)[1:]
+                bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(timegrid_new))[1:]
 
             #bin_df = np.hstack((bin_df, np.ones((len(unique_bins), 1))))  # Adding 'const' column
 
