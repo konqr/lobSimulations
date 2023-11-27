@@ -14,7 +14,7 @@ def main():
     sDate = dt.date(2020,9,14)
     eDate = dt.date(2020,9,14)
     for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/home/konajain/data/")
+        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/home/konajain/data/")
         #data = l.load12DTimestamps()
         df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
         #df = df.loc[df.Time < 100]
