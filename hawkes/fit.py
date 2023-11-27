@@ -6,6 +6,7 @@ import statsmodels.api as sm
 import pickle
 import gc
 from sklearn.linear_model import LinearRegression
+import time
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -179,40 +180,73 @@ class ConditionalLeastSquaresLogLin():
         del arrs
         gc.collect()
         res = []
-        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
-            while True:
-                try:
-                    res.append(pickle.load(f))
-                except EOFError:
-                    break
-        restartIdx = np.sum([len(r) for r in res])//2
+        # try:
+        #     with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+        #         while True:
+        #             try:
+        #                 res.append(pickle.load(f))
+        #             except EOFError:
+        #                 break
+        # except:
+        #     print("no previous data cache found")
+        restartIdx = int(np.sum([len(r) for r in res])//2)
         res = []
-        for i in range(restartIdx+1,len(df)-1):
-            print(i)
-            idx = df.index[i]
-            df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
-            lastIdx = df['binIndexNew'].max()
-            dfFiltered = df.loc[df['binIndexNew'] != lastIdx]
-            binDf = dfFiltered.loc[dfFiltered.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
+        # for i in range(restartIdx+1,len(df)-1):
+        #     print(i)
+        #     idx = df.index[i]
+        #     df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
+        #     lastIdx = len(timegrid_new)
+        #     dfFiltered = df.loc[df['binIndexNew'] != lastIdx]
+        #     binDf = dfFiltered.loc[dfFiltered.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
+        #
+        #     binDf['const'] = 1.
+        #     if len(binDf) < len(timegrid_new):
+        #         missing = np.setdiff1d(np.arange(1,len(timegrid_new)+1), binDf.index, assume_unique=True)
+        #         empty = pd.DataFrame(index=missing)
+        #         binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
+        #         binDf = binDf.sort_index()
+        #     lags = binDf.values
+        #     res.append([df[self.cols].loc[idx].values, lags])
 
-            binDf['const'] = 1.
-            if len(binDf) < len(timegrid_new):
-                missing = np.setdiff1d(np.arange(1,len(timegrid_new)+1), binDf.index, assume_unique=True)
-                empty = pd.DataFrame(index=missing)
-                binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
-                binDf = binDf.sort_index()
-            lags = binDf.values
-            res.append([df[self.cols].loc[idx].values, lags])
-            if i%50 == 0 :
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+        for i in range(restartIdx + 1, len(df) - 1):
+
+            idx = df.index[i]
+            bin_index_new = np.searchsorted(timegrid_new, df.index - idx, side="right")
+            last_idx = len(timegrid_new)
+
+            df['binIndexNew'] = bin_index_new
+            df_filtered = df[df['binIndexNew'] != last_idx]
+
+            unique_bins, bin_counts = np.unique(df_filtered['binIndexNew'], return_counts=True)
+
+            bin_df = np.zeros((len(timegrid_new) - 1, len(self.cols)))
+            df_filtered = df_filtered.loc[df_filtered.index[i+1]:];
+            for j, col in enumerate(self.cols):
+                bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(unique_bins))
+
+            #bin_df = np.hstack((bin_df, np.ones((len(unique_bins), 1))))  # Adding 'const' column
+
+            # if len(unique_bins) < len(timegrid_new):
+            #     missing = np.setdiff1d(np.arange(1, len(timegrid_new) + 1), unique_bins, assume_unique=True)
+            #     empty = np.zeros((len(missing), len(self.cols) + 1))
+            #     bin_df = np.vstack((empty, bin_df))
+            #     bin_df = bin_df[np.argsort(bin_df[:, 0])]
+
+            lags = bin_df
+            res.append([df.loc[idx, self.cols].values, lags])
+
+            if i%5000 == 0 :
+                print(i)
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
             elif i==len(df)-2:
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
+
         return res
 
     def runTransformDate(self):
@@ -248,7 +282,7 @@ class ConditionalLeastSquaresLogLin():
             res_d = sum(res_d, [])
             Ys = [res_d[i] for i in range(0,len(res_d),2)]
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
-            Xs = [np.append([1],r[:-1,:-1].flatten()) for r in Xs]
+            Xs = [np.append([1],r.flatten()) for r in Xs]
             print(len(Xs))
             # lr = LinearRegression().fit(Xs, Ys)
             # print(lr.score(Xs, Ys))
@@ -257,8 +291,8 @@ class ConditionalLeastSquaresLogLin():
             res = model.fit()
             #print(res.summary())
             params = res.params
-            paramsUncertainty = res.bse
-            thetas[i] = (params, paramsUncertainty)
+            #paramsUncertainty = res.bse
+            thetas[i] = params #, paramsUncertainty)
         return thetas
 
 
