@@ -180,15 +180,15 @@ class ConditionalLeastSquaresLogLin():
         del arrs
         gc.collect()
         res = []
-        # try:
-        #     with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
-        #         while True:
-        #             try:
-        #                 res.append(pickle.load(f))
-        #             except EOFError:
-        #                 break
-        # except:
-        #     print("no previous data cache found")
+        try:
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+                while True:
+                    try:
+                        res.append(pickle.load(f))
+                    except EOFError:
+                        break
+        except:
+            print("no previous data cache found")
         restartIdx = int(np.sum([len(r) for r in res])//2)
         res = []
         # for i in range(restartIdx+1,len(df)-1):
@@ -222,7 +222,7 @@ class ConditionalLeastSquaresLogLin():
             bin_df = np.zeros((len(timegrid_new) - 1, len(self.cols)))
             df_filtered = df_filtered.loc[df_filtered.index[i+1]:]
             for j, col in enumerate(self.cols):
-                bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(unique_bins))[1:]
+                bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(timegrid_new) - 1)[1:]
 
             #bin_df = np.hstack((bin_df, np.ones((len(unique_bins), 1))))  # Adding 'const' column
 
