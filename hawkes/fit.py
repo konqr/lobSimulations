@@ -189,7 +189,7 @@ class ConditionalLeastSquaresLogLin():
                         break
         except:
             print("no previous data cache found")
-        restartIdx = int(np.sum([len(r) for r in res])//2)
+        restartIdx = int(np.sum([len(r) for r in res]))
         res = []
         # for i in range(restartIdx+1,len(df)-1):
         #     print(i)
