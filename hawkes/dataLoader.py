@@ -190,7 +190,7 @@ class Loader():
                 arr += l
             df_res_l = pd.concat(df_res_l)
             df_res_l.to_csv(self.dataPath + self.ric + "_" + df.Date.iloc[0] +"_12D.csv")
-            res[df.Date.iloc[0]] = arr:q
+            res[df.Date.iloc[0]] = arr
 
         return res
 
