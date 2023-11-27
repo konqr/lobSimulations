@@ -154,6 +154,7 @@ class Loader():
 
     def load12DTimestamps(self):
         data = self.load()
+        if len(data) == 0: return []
         offset = 9.5*3600
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
         res = {}
