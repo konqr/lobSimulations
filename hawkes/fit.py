@@ -181,7 +181,7 @@ class ConditionalLeastSquaresLogLin():
         gc.collect()
         res = []
         try:
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_" + str(len(timegrid)) +  "_inputRes" , "rb") as f: #"/home/konajain/params/"
                 while True:
                     try:
                         res.append(len(pickle.load(f)))
