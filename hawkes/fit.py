@@ -357,7 +357,7 @@ class ConditionalLeastSquaresLogLin():
             thetas[i] = params #, paramsUncertainty)
         return thetas
 
-    def fitConditionalTimeOfDayInSpread(self):
+    def fitConditionalTimeOfDayInSpread(self, spreadBeta = 0.41):
 
         thetas = {}
         for i in self.dates:
@@ -372,13 +372,17 @@ class ConditionalLeastSquaresLogLin():
                     except EOFError:
                         break
             res_d = sum(res_d, [])
-            Ys = [res_d[i] for i in range(0,len(res_d),2)]
+
             Xs = np.array([res_d[i+1] for i in range(0,len(res_d),2)])
 
             df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i.strftime("%Y-%m-%d")+"_12D.csv")
 
-            spreadBid = (df.loc[df.event == "lo_inspread_Bid"].set_index("Time").BidDiff*100).astype(int)
-            spreadAsk = (df.loc[df.event == "lo_inspread_Ask"].set_index("Time").AskDiff*(-100)).astype(int)
+            spreadBid = df.loc[df.event == "lo_inspread_Bid"]
+            spreadBid['spread'] = spreadBid['Ask Price 1'] - spreadBid['Bid Price 1'] + spreadBid['BidDiff'] - spreadBid['AskDiff']
+            spreadBid = spreadBid[['Time', 'spread']]
+            spreadAsk = df.loc[df.event == "lo_inspread_Ask"]
+            spreadAsk['spread'] = spreadAsk['Ask Price 1'] - spreadAsk['Bid Price 1'] + spreadAsk['BidDiff'] - spreadAsk['AskDiff']
+            spreadAsk = spreadAsk[['Time', 'spread']]
 
             eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
             arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
@@ -401,10 +405,13 @@ class ConditionalLeastSquaresLogLin():
                 binDf = binDf.set_index("bin")
                 ser += [binDf]
 
-            for s in [spreadBid, spreadAsk]:
+            binSpread = {}
+            side = ["Bid", "Ask"]
+            for s, i in zip([spreadBid, spreadAsk], side):
                 s.Time = np.max(s.Time) - s.Time
-                s = s.reset_index()
-
+                s['binId'] =pd.cut(s['Time'], bins = bins, labels = False)
+                s = s.groupby('binId')['spread'].mean()
+                binSpread[i] = s.reset_index()
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
@@ -415,13 +422,26 @@ class ConditionalLeastSquaresLogLin():
             dummies = pd.get_dummies(timestamps).values
 
             Xs = np.array([r.flatten() for r in Xs])
-            Xs = np.hstack([dummies, Xs])
-            print(Xs.shape)
 
-            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
-            params = model.coef_
+            Xs_oth = np.hstack([dummies, Xs])
+            print(Xs_oth.shape)
+            Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
+            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
+            params1 = model.coef_
 
-            thetas[i] = params #, paramsUncertainty)
+            Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
+            dummiesBid = dummies / (binSpread['Bid'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            XsBid = np.hstack([dummiesBid, Xs])
+            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
+            params2 = model.coef_
+
+            Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
+            dummiesAsk = dummies / (binSpread['Ask'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            XsAsk = np.hstack([dummiesAsk, Xs])
+            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
+            params3 = model.coef_
+
+            thetas[i] = (params1, params2, params3) #, paramsUncertainty)
         return thetas
 
 
