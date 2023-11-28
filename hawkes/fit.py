@@ -289,7 +289,7 @@ class ConditionalLeastSquaresLogLin():
             # params = (lr.intercept_, lr.coef_)
             model = sm.OLS(Ys, Xs)
             #res = model.fit()
-            res = model.fit_regularized(max_iter = 1000)
+            res = model.fit_regularized(maxiter = 1000)
             #print(res.summary())
             params = res.params
             #paramsUncertainty = res.bse
