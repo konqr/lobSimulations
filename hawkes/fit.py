@@ -184,12 +184,12 @@ class ConditionalLeastSquaresLogLin():
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_inputRes" , "rb") as f: #"/home/konajain/params/"
                 while True:
                     try:
-                        res.append(pickle.load(f))
+                        res.append(len(pickle.load(f)))
                     except EOFError:
                         break
         except:
             print("no previous data cache found")
-        restartIdx = int(np.sum([len(r) for r in res]))
+        restartIdx = int(np.sum(res))
         res = []
         # for i in range(restartIdx+1,len(df)-1):
         #     print(i)
