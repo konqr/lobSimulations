@@ -300,7 +300,7 @@ class ConditionalLeastSquaresLogLin():
         return thetas
 
     def fitConditionalTimeOfDay(self):
-
+        print("fitConditionalTimeOfDay")
         thetas = {}
         for i in self.dates:
             res_d = []
@@ -316,8 +316,8 @@ class ConditionalLeastSquaresLogLin():
             res_d = sum(res_d, [])
             Ys = [res_d[i] for i in range(0,len(res_d),2)]
             Xs = np.array([res_d[i+1] for i in range(0,len(res_d),2)])
-
-            df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i.strftime("%Y-%m-%d")+"_12D.csv")
+            print(len(Xs))
+            df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i +"_12D.csv")
             eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
             arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
             num_datapoints = 10
