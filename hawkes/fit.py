@@ -299,4 +299,63 @@ class ConditionalLeastSquaresLogLin():
             thetas[i] = params #, paramsUncertainty)
         return thetas
 
+    def fitConditionalTimeOfDay(self):
+
+        thetas = {}
+        for i in self.dates:
+            res_d = []
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_inputRes" , "rb") as f: #"/home/konajain/params/"
+                while True:
+                    try:
+                        r_d = pickle.load(f)
+                        if len(r_d[0]) == 2:
+                            r_d = sum(r_d, [])
+                        res_d.append(r_d)
+                    except EOFError:
+                        break
+            res_d = sum(res_d, [])
+            Ys = [res_d[i] for i in range(0,len(res_d),2)]
+            Xs = np.array([res_d[i+1] for i in range(0,len(res_d),2)])
+
+            df = pd.read_csv("/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/AAPL.OQ_"+d.strftime("%Y-%m-%d")+"_12D.csv")
+            eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+            arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
+            num_datapoints = 10
+            min_lag =  1e-3
+            max_lag = 500
+            timegridLin = np.linspace(0,min_lag, num_datapoints)
+            timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
+            timegrid = np.append(timegridLin[:-1], timegridLog)
+            ser = []
+            bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
+            cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                    "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+            for arr, col in zip(arrs, cols):
+                print(col)
+                arr = np.max(arr) - arr
+                assignedBins = np.searchsorted(bins, arr, side="right")
+                binDf = np.unique(assignedBins, return_counts = True)
+                binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]})
+                binDf = binDf.set_index("bin")
+                ser += [binDf]
+
+            print("done with binning")
+            df = pd.concat(ser, axis = 1)
+            df = df.fillna(0)
+            df = df.sort_index(ascending=False)
+            df = df.iloc[len(df) - Xs.shape[0]:]
+            timestamps = np.floor(df.index.values * (timegridLin[1] - timegridLin[0]) / 1800)
+            dummies = pd.get_dummies(timestamps).values
+
+            Xs = np.array([r.flatten() for r in Xs])
+            Xs = np.hstack([dummies, Xs])
+            print(Xs.shape)
+
+            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
+            params = model.coef_
+
+            thetas[i] = params #, paramsUncertainty)
+        return thetas
+
+
 
