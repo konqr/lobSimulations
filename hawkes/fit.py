@@ -5,7 +5,7 @@ import statsmodels.api as sm
 #from tick.hawkes import HawkesConditionalLaw
 import pickle
 import gc
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, ElasticNet
 import time
 
 class ConditionalLeastSquares():
@@ -287,12 +287,15 @@ class ConditionalLeastSquaresLogLin():
             # lr = LinearRegression().fit(Xs, Ys)
             # print(lr.score(Xs, Ys))
             # params = (lr.intercept_, lr.coef_)
-            model = sm.OLS(Ys, Xs)
-            #res = model.fit()
-            res = model.fit_regularized(maxiter = 1000)
-            #print(res.summary())
-            params = res.params
-            #paramsUncertainty = res.bse
+
+            # model = sm.OLS(Ys, Xs)
+            # res = model.fit()
+            # #res = model.fit_regularized(maxiter = 1000) # doesntwork for multidim
+            # params = res.params
+
+            model = ElasticNet(alpha = 1e-6).fit(Xs, Ys)
+            params = (model.intercept_, model.coef_)
+
             thetas[i] = params #, paramsUncertainty)
         return thetas
 
