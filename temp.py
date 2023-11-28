@@ -11,25 +11,25 @@ import numpy as np
 import os
 
 def main():
-    ric = "AAPL.OQ"
-    sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,2)
-    for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/home/konajain/data/")
-        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv"):
-            df = pd.read_csv(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv")
-            eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
-            data = { d.strftime("%Y-%m-%d") : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
-        else:
-            data = l.load12DTimestamps()
-        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-        #df = df.loc[df.Time < 100]
-
-        cls = fit.ConditionalLeastSquaresLogLin(data, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
-        cls.runTransformDate()
-        # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
-        #     pickle.dump(thetas, f)
-    return 0
+    # ric = "AAPL.OQ"
+    # sDate = dt.date(2019,1,2)
+    # eDate = dt.date(2019,1,2)
+    # for d in pd.date_range(sDate, eDate):
+    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/home/konajain/data/")
+    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv"):
+    #         df = pd.read_csv(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv")
+    #         eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+    #         data = { d.strftime("%Y-%m-%d") : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
+    #     else:
+    #         data = l.load12DTimestamps()
+    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+    #     #df = df.loc[df.Time < 100]
+    #
+    #     cls = fit.ConditionalLeastSquaresLogLin(data, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
+    #     cls.runTransformDate()
+    #     # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
+    #     #     pickle.dump(thetas, f)
+    # return 0
     # ric = "AAPL.OQ"
     # d = dt.date(2020,9,14)
     # l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/home/konajain/data/")
@@ -56,5 +56,24 @@ def main():
     # cls = inference.ParametricFit([(timegrid[2:-1], np.abs(res[4,:].reshape((18,12))[:,4][1:-1])/timegrid[2:-1]), (timegrid[2:-1], np.abs(res[7,:].reshape((18,12))[:,7][1:-1])/timegrid[2:-1])])
     # cls.fitBoth()
     # return 0
+
+    ric = "AAPL.OQ"
+    sDate = dt.date(2019,1,2)
+    eDate = dt.date(2019,1,4)
+    dictIp = {}
+    for d in pd.date_range(sDate, eDate):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_inputRes"):
+            dictIp.update({ d.strftime("%Y-%m-%d") : []})
+        else:
+            continue
+        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+        #df = df.loc[df.Time < 100]
+
+    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
+    thetas = cls.fit()
+    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
+        pickle.dump(thetas, f)
+    return 0
 
 main()

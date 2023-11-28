@@ -237,12 +237,12 @@ class ConditionalLeastSquaresLogLin():
 
             if i%5000 == 0 :
                 print(i)
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
             elif i==len(df)-2:
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
