@@ -375,7 +375,7 @@ class ConditionalLeastSquaresLogLin():
 
             Xs = np.array([res_d[i+1] for i in range(0,len(res_d),2)])
 
-            df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i.strftime("%Y-%m-%d")+"_12D.csv")
+            df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i+"_12D.csv")
 
             spreadBid = df.loc[df.event == "lo_inspread_Bid"]
             spreadBid['spread'] = spreadBid['Ask Price 1'] - spreadBid['Bid Price 1'] + spreadBid['BidDiff'] - spreadBid['AskDiff']
