@@ -410,6 +410,7 @@ class ConditionalLeastSquaresLogLin():
             df['binId'] =pd.cut(df['Time'], bins = bins, labels = False)
             df = df.groupby('binId')['spread'].mean()
             binSpread = df
+            print(binSpread.iloc[:100].index)
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
