@@ -61,6 +61,10 @@ class Loader():
         self.dataPath = kwargs.get("dataPath", "D:\\Work\\PhD\\Data\\")
 
     def load(self):
+        """
+
+        :return:
+        """
         data = []
         ric = self.ric.split(".")[0]
         for d in pd.date_range(self.sDate, self.eDate): # TODO: business days try catch
@@ -109,6 +113,12 @@ class Loader():
         return data
 
     def loadBinned(self, binLength = 1, filterTop=False):
+        """
+
+        :param binLength:
+        :param filterTop:
+        :return:
+        """
         # TODO : binLength = 0.01 gives me memory error already -
         #   - will pyKX help?
         #   - store binned data to disk and use later?
@@ -135,6 +145,12 @@ class Loader():
         return binnedData
 
     def loadRollingWindows(self, binLength = 1, filterTop = False):
+        """
+
+        :param binLength:
+        :param filterTop:
+        :return:
+        """
         data = self.load()
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
         binnedData = {}
@@ -153,6 +169,10 @@ class Loader():
         return binnedData
 
     def load12DTimestamps(self):
+        """
+
+        :return:
+        """
         data = self.load()
         if len(data) == 0: return []
         offset = 9.5*3600

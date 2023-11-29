@@ -4,7 +4,7 @@ import statsmodels.api as sm
 import pickle
 import gc
 import datetime as dt
-import dataLoader
+from hawkes import dataLoader
 
 class ParametricFit():
 
@@ -117,5 +117,8 @@ def run():
         else:
             pars, resTemp = ParametricFit(v).fitPowerLaw()
             params[k] = pars
+
+    with open(l.dataPath + ric + "_ParamsInferred_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+        pickle.dump(params, f)
     return params, res
 
