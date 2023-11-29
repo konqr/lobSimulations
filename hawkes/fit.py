@@ -383,12 +383,7 @@ class ConditionalLeastSquaresLogLin():
 
             df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i+"_12D.csv")
 
-            spreadBid = df.loc[df.event == "lo_inspread_Bid"]
-            spreadBid['spread'] = spreadBid['Ask Price 1'] - spreadBid['Bid Price 1'] + spreadBid['BidDiff'] - spreadBid['AskDiff']
-            spreadBid = spreadBid[['Time', 'spread']]
-            spreadAsk = df.loc[df.event == "lo_inspread_Ask"]
-            spreadAsk['spread'] = spreadAsk['Ask Price 1'] - spreadAsk['Bid Price 1'] + spreadAsk['BidDiff'] - spreadAsk['AskDiff']
-            spreadAsk = spreadAsk[['Time', 'spread']]
+            df['spread'] = df['Ask Price 1'] - df['Bid Price 1'] + df['BidDiff'] - df['AskDiff']
 
             eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
             arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
@@ -411,13 +406,10 @@ class ConditionalLeastSquaresLogLin():
                 binDf = binDf.set_index("bin")
                 ser += [binDf]
 
-            binSpread = {}
-            side = ["Bid", "Ask"]
-            for s, i in zip([spreadBid, spreadAsk], side):
-                s.Time = np.max(s.Time) - s.Time
-                s['binId'] =pd.cut(s['Time'], bins = bins, labels = False)
-                s = s.groupby('binId')['spread'].mean()
-                binSpread[i] = s
+            df.Time = np.max(df.Time) - df.Time
+            df['binId'] =pd.cut(df['Time'], bins = bins, labels = False)
+            df = df.groupby('binId')['spread'].mean()
+            binSpread = df
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
@@ -439,7 +431,7 @@ class ConditionalLeastSquaresLogLin():
             # params1 = [model.coef_ for model in models]
             params1 = []
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
-            dummiesBid = dummies / (binSpread['Bid'].loc[df.index]['spread'].values)**spreadBeta
+            dummiesBid = dummies / (binSpread.loc[df.index]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
