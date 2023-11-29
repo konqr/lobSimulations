@@ -437,7 +437,7 @@ class ConditionalLeastSquaresLogLin():
             # Ys_oth = np.array(Ys_oth)
             # models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
             # params1 = [model.coef_ for model in models]
-
+            params1 = []
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
             dummiesBid = dummies / (binSpread['Bid'].loc[df.index]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
