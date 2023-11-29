@@ -429,17 +429,17 @@ class ConditionalLeastSquaresLogLin():
 
             Xs = np.array([r.flatten() for r in Xs])
 
-            Xs_oth = np.hstack([dummies, Xs])
-            print(Xs_oth.shape)
-            Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
-            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
-            # params1 = model.coef_
-            Ys_oth = np.array(Ys_oth)
-            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
-            params1 = [model.coef_ for model in models]
+            # Xs_oth = np.hstack([dummies, Xs])
+            # print(Xs_oth.shape)
+            # Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
+            # # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
+            # # params1 = model.coef_
+            # Ys_oth = np.array(Ys_oth)
+            # models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
+            # params1 = [model.coef_ for model in models]
 
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
-            dummiesBid = dummies / (binSpread['Bid'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            dummiesBid = dummies / (binSpread['Bid'].loc[df.index]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
@@ -447,7 +447,7 @@ class ConditionalLeastSquaresLogLin():
             params2 = model.coef_
 
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
-            dummiesAsk = dummies / (binSpread['Ask'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            dummiesAsk = dummies / (binSpread['Ask'].loc[df.index]['spread'].values)**spreadBeta
             XsAsk = np.hstack([dummiesAsk, Xs])
             model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
             params3 = model.coef_
