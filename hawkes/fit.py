@@ -5,7 +5,7 @@ import statsmodels.api as sm
 #from tick.hawkes import HawkesConditionalLaw
 import pickle
 import gc
-from sklearn.linear_model import LinearRegression, ElasticNet
+from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor
 import time
 
 class ConditionalLeastSquares():
@@ -293,8 +293,11 @@ class ConditionalLeastSquaresLogLin():
             # #res = model.fit_regularized(maxiter = 1000) # doesntwork for multidim
             # params = res.params
 
-            model = ElasticNet(alpha = 1e-6, max_iter=5000).fit(Xs, Ys)
-            params = (model.intercept_, model.coef_)
+            # model = ElasticNet(alpha = 1e-6, max_iter=5000).fit(Xs, Ys)
+            # params = (model.intercept_, model.coef_)
+
+            models = [SGDRegressor(penalty = None, max_iter=5000).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+            params = [(model.intercept_, model.coef_) for model in models]
 
             thetas[i] = params #, paramsUncertainty)
         return thetas
@@ -351,8 +354,11 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.hstack([dummies, Xs])
             print(Xs.shape)
 
-            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
-            params = model.coef_
+            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
+            # params = model.coef_
+
+            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+            params = [model.coef_ for model in models]
 
             thetas[i] = params #, paramsUncertainty)
         return thetas
@@ -426,19 +432,23 @@ class ConditionalLeastSquaresLogLin():
             Xs_oth = np.hstack([dummies, Xs])
             print(Xs_oth.shape)
             Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
-            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
-            params1 = model.coef_
+            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
+            # params1 = model.coef_
+            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
+            params1 = [model.coef_ for model in models]
 
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
             dummiesBid = dummies / (binSpread['Bid'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
-            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
+            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
+            # params2 = model.coef_
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             params2 = model.coef_
 
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
             dummiesAsk = dummies / (binSpread['Ask'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
             XsAsk = np.hstack([dummiesAsk, Xs])
-            model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
             params3 = model.coef_
 
             thetas[i] = (params1, params2, params3) #, paramsUncertainty)
