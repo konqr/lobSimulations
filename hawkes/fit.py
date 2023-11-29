@@ -417,7 +417,7 @@ class ConditionalLeastSquaresLogLin():
                 s.Time = np.max(s.Time) - s.Time
                 s['binId'] =pd.cut(s['Time'], bins = bins, labels = False)
                 s = s.groupby('binId')['spread'].mean()
-                binSpread[i] = s.reset_index()
+                binSpread[i] = s
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
@@ -429,25 +429,26 @@ class ConditionalLeastSquaresLogLin():
 
             Xs = np.array([r.flatten() for r in Xs])
 
-            Xs_oth = np.hstack([dummies, Xs])
-            print(Xs_oth.shape)
-            Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
-            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
-            # params1 = model.coef_
-            Ys_oth = np.array(Ys_oth)
-            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
-            params1 = [model.coef_ for model in models]
-
+            # Xs_oth = np.hstack([dummies, Xs])
+            # print(Xs_oth.shape)
+            # Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
+            # # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
+            # # params1 = model.coef_
+            # Ys_oth = np.array(Ys_oth)
+            # models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
+            # params1 = [model.coef_ for model in models]
+            params1 = []
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
-            dummiesBid = dummies / (binSpread['Bid'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            dummiesBid = dummies / (binSpread['Bid'].loc[df.index]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
+            print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
             model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             params2 = model.coef_
 
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
-            dummiesAsk = dummies / (binSpread['Ask'].iloc[len(df) - Xs.shape[0]:]['spread'].values)**spreadBeta
+            dummiesAsk = dummies / (binSpread['Ask'].loc[df.index]['spread'].values)**spreadBeta
             XsAsk = np.hstack([dummiesAsk, Xs])
             model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
             params3 = model.coef_
