@@ -417,7 +417,7 @@ class ConditionalLeastSquaresLogLin():
                 s.Time = np.max(s.Time) - s.Time
                 s['binId'] =pd.cut(s['Time'], bins = bins, labels = False)
                 s = s.groupby('binId')['spread'].mean()
-                binSpread[i] = s.reset_index()
+                binSpread[i] = s
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
@@ -441,6 +441,7 @@ class ConditionalLeastSquaresLogLin():
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
             dummiesBid = dummies / (binSpread['Bid'].loc[df.index]['spread'].values)**spreadBeta
             XsBid = np.hstack([dummiesBid, Xs])
+            print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
             model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
