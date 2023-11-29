@@ -280,7 +280,7 @@ class ConditionalLeastSquaresLogLin():
                     except EOFError:
                         break
             res_d = sum(res_d, [])
-            Ys = [res_d[i] for i in range(0,len(res_d),2)]
+            Ys = np.array([res_d[i] for i in range(0,len(res_d),2)])
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
             Xs = [np.append([1],r.flatten()) for r in Xs]
             print(len(Xs))
@@ -356,7 +356,7 @@ class ConditionalLeastSquaresLogLin():
 
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
             # params = model.coef_
-
+            Ys = np.array(Ys)
             models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
             params = [model.coef_ for model in models]
 
@@ -434,6 +434,7 @@ class ConditionalLeastSquaresLogLin():
             Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
             # params1 = model.coef_
+            Ys_oth = np.array(Ys_oth)
             models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
             params1 = [model.coef_ for model in models]
 
