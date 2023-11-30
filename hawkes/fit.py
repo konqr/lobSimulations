@@ -296,7 +296,7 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, max_iter=5000).fit(Xs, Ys)
             # params = (model.intercept_, model.coef_)
 
-            models = [SGDRegressor(penalty = None, max_iter=5000).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+            models = [SGDRegressor(penalty = None, max_iter=5000, verbose=2).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
             params = [(model.intercept_, model.coef_) for model in models]
 
             thetas[i] = params #, paramsUncertainty)
@@ -357,7 +357,7 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
             # params = model.coef_
             Ys = np.array(Ys)
-            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000, verbose=2).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
             params = [model.coef_ for model in models]
 
             thetas[i] = params #, paramsUncertainty)
@@ -437,11 +437,11 @@ class ConditionalLeastSquaresLogLin():
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
-            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsIS, Ys_inspreadBid)
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000, verbose=2).fit(XsIS, Ys_inspreadBid)
             params2 = model.coef_
 
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
-            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsIS, Ys_inspreadAsk)
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000, verbose=2).fit(XsIS, Ys_inspreadAsk)
             params3 = model.coef_
 
             Xs_oth = np.hstack([dummies, Xs])
@@ -450,7 +450,7 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
             # params1 = model.coef_
             Ys_oth = np.array(Ys_oth)
-            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
+            models = [SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000, verbose=2).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
             params1 = [model.coef_ for model in models]
 
             thetas[i] = (params1, params2, params3) #, paramsUncertainty)
