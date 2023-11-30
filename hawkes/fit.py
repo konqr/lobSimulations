@@ -407,7 +407,7 @@ class ConditionalLeastSquaresLogLin():
                 avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
                 avgSp = avgSp[avgSp > 0]
                 #print(avgSp.shape)
-                avgSp[avgSp < 1e-5] = 0
+                #avgSp[avgSp < 1e-5] = 0
                 avgSp = avgSp / binDf[1]
 
                 binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1], "spread" : avgSp})
