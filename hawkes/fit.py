@@ -405,9 +405,10 @@ class ConditionalLeastSquaresLogLin():
                 binDf = np.unique(assignedBins, return_counts = True)
                 avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
                 avgSp = avgSp[avgSp > 0]
-                print(avgSp.shape)
+                #print(avgSp.shape)
                 avgSp = avgSp / binDf[1]
                 binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1], "spread" : avgSp})
+                print(binDf.head())
                 binDf = binDf.set_index("bin")
                 ser += [binDf]
 
@@ -431,7 +432,7 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.array([r.flatten() for r in Xs])
 
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
-            dummiesIS = dummies / (df['spread'].values.sum(axis = 1))**spreadBeta
+            dummiesIS = dummies / (df['spread'].values.sum(axis = 1)[:,np.newaxis])**spreadBeta
             XsIS = np.hstack([dummiesIS, Xs])
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
