@@ -409,7 +409,7 @@ class ConditionalLeastSquaresLogLin():
                 avgSp = avgSp[avgSp > 0]
                 print(avgSp.shape)
                 if avgSp.shape[0] != binDf[1].shape[0]:
-                    avgSp = np.append(avgSp, np.zeros((binDf[1].shape[0] -avgSp.shape[0], )))
+                    avgSp = np.append(avgSp, 1e-6+np.zeros((binDf[1].shape[0] -avgSp.shape[0], )))
                 print(avgSp.shape)
                 avgSp = avgSp / binDf[1]
 
