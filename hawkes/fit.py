@@ -405,8 +405,9 @@ class ConditionalLeastSquaresLogLin():
                 assignedBins = np.searchsorted(bins, arr, side="right")
                 binDf = np.unique(assignedBins, return_counts = True)
                 avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
+                print(avgSp.shape)
                 avgSp = avgSp[avgSp > 0]
-                #print(avgSp.shape)
+                print(avgSp.shape)
                 #avgSp[avgSp < 1e-5] = 0
                 avgSp = avgSp / binDf[1]
 
