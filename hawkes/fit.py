@@ -387,6 +387,7 @@ class ConditionalLeastSquaresLogLin():
 
             eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
             arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
+            spreads = list(df.groupby('event')['spread'].apply(np.array)[eventOrder].values)
             num_datapoints = 10
             min_lag =  1e-3
             max_lag = 500
@@ -397,22 +398,24 @@ class ConditionalLeastSquaresLogLin():
             bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
             cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                     "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-            for arr, col in zip(arrs, cols):
+            for arr, sp, col in zip(arrs, spreads, cols):
                 print(col)
                 arr = np.max(arr) - arr
                 assignedBins = np.searchsorted(bins, arr, side="right")
                 binDf = np.unique(assignedBins, return_counts = True)
-                binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]})
+                avgSp = np.bincount(assignedBins, weights=sp, minlength=len(bins)) / binDf[1]
+                binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]}, "spread" : avgSp)
                 binDf = binDf.set_index("bin")
                 ser += [binDf]
 
-            df.Time = np.max(df.Time) - df.Time
-            df['binId'] =pd.cut(df['Time'], bins = bins, labels = False, include_lowest=True)
-            print(df.loc[df.binId.isna()])
-            df['binId'] = df['binId'].astype(int)
-            df = df.groupby('binId')['spread'].mean()
-            binSpread = df
-            print(binSpread.iloc[:100].index)
+
+            # df.Time = np.max(df.Time) - df.Time
+            # df['binId'] =pd.cut(df['Time'], bins = bins, labels = False, include_lowest=True)
+            # print(df.loc[df.binId.isna()])
+            # df['binId'] = df['binId'].astype(int)
+            # df = df.groupby('binId')['spread'].mean()
+            # binSpread = df
+            # print(binSpread.iloc[:100].index)
 
             print("done with binning")
             df = pd.concat(ser, axis = 1)
@@ -425,18 +428,16 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.array([r.flatten() for r in Xs])
 
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
-            dummiesBid = dummies / (binSpread.loc[df.index]['spread'].values)**spreadBeta
-            XsBid = np.hstack([dummiesBid, Xs])
+            dummiesIS = dummies / (df['spread'].values)**spreadBeta
+            XsIS = np.hstack([dummiesIS, Xs])
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
-            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsIS, Ys_inspreadBid)
             params2 = model.coef_
 
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
-            dummiesAsk = dummies / (binSpread['Ask'].loc[df.index]['spread'].values)**spreadBeta
-            XsAsk = np.hstack([dummiesAsk, Xs])
-            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsAsk, Ys_inspreadAsk)
+            model = SGDRegressor(penalty = None, fit_intercept=False, max_iter=5000).fit(XsIS, Ys_inspreadAsk)
             params3 = model.coef_
 
             Xs_oth = np.hstack([dummies, Xs])
