@@ -408,6 +408,7 @@ class ConditionalLeastSquaresLogLin():
 
             df.Time = np.max(df.Time) - df.Time
             df['binId'] =pd.cut(df['Time'], bins = bins, labels = False)
+            df['binId'] = df['binId'].astype(int)
             df = df.groupby('binId')['spread'].mean()
             binSpread = df
             print(binSpread.iloc[:100].index)
