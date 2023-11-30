@@ -58,11 +58,11 @@ def main():
     # return 0
 
     ric = "AAPL.OQ"
-    sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,4)
+    sDate = dt.date(2020,9,14)
+    eDate = dt.date(2020,9,14)
     dictIp = {}
     for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
         if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_inputRes"):
             dictIp.update({ d.strftime("%Y-%m-%d") : []})
         else:
@@ -71,7 +71,7 @@ def main():
         #df = df.loc[df.Time < 100]
 
     cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
-    thetas = cls.fit()
+    thetas = cls.fitConditionalTimeOfDayInSpread()
     with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
         pickle.dump(thetas, f)
     return 0
