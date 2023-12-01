@@ -76,7 +76,9 @@ def main():
     #     pickle.dump(thetas, f)
     # return 0
 
-    inference.run(dt.date(2019,1,2),dt.date(2019,1,3), suffix = "_tod_ridge") #suffix = "_sgd"
+    inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_ridge") #suffix = "_sgd"
+    inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_tod_ridge")
+    inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_todIS_ridge")
 
 main()
 

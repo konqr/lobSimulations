@@ -20,7 +20,7 @@ def simulate(T , paramsPath , Pis , Pi_Q0):
     for i in range(12):
         for j in range(12):
             kernelParams = params[cols[i] + "->" + cols[j]]
-            kernel = HawkesKernelPowerLaw(np.exp(kernelParams[0]), 1e-5, -1*kernelParams[1])
+            kernel = HawkesKernelPowerLaw(kernelParams[0]*np.exp(kernelParams[1][0]), 1e-5, -1*kernelParams[1][1])
             hawkes.set_kernel(i,j, kernel)
         hawkes.set_baseline(i, params[cols[i]])
     dt = 1e-4
