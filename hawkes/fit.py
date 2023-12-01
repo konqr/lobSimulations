@@ -453,6 +453,8 @@ class ConditionalLeastSquaresLogLin():
             Xs_oth = np.hstack([dummies, Xs])
             print(Xs_oth.shape)
             Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
+            Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
+            Ys_oth = np.array(Ys_oth)
             if self.cfg.get("solver", "sgd") == "pinv":
                 lr = LinearRegression().fit(XsIS, Ys_inspreadBid)
                 print(lr.score(XsIS, Ys_inspreadBid))
@@ -469,11 +471,11 @@ class ConditionalLeastSquaresLogLin():
                 model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadBid)
                 params2 = model.coef_
 
-                Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
+
                 model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadAsk)
                 params3 = model.coef_
 
-                Ys_oth = np.array(Ys_oth)
+
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
                 params1 = [model.coef_ for model in models]
 
