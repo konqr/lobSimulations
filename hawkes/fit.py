@@ -282,7 +282,7 @@ class ConditionalLeastSquaresLogLin():
             res_d = sum(res_d, [])
             Ys = np.array([res_d[i] for i in range(0,len(res_d),2)])
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
-            Xs = [np.append([1],r.flatten()) for r in Xs]
+            Xs = [r.flatten() for r in Xs]
             print(len(Xs))
 
             # model = sm.OLS(Ys, Xs)
@@ -294,11 +294,11 @@ class ConditionalLeastSquaresLogLin():
             # params = (model.intercept_, model.coef_)
 
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression(positive=True, fit_intercept=False).fit(Xs, Ys)
+                lr = LinearRegression(positive=True).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
+                lr = Ridge( solver="svd", alpha = 1e-6).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
 
