@@ -284,9 +284,6 @@ class ConditionalLeastSquaresLogLin():
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
             Xs = [np.append([1],r.flatten()) for r in Xs]
             print(len(Xs))
-            # lr = LinearRegression().fit(Xs, Ys)
-            # print(lr.score(Xs, Ys))
-            # params = (lr.intercept_, lr.coef_)
 
             # model = sm.OLS(Ys, Xs)
             # res = model.fit()
@@ -296,8 +293,13 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, max_iter=5000).fit(Xs, Ys)
             # params = (model.intercept_, model.coef_)
 
-            models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
-            params = [(model.intercept_, model.coef_) for model in models]
+            if self.cfg.get("solver", "sgd") == "pinv":
+                lr = LinearRegression().fit(Xs, Ys)
+                print(lr.score(Xs, Ys))
+                params = (lr.intercept_, lr.coef_)
+            else:
+                models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+                params = [(model.intercept_, model.coef_) for model in models]
 
             thetas[i] = params #, paramsUncertainty)
         return thetas
@@ -353,12 +355,17 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.array([r.flatten() for r in Xs])
             Xs = np.hstack([dummies, Xs])
             print(Xs.shape)
-
+            Ys = np.array(Ys)
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
             # params = model.coef_
-            Ys = np.array(Ys)
-            models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
-            params = [model.coef_ for model in models]
+            if self.cfg.get("solver", "sgd") == "pinv":
+                lr = LinearRegression().fit(Xs, Ys)
+                print(lr.score(Xs, Ys))
+                params = (lr.intercept_, lr.coef_)
+            else:
+
+                models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+                params = [model.coef_ for model in models]
 
             thetas[i] = params #, paramsUncertainty)
         return thetas
@@ -443,21 +450,32 @@ class ConditionalLeastSquaresLogLin():
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
-            model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadBid)
-            params2 = model.coef_
-
-            Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
-            model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadAsk)
-            params3 = model.coef_
-
             Xs_oth = np.hstack([dummies, Xs])
             print(Xs_oth.shape)
             Ys_oth = [np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)]
-            # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs_oth, Ys_oth)
-            # params1 = model.coef_
-            Ys_oth = np.array(Ys_oth)
-            models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
-            params1 = [model.coef_ for model in models]
+            if self.cfg.get("solver", "sgd") == "pinv":
+                lr = LinearRegression().fit(XsIS, Ys_inspreadBid)
+                print(lr.score(XsIS, Ys_inspreadBid))
+                params2 = (lr.intercept_, lr.coef_)
+
+                lr = LinearRegression().fit(XsIS, Ys_inspreadAsk)
+                print(lr.score(XsIS, Ys_inspreadAsk))
+                params3 = (lr.intercept_, lr.coef_)
+
+                lr = LinearRegression().fit(Xs_oth, Ys_oth)
+                print(lr.score(Xs_oth, Ys_oth))
+                params1 = (lr.intercept_, lr.coef_)
+            else:
+                model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadBid)
+                params2 = model.coef_
+
+                Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
+                model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadAsk)
+                params3 = model.coef_
+
+                Ys_oth = np.array(Ys_oth)
+                models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs_oth, Ys_oth[:,i]) for i in range(Ys_oth.shape[1])]
+                params1 = [model.coef_ for model in models]
 
             thetas[i] = (params1, params2, params3) #, paramsUncertainty)
         return thetas
