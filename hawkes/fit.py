@@ -282,7 +282,7 @@ class ConditionalLeastSquaresLogLin():
             res_d = sum(res_d, [])
             Ys = np.array([res_d[i] for i in range(0,len(res_d),2)])
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
-            Xs = [np.append([1],r.flatten()) for r in Xs]
+            Xs = [r.flatten() for r in Xs]
             print(len(Xs))
 
             # model = sm.OLS(Ys, Xs)
