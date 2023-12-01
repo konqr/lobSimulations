@@ -76,7 +76,7 @@ def main():
     #     pickle.dump(thetas, f)
     # return 0
 
-    inference.run(suffix = "") #suffix = "_sgd"
+    inference.run(dt.date(2019,1,2),dt.date(2019,1,2), suffix = "_pinv") #suffix = "_sgd"
 
 main()
 

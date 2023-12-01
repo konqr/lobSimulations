@@ -294,7 +294,7 @@ class ConditionalLeastSquaresLogLin():
             # params = (model.intercept_, model.coef_)
 
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression().fit(Xs, Ys)
+                lr = LinearRegression(positive=True).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             else:
@@ -359,7 +359,7 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
             # params = model.coef_
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression().fit(Xs, Ys)
+                lr = LinearRegression(positive=True).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             else:
@@ -456,15 +456,15 @@ class ConditionalLeastSquaresLogLin():
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
             Ys_oth = np.array(Ys_oth)
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression().fit(XsIS, Ys_inspreadBid)
+                lr = LinearRegression(positive=True).fit(XsIS, Ys_inspreadBid)
                 print(lr.score(XsIS, Ys_inspreadBid))
                 params2 = (lr.intercept_, lr.coef_)
 
-                lr = LinearRegression().fit(XsIS, Ys_inspreadAsk)
+                lr = LinearRegression(positive=True).fit(XsIS, Ys_inspreadAsk)
                 print(lr.score(XsIS, Ys_inspreadAsk))
                 params3 = (lr.intercept_, lr.coef_)
 
-                lr = LinearRegression().fit(Xs_oth, Ys_oth)
+                lr = LinearRegression(positive=True).fit(Xs_oth, Ys_oth)
                 print(lr.score(Xs_oth, Ys_oth))
                 params1 = (lr.intercept_, lr.coef_)
             else:
