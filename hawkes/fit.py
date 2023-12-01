@@ -296,7 +296,7 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, max_iter=5000).fit(Xs, Ys)
             # params = (model.intercept_, model.coef_)
 
-            models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
+            models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
             params = [(model.intercept_, model.coef_) for model in models]
 
             thetas[i] = params #, paramsUncertainty)
