@@ -44,8 +44,8 @@ def run(suffix  = "_todIS_sgd"):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     ric = "AAPL.OQ"
-    sDate = dt.date(2019,2,4)
-    eDate = dt.date(2019,2,5)
+    sDate = dt.date(2019,1,10)
+    eDate = dt.date(2019,1,10)
 
     l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "D:\\Work\\PhD\\Expt 1\\params\\")
     thetas = {}

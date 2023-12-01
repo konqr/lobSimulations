@@ -76,7 +76,7 @@ def main():
     #     pickle.dump(thetas, f)
     # return 0
 
-    inference.run() #suffix = "_sgd"
+    inference.run(suffix = "") #suffix = "_sgd"
 
 main()
 
