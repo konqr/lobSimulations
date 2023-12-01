@@ -5,7 +5,7 @@ import statsmodels.api as sm
 #from tick.hawkes import HawkesConditionalLaw
 import pickle
 import gc
-from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor
+from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
 import time
 
 class ConditionalLeastSquares():
@@ -297,6 +297,11 @@ class ConditionalLeastSquaresLogLin():
                 lr = LinearRegression(positive=True).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
+            elif self.cfg.get("solver", "sgd") == "ridge":
+                lr = Ridge(positive=True, solver="svd", alpha = 1e-6).fit(Xs, Ys)
+                print(lr.score(Xs, Ys))
+                params = (lr.intercept_, lr.coef_)
+
             else:
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
                 params = [(model.intercept_, model.coef_) for model in models]
@@ -359,9 +364,13 @@ class ConditionalLeastSquaresLogLin():
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(Xs, Ys)
             # params = model.coef_
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression(positive=True).fit(Xs, Ys)
+                lr = LinearRegression(positive=True, fit_intercept=False).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
-                params = (lr.intercept_, lr.coef_)
+                params = lr.coef_
+            elif self.cfg.get("solver", "sgd") == "ridge":
+                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
+                print(lr.score(Xs, Ys))
+                params =  lr.coef_
             else:
 
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
@@ -456,17 +465,30 @@ class ConditionalLeastSquaresLogLin():
             Ys_inspreadAsk = [res_d[i][6] for i in range(0,len(res_d),2)]
             Ys_oth = np.array(Ys_oth)
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression(positive=True).fit(XsIS, Ys_inspreadBid)
+                lr = LinearRegression(positive=True, fit_intercept=False).fit(XsIS, Ys_inspreadBid)
                 print(lr.score(XsIS, Ys_inspreadBid))
                 params2 = (lr.intercept_, lr.coef_)
 
-                lr = LinearRegression(positive=True).fit(XsIS, Ys_inspreadAsk)
+                lr = LinearRegression(positive=True, fit_intercept=False).fit(XsIS, Ys_inspreadAsk)
                 print(lr.score(XsIS, Ys_inspreadAsk))
                 params3 = (lr.intercept_, lr.coef_)
 
-                lr = LinearRegression(positive=True).fit(Xs_oth, Ys_oth)
+                lr = LinearRegression(positive=True, fit_intercept=False).fit(Xs_oth, Ys_oth)
                 print(lr.score(Xs_oth, Ys_oth))
                 params1 = (lr.intercept_, lr.coef_)
+
+            elif self.cfg.get("solver", "sgd") == "ridge":
+                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadBid)
+                print(lr.score(XsIS, Ys_inspreadBid))
+                params2 =  lr.coef_
+
+                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadAsk)
+                print(lr.score(XsIS, Ys_inspreadAsk))
+                params3 =  lr.coef_
+
+                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs_oth, Ys_oth)
+                print(lr.score(Xs_oth, Ys_oth))
+                params1 =  lr.coef_
             else:
                 model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadBid)
                 params2 = model.coef_
