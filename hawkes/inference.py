@@ -40,28 +40,30 @@ class ParametricFit():
             thetas = thetasPowerLaw
         return thetas
 
-def run():
+def run(suffix  = "_todIS_sgd"):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     ric = "AAPL.OQ"
-    sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,4)
+    sDate = dt.date(2019,2,4)
+    eDate = dt.date(2019,2,5)
 
-    l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
-    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "rb") as f: #"/home/konajain/params/"
-        thetas = pickle.load(f)
+    l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "D:\\Work\\PhD\\Expt 1\\params\\")
+    thetas = {}
+    for d in pd.date_range(sDate,eDate):
+        with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
+            thetas.update(pickle.load(f))
 
     # each theta in kernel = \delta * h(midpoint)
 
     # 1. plain
     res = {}
     params = {}
-    if len(thetas[sDate.strftime('%Y-%m-%d')]) == 2:
-        for d, theta in thetas.iteritems():
+    if len(thetas[sDate.strftime('%Y-%m-%d')]) == 12:
+        for d, theta in thetas.items():
             for i, col in zip(np.arange(12), cols):
-                exo = theta[0][i]
+                exo = theta[i][0][0]
                 res[col] = res.get(col, []) + [exo]
-                phi = theta[1][i,:].reshape((len(theta[1][i,:])//12,12))
+                phi = theta[i][1][1:].reshape((len(theta[i][1][1:])//12,12))
                 num_datapoints = (phi.shape[0] + 2)//2
                 min_lag =  1e-3
                 max_lag = 500

@@ -5,7 +5,7 @@
 #     z.extractall()
 import datetime as dt
 import pickle
-from hawkes import dataLoader, fit
+from hawkes import dataLoader, fit, inference
 import pandas as pd
 import numpy as np
 import os
@@ -57,24 +57,26 @@ def main():
     # cls.fitBoth()
     # return 0
 
-    ric = "AAPL.OQ"
-    sDate = dt.date(2020,9,14)
-    eDate = dt.date(2020,9,14)
-    dictIp = {}
-    for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
-        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_inputRes"):
-            dictIp.update({ d.strftime("%Y-%m-%d") : []})
-        else:
-            continue
-        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-        #df = df.loc[df.Time < 100]
+    # ric = "AAPL.OQ"
+    # sDate = dt.date(2020,9,14)
+    # eDate = dt.date(2020,9,14)
+    # dictIp = {}
+    # for d in pd.date_range(sDate, eDate):
+    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_inputRes"):
+    #         dictIp.update({ d.strftime("%Y-%m-%d") : []})
+    #     else:
+    #         continue
+    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+    #     #df = df.loc[df.Time < 100]
+    #
+    # cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
+    # thetas = cls.fitConditionalTimeOfDayInSpread()
+    # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
+    #     pickle.dump(thetas, f)
+    # return 0
 
-    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
-    thetas = cls.fitConditionalTimeOfDayInSpread()
-    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
-        pickle.dump(thetas, f)
-    return 0
+    inference.run() #suffix = "_sgd"
 
 main()
 
