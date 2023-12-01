@@ -294,11 +294,11 @@ class ConditionalLeastSquaresLogLin():
             # params = (model.intercept_, model.coef_)
 
             if self.cfg.get("solver", "sgd") == "pinv":
-                lr = LinearRegression(positive=True).fit(Xs, Ys)
+                lr = LinearRegression(positive=True, fit_intercept=False).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge( solver="svd", alpha = 1e-6).fit(Xs, Ys)
+                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
 
