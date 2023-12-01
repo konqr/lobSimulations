@@ -298,7 +298,7 @@ class ConditionalLeastSquaresLogLin():
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge(positive=True, solver="svd", alpha = 1e-6).fit(Xs, Ys)
+                lr = Ridge( solver="svd", alpha = 1e-6).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
 
@@ -368,7 +368,7 @@ class ConditionalLeastSquaresLogLin():
                 print(lr.score(Xs, Ys))
                 params = lr.coef_
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
+                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params =  lr.coef_
             else:
@@ -478,15 +478,15 @@ class ConditionalLeastSquaresLogLin():
                 params1 = (lr.intercept_, lr.coef_)
 
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadBid)
+                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadBid)
                 print(lr.score(XsIS, Ys_inspreadBid))
                 params2 =  lr.coef_
 
-                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadAsk)
+                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(XsIS, Ys_inspreadAsk)
                 print(lr.score(XsIS, Ys_inspreadAsk))
                 params3 =  lr.coef_
 
-                lr = Ridge(positive=True, solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs_oth, Ys_oth)
+                lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs_oth, Ys_oth)
                 print(lr.score(Xs_oth, Ys_oth))
                 params1 =  lr.coef_
             else:
