@@ -327,7 +327,7 @@ class ConditionalLeastSquaresLogLin():
                 constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
                 prob = cp.Problem(objective, constraints)
-                result = prob.solve(solver=cp.ECOS, verbose=True)
+                result = prob.solve(solver=cp.SCS, verbose=True)
                 print(result)
                 params = x.value
             else:
@@ -419,7 +419,7 @@ class ConditionalLeastSquaresLogLin():
                 constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
                 prob = cp.Problem(objective, constraints)
-                result = prob.solve(solver=cp.ECOS, verbose=True)
+                result = prob.solve(solver=cp.SCS, verbose=True)
                 print(result)
                 params = x.value
             else:
@@ -561,7 +561,7 @@ class ConditionalLeastSquaresLogLin():
                     constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                     objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
                     prob = cp.Problem(objective, constraints)
-                    result = prob.solve(solver=cp.ECOS, verbose=True)
+                    result = prob.solve(solver=cp.SCS, verbose=True)
                     print(result)
                     params += (x.value,)
                 params2, params3, params1 = params
