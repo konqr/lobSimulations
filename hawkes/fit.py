@@ -7,6 +7,7 @@ import pickle
 import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
 import time
+import cvxpy as cp
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -277,8 +278,8 @@ class ConditionalLeastSquaresLogLin():
                         if len(r_d[0]) == 2:
                             r_d = sum(r_d, [])
                         res_d.append(r_d)
-                        # if len(res_d) >= 2:
-                        #     break
+                        if len(res_d) >= 5:
+                            break
                     except EOFError:
                         break
             res_d = sum(res_d, [])
@@ -286,17 +287,7 @@ class ConditionalLeastSquaresLogLin():
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
             Xs = [r.flatten() for r in Xs]
             print(len(Xs))
-            nTimesteps = Xs[0].shape[0]//Ys[0].shape[0]
-            nDim = Ys[0].shape[0]
-            I = np.eye(nDim)
-            for i in range(nDim):
-                r = 200*I[:,i]
-                y = r.copy()
-                y[y == 0] = np.nan
-                Xs.append(np.array(nDim*[0] + (nTimesteps-1)*list(r)))
-                Ys.append(y)
-                # Xs.append(np.array(nTimesteps*list(r)))
-                # Ys.append(-1*r)
+
             Ys = np.array(Ys)
             Xs = np.array(Xs)
             # model = sm.OLS(Ys, Xs))
@@ -312,11 +303,33 @@ class ConditionalLeastSquaresLogLin():
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             elif self.cfg.get("solver", "sgd") == "ridge":
-                models = [Ridge( solver="svd", alpha = 1e-6).fit(Xs[~np.isnan(Ys[:,i]), : ], Ys[:,i][~np.isnan(Ys[:,i])]) for i in range(Ys.shape[1])]
+                models = [Ridge( solver="svd", alpha = 10).fit(Xs[~np.isnan(Ys[:,i]), : ], Ys[:,i][~np.isnan(Ys[:,i])]) for i in range(Ys.shape[1])]
                 params = [(model.intercept_, model.coef_) for model in models]
                 intercepts = [p[0] for p in params]
                 coefs = np.vstack([p[1] for p in params])
                 params = (intercepts, coefs)
+            elif self.cfg.get("solver", "sgd") == "constrained":
+                nTimesteps = Xs[0].shape[0]//Ys[0].shape[0]
+                nDim = Ys[0].shape[0]
+                I = np.eye(nDim)
+                constrsX = []
+                constrsY = []
+                for i in range(nDim): # TODO: this is not perfect - need to add constraints and solve the problem then
+                    r = I[:,i]
+                    constrsX.append(np.array([0] + nDim*[0] + (nTimesteps-1)*list(r)))
+                    constrsY.append(0.85*np.ones(nDim))
+                    # Xs.append(np.array(nTimesteps*list(r)))
+                    # Ys.append(-1*r)
+                constrsX = np.array(constrsX)
+                constrsY = np.array(constrsY)
+                Xs = sm.add_constant(Xs)
+                x = cp.Variable((Xs.shape[1], Ys.shape[1]))
+                constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
+                objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
+                prob = cp.Problem(objective, constraints)
+                result = prob.solve(solver=cp.OSQP, verbose=True)
+                print(result)
+                params = x.value
             else:
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
                 params = [(model.intercept_, model.coef_) for model in models]
@@ -373,15 +386,6 @@ class ConditionalLeastSquaresLogLin():
             dummies = pd.get_dummies(timestamps).values
 
             Xs = [r.flatten() for r in Xs]
-            nTimesteps = Xs[0].shape[0]//Ys[0].shape[0]
-            nDim = Ys[0].shape[0]
-            I = np.eye(nDim)
-            for i in range(nDim):
-                r = I[:,i]
-                Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(np.ones(nDim))
-                # Xs.append(np.array(nTimesteps*list(r)))
-                # Ys.append(-1*r)
             Xs = np.array(Xs)
             Xs = np.hstack([dummies, Xs])
             print(Xs.shape)
@@ -396,6 +400,28 @@ class ConditionalLeastSquaresLogLin():
                 lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs, Ys)
                 print(lr.score(Xs, Ys))
                 params =  lr.coef_
+            elif self.cfg.get("solver", "sgd") == "constrained":
+                nTimesteps = (Xs[0].shape[0] - 13)//Ys[0].shape[0]
+                nDim = Ys[0].shape[0]
+                I = np.eye(nDim)
+                constrsX = []
+                constrsY = []
+                for i in range(nDim): # TODO: this is not perfect - need to add constraints and solve the problem then
+                    r = I[:,i]
+                    constrsX.append(np.array(13*[0] + nDim*[0] + (nTimesteps-1)*list(r)))
+                    constrsY.append(0.85*np.ones(nDim))
+                    # Xs.append(np.array(nTimesteps*list(r)))
+                    # Ys.append(-1*r)
+                constrsX = np.array(constrsX)
+                constrsY = np.array(constrsY)
+                Xs = sm.add_constant(Xs)
+                x = cp.Variable((Xs.shape[1], Ys.shape[1]))
+                constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
+                objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
+                prob = cp.Problem(objective, constraints)
+                result = prob.solve(solver=cp.OSQP, verbose=True)
+                print(result)
+                params = x.value
             else:
 
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
@@ -514,6 +540,31 @@ class ConditionalLeastSquaresLogLin():
                 lr = Ridge( solver="svd", alpha = 1e-6, fit_intercept=False).fit(Xs_oth, Ys_oth)
                 print(lr.score(Xs_oth, Ys_oth))
                 params1 =  lr.coef_
+            elif self.cfg.get("solver", "sgd") == "constrained":
+                params = ()
+                for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [Ys_inspreadBid, Ys_inspreadAsk, Ys_oth]):
+                    nTimesteps = (Xs[0].shape[0] - 13)//Ys[0].shape[0]
+                    nDim = Ys[0].shape[0]
+                    I = np.eye(nDim)
+                    constrsX = []
+                    constrsY = []
+                    for i in range(nDim): # TODO: this is not perfect - need to add constraints and solve the problem then
+                        r = I[:,i]
+                        constrsX.append(np.array(13*[0] + nDim*[0] + (nTimesteps-1)*list(r)))
+                        constrsY.append(0.85*np.ones(nDim))
+                        # Xs.append(np.array(nTimesteps*list(r)))
+                        # Ys.append(-1*r)
+                    constrsX = np.array(constrsX)
+                    constrsY = np.array(constrsY)
+                    Xs = sm.add_constant(Xs)
+                    x = cp.Variable((Xs.shape[1], Ys.shape[1]))
+                    constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
+                    objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
+                    prob = cp.Problem(objective, constraints)
+                    result = prob.solve(solver=cp.OSQP, verbose=True)
+                    print(result)
+                    params += (x.value,)
+                params2, params3, params1 = params
             else:
                 model = SGDRegressor(penalty = 'l2', alpha = 1e-6, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "adaptive", eta0 = 1e-6).fit(XsIS, Ys_inspreadBid)
                 params2 = model.coef_

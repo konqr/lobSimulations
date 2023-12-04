@@ -70,7 +70,7 @@ def main():
         #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
         #df = df.loc[df.Time < 100]
 
-    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="ridge") #, numDataPoints = 100, min_lag = 1e-2)
+    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
     thetas = cls.fit()
     # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump(thetas, f)
