@@ -21,12 +21,14 @@ class ParametricFit():
         thetas = res.params
         return thetas, res
 
-    def fitPowerLawCutoff(self):
-        def powerLawCutoff(time, t0, alpha, beta):
-            return alpha*(time + t0)**(beta)
+    def fitPowerLawCutoff(self, norm):
+        def powerLawCutoff(time, beta, gamma, t0 = (10/9)*1e-4, norm = norm):
+            if time < t0: return 0
+            alpha = norm*beta*(gamma - 1)*(1+beta*t0)**(gamma - 1)
+            return alpha/((1 + beta*time)**gamma)
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([-5, 0, -2], [5, 1, 0]), maxfev = 1e6)
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([0, -2], [np.inf, 0]), maxfev = 1e6)
         thetas = params
         return thetas, cov
 
@@ -102,7 +104,9 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             else:
                 numDays = len(v)//len(timegrid_len[1:])
                 side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
-                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
+                norm = sum(v)
+                if norm > 1: norm = 0.85
+                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoff(norm= norm)
                 params[k] = (side, pars)
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
                 # params[k] = pars
@@ -149,7 +153,9 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
         else:
             numDays = len(v)//len(timegrid_len[1:])
             side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
-            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
+            norm = sum(v)
+            if norm > 1: norm = 0.85
+            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoff(norm= norm)
             params[k] = (side, pars)
 
     with open(l.dataPath + ric + "_ParamsInferred_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +paramsId + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
