@@ -560,7 +560,7 @@ class ConditionalLeastSquaresLogLin():
                     constrsY = np.array(constrsY)
                     x = cp.Variable((Xs.shape[1], nDim))
                     constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
-                    objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), 1)))
+                    objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                     prob = cp.Problem(objective, constraints)
                     result = prob.solve(solver=cp.SCS, verbose=True)
                     print(result)
