@@ -277,8 +277,8 @@ class ConditionalLeastSquaresLogLin():
                         if len(r_d[0]) == 2:
                             r_d = sum(r_d, [])
                         res_d.append(r_d)
-                        # if len(res_d) >= 2:
-                        #     break
+                        if len(res_d) >= 2:
+                            break
                     except EOFError:
                         break
             res_d = sum(res_d, [])
@@ -291,11 +291,14 @@ class ConditionalLeastSquaresLogLin():
             I = np.eye(nDim)
             for i in range(nDim):
                 r = I[:,i]
-                Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(np.ones(nDim))
+                y = r.copy()
+                y[y == 0] = np.nan
+                Xs.append(np.array(nDim*[0] + (nTimesteps-1)*list(r)))
+                Ys.append(y)
                 # Xs.append(np.array(nTimesteps*list(r)))
                 # Ys.append(-1*r)
             Ys = np.array(Ys)
+            Xs = np.array(Xs)
             # model = sm.OLS(Ys, Xs))
             # res = model.fit()
             # #res = model.fit_regularized(maxiter = 1000) # doesntwork for multidim
@@ -309,10 +312,11 @@ class ConditionalLeastSquaresLogLin():
                 print(lr.score(Xs, Ys))
                 params = (lr.intercept_, lr.coef_)
             elif self.cfg.get("solver", "sgd") == "ridge":
-                lr = Ridge( solver="svd", alpha = 1e-6).fit(Xs, Ys)
-                print(lr.score(Xs, Ys))
-                params = (lr.intercept_, lr.coef_)
-
+                models = [Ridge( solver="svd", alpha = 1e-6).fit(Xs[~np.isnan(Ys[:,i]), : ], Ys[:,i][~np.isnan(Ys[:,i])]) for i in range(Ys.shape[1])]
+                params = [(model.intercept_, model.coef_) for model in models]
+                intercepts = [p[0] for p in params]
+                coefs = np.vstack([p[1] for p in params])
+                params = (intercepts, coefs)
             else:
                 models = [SGDRegressor(penalty = 'l2', alpha = 1e-3, fit_intercept=False, max_iter=5000, verbose=11, learning_rate = "invscaling").fit(Xs, Ys[:,i]) for i in range(Ys.shape[1])]
                 params = [(model.intercept_, model.coef_) for model in models]
