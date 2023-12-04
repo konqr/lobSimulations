@@ -9,7 +9,7 @@ import numpy as np
 
 def powerLawKernel(x, alpha = 1., t0 = -1., beta = -2.):
     if x + t0 <= 0: return 0
-    return alpha*((x + t0)**beta)
+    return alpha*((x)**beta)
 
 def thinningOgata(T, paramsPath, num_nodes = 12):
 
@@ -18,13 +18,15 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     baselines = num_nodes*[0]
+    mat = np.zeros((num_nodes, num_nodes))
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params[cols[i] + "->" + cols[j]]
             print(cols[i] + "->" + cols[j])
             print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1]))
+            mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(1e-4)**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
-
+    print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
     s = 0
     n = num_nodes*[0]
     Ts = num_nodes*[()]
@@ -33,11 +35,13 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
         lambBar = lamb
         u = np.random.uniform(0,1)
         w = -1*np.log(u)/lambBar
-        s += w
+        s += np.max([1e-6,w])
         decays = baselines.copy()
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
+                if s - tau >= 500: continue
+                if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params[cols[i] + "->" + cols[j]]
                     decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = -1e-4, beta = kernelParams[1][1])
@@ -191,6 +195,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticks
         dfs += [pd.DataFrame({"event" : len(timestamps_e)*[event], "time": timestamps_e, "size" : sizes_e})]
     dfs = pd.concat(dfs)
     dfs = dfs.sort_values("time")
+    print(dfs.head())
     lob.append(lob0.copy())
     T.append(0)
     lob_l3.append(lob0_l3.copy())

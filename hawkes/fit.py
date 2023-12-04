@@ -277,15 +277,26 @@ class ConditionalLeastSquaresLogLin():
                         if len(r_d[0]) == 2:
                             r_d = sum(r_d, [])
                         res_d.append(r_d)
+                        if len(res_d) >= 2:
+                            break
                     except EOFError:
                         break
             res_d = sum(res_d, [])
-            Ys = np.array([res_d[i] for i in range(0,len(res_d),2)])
+            Ys = [res_d[i] for i in range(0,len(res_d),2)]
             Xs = [res_d[i+1] for i in range(0,len(res_d),2)]
             Xs = [r.flatten() for r in Xs]
             print(len(Xs))
-
-            # model = sm.OLS(Ys, Xs)
+            nTimesteps = Xs[0].shape[0]//Ys[0].shape[0]
+            nDim = Ys[0].shape[0]
+            I = np.eye(nDim)
+            for i in range(nDim):
+                r = I[:,i]
+                Xs.append(np.array(nTimesteps*list(r)))
+                Ys.append(r)
+                Xs.append(np.array(nTimesteps*list(r)))
+                Ys.append(-1*r)
+            Ys = np.array(Ys)
+            # model = sm.OLS(Ys, Xs))
             # res = model.fit()
             # #res = model.fit_regularized(maxiter = 1000) # doesntwork for multidim
             # params = res.params
@@ -357,7 +368,17 @@ class ConditionalLeastSquaresLogLin():
             timestamps = np.floor(df.index.values * (timegridLin[1] - timegridLin[0]) / 1800)
             dummies = pd.get_dummies(timestamps).values
 
-            Xs = np.array([r.flatten() for r in Xs])
+            Xs = [r.flatten() for r in Xs]
+            nTimesteps = Xs[0].shape[0]//Ys[0].shape[0]
+            nDim = Ys[0].shape[0]
+            I = np.eye(nDim)
+            for i in range(nDim):
+                r = I[:,i]
+                Xs.append(np.array(nTimesteps*list(r)))
+                Ys.append(r)
+                Xs.append(np.array(nTimesteps*list(r)))
+                Ys.append(-1*r)
+            Xs = np.array(Xs)
             Xs = np.hstack([dummies, Xs])
             print(Xs.shape)
             Ys = np.array(Ys)
