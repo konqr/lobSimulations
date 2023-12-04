@@ -414,7 +414,6 @@ class ConditionalLeastSquaresLogLin():
                     # Ys.append(-1*r)
                 constrsX = np.array(constrsX)
                 constrsY = np.array(constrsY)
-                Xs = sm.add_constant(Xs)
                 x = cp.Variable((Xs.shape[1], Ys.shape[1]))
                 constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
@@ -556,7 +555,6 @@ class ConditionalLeastSquaresLogLin():
                         # Ys.append(-1*r)
                     constrsX = np.array(constrsX)
                     constrsY = np.array(constrsY)
-                    Xs = sm.add_constant(Xs)
                     x = cp.Variable((Xs.shape[1], Ys.shape[1]))
                     constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                     objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
