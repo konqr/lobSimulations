@@ -278,8 +278,8 @@ class ConditionalLeastSquaresLogLin():
                         if len(r_d[0]) == 2:
                             r_d = sum(r_d, [])
                         res_d.append(r_d)
-                        if len(res_d) >= 5:
-                            break
+                        # if len(res_d) >= 5:
+                        #     break
                     except EOFError:
                         break
             res_d = sum(res_d, [])
