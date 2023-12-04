@@ -293,8 +293,8 @@ class ConditionalLeastSquaresLogLin():
                 r = I[:,i]
                 Xs.append(np.array(nTimesteps*list(r)))
                 Ys.append(r)
-                Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(-1*r)
+                # Xs.append(np.array(nTimesteps*list(r)))
+                # Ys.append(-1*r)
             Ys = np.array(Ys)
             # model = sm.OLS(Ys, Xs))
             # res = model.fit()
