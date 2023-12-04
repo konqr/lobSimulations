@@ -548,18 +548,18 @@ class ConditionalLeastSquaresLogLin():
                     else: nDim = Ys[0].shape[0]
                     nTimesteps = (Xs[0].shape[0] - 13)//nDim
 
-                    I = np.eye(nDim)
+                    I = np.eye(12)
                     constrsX = []
                     constrsY = []
-                    for i in range(nDim): # TODO: this is not perfect - need to add constraints and solve the problem then
+                    for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
                         r = I[:,i]
-                        constrsX.append(np.array(13*[0] + nDim*[0] + (nTimesteps-1)*list(r)))
+                        constrsX.append(np.array(13*[0] + 12*[0] + (nTimesteps-1)*list(r)))
                         constrsY.append(0.85*np.ones(nDim))
                         # Xs.append(np.array(nTimesteps*list(r)))
                         # Ys.append(-1*r)
                     constrsX = np.array(constrsX)
                     constrsY = np.array(constrsY)
-                    x = cp.Variable((Xs.shape[1], Ys.shape[1]))
+                    x = cp.Variable((Xs.shape[1], nDim))
                     constraints = [constrsX@x <= constrsY - 1e-3, constrsX@x >= -1*constrsY + 1e-3]
                     objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys))
                     prob = cp.Problem(objective, constraints)
