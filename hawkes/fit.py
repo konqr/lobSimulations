@@ -544,8 +544,10 @@ class ConditionalLeastSquaresLogLin():
             elif self.cfg.get("solver", "sgd") == "constrained":
                 params = ()
                 for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
-                    nTimesteps = (Xs[0].shape[0] - 13)//Ys[0].shape[0]
-                    nDim = Ys[0].shape[0]
+                    if  len(Ys.shape) == 1: nDim = 1
+                    else: nDim = Ys[0].shape[0]
+                    nTimesteps = (Xs[0].shape[0] - 13)//nDim
+
                     I = np.eye(nDim)
                     constrsX = []
                     constrsY = []
