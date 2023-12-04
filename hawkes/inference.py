@@ -83,29 +83,29 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
                 timegrid = np.append(timegridLin[:-1], timegridLog)
                 for j in range(len(cols)):
                     col2 = cols[j]
-                    # points = phi[:,j][1:]
-                    # timegrid_len = np.diff(timegrid)/2
-                    # timegrid_mid = timegrid[:-1] + timegrid_len
-                    # points = points / timegrid_len[1:]
-                    #
-                    # res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
-
-                    points = phi[:,j]
+                    points = phi[:,j][1:]
                     timegrid_len = np.diff(timegrid)/2
                     timegrid_mid = timegrid[:-1] + timegrid_len
-                    points = points / timegrid_len
+                    points = points / timegrid_len[1:]
 
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
+                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
+
+                    # points = phi[:,j]
+                    # timegrid_len = np.diff(timegrid)/2
+                    # timegrid_mid = timegrid[:-1] + timegrid_len
+                    # points = points / timegrid_len
+                    #
+                    # res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
             else:
                 numDays = len(v)//len(timegrid_len[1:])
-                #side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
-                #pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
-                #params[k] = (side, pars)
-                pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
-                params[k] = pars
+                side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
+                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
+                params[k] = (side, pars)
+                # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
+                # params[k] = pars
         with open(l.dataPath + ric + "_ParamsInferredRawPoints_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
             pickle.dump(params, f)
         return params, res

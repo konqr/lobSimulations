@@ -290,7 +290,7 @@ class ConditionalLeastSquaresLogLin():
             nDim = Ys[0].shape[0]
             I = np.eye(nDim)
             for i in range(nDim):
-                r = I[:,i]
+                r = 10*I[:,i]
                 y = r.copy()
                 y[y == 0] = np.nan
                 Xs.append(np.array(nDim*[0] + (nTimesteps-1)*list(r)))
