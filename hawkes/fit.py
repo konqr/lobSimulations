@@ -546,8 +546,7 @@ class ConditionalLeastSquaresLogLin():
                 for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
                     if  len(Ys.shape) == 1: nDim = 1
                     else: nDim = Ys[0].shape[0]
-                    nTimesteps = (Xs[0].shape[0] - 13)//nDim
-
+                    nTimesteps = 18
                     I = np.eye(12)
                     constrsX = []
                     constrsY = []
