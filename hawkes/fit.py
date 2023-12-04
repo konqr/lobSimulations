@@ -292,7 +292,7 @@ class ConditionalLeastSquaresLogLin():
             for i in range(nDim):
                 r = I[:,i]
                 Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(r)
+                Ys.append(np.ones(nDim))
                 # Xs.append(np.array(nTimesteps*list(r)))
                 # Ys.append(-1*r)
             Ys = np.array(Ys)
@@ -375,9 +375,9 @@ class ConditionalLeastSquaresLogLin():
             for i in range(nDim):
                 r = I[:,i]
                 Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(r)
-                Xs.append(np.array(nTimesteps*list(r)))
-                Ys.append(-1*r)
+                Ys.append(np.ones(nDim))
+                # Xs.append(np.array(nTimesteps*list(r)))
+                # Ys.append(-1*r)
             Xs = np.array(Xs)
             Xs = np.hstack([dummies, Xs])
             print(Xs.shape)
