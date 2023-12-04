@@ -2,9 +2,10 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import pickle
-import gc
+import os
 import datetime as dt
 from hawkes import dataLoader
+from scipy.optimize import curve_fit
 
 class ParametricFit():
 
@@ -12,13 +13,22 @@ class ParametricFit():
         self.data = data # list of 2D vectors : time, value of kernels
 
     def fitPowerLaw(self):
-        Xs = sm.add_constant(np.hstack( [np.log(d[0]) for d in self.data] ))
+        Xs = sm.add_constant(np.hstack([np.log(d[0]) for d in self.data]))
         Ys = np.hstack([np.log(d[1]) for d in self.data])
         model = sm.OLS(Ys, Xs)
         res = model.fit()
         print(res.summary())
         thetas = res.params
         return thetas, res
+
+    def fitPowerLawCutoff(self):
+        def powerLawCutoff(time, t0, alpha, beta):
+            return alpha*(time + t0)**(beta)
+        Xs = np.hstack( [d[0] for d in self.data] )
+        Ys = np.hstack([d[1] for d in self.data])
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([-5, 0, -2], [5, 1, 0]), maxfev = 1e6)
+        thetas = params
+        return thetas, cov
 
     def fitExponential(self):
         Xs = sm.add_constant(np.hstack( [d[0] for d in self.data]))
@@ -49,20 +59,22 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
     l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "D:\\Work\\PhD\\Expt 1\\params\\")
     thetas = {}
     for d in pd.date_range(sDate,eDate):
-        with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
-            thetas.update(pickle.load(f))
+        if os.path.exists(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix):
+            with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
+                thetas.update(pickle.load(f))
 
     # each theta in kernel = \delta * h(midpoint)
 
     # 1. plain
     res = {}
     params = {}
-    if len(thetas[sDate.strftime('%Y-%m-%d')]) == 12:
+    if len(thetas[sDate.strftime('%Y-%m-%d')][0]) == 12:
         for d, theta in thetas.items():
+            if d=="2019-01-09": continue
             for i, col in zip(np.arange(12), cols):
-                exo = theta[i][0][0]
+                exo = theta[0][i]
                 res[col] = res.get(col, []) + [exo]
-                phi = theta[i][1][1:].reshape((len(theta[i][1][1:])//12,12))
+                phi = theta[1][i,:].reshape((len(theta[1][i,:])//12,12))
                 num_datapoints = (phi.shape[0] + 2)//2
                 min_lag =  1e-3
                 max_lag = 500
@@ -71,6 +83,13 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
                 timegrid = np.append(timegridLin[:-1], timegridLog)
                 for j in range(len(cols)):
                     col2 = cols[j]
+                    # points = phi[:,j][1:]
+                    # timegrid_len = np.diff(timegrid)/2
+                    # timegrid_mid = timegrid[:-1] + timegrid_len
+                    # points = points / timegrid_len[1:]
+                    #
+                    # res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
+
                     points = phi[:,j]
                     timegrid_len = np.diff(timegrid)/2
                     timegrid_mid = timegrid[:-1] + timegrid_len
@@ -81,23 +100,35 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             if "->" not in k:
                 params[k] = np.mean(v)
             else:
-                pars, resTemp = ParametricFit(v).fitPowerLaw()
+                numDays = len(v)//len(timegrid_len[1:])
+                #side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
+                #pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
+                #params[k] = (side, pars)
+                pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
                 params[k] = pars
+        with open(l.dataPath + ric + "_ParamsInferredRawPoints_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+            pickle.dump(params, f)
         return params, res
     # 3. spread + TOD
     elif len(thetas[sDate.strftime('%Y-%m-%d')]) == 3:
+
         newThetas = {}
-        for d, theta in thetas.iteritems():
+        for d, theta in thetas.items():
+            if d=="2019-01-09": continue
             theta1, theta2, theta3 = theta
-            newThetas[d] = np.vstack([theta[:5,:], theta1, theta2, theta[7:,:]])
+            newThetas[d] = np.vstack([theta1[:5,:], theta2, theta3, theta1[5:,:]])
         thetas = newThetas
+        paramsId = "todIS"
+    else:
+        paramsId = "tod"
     # 2. TOD
-    for d, theta in thetas.iteritems():
+    for d, theta in thetas.items():
+        if d=="2019-01-09": continue
         for i, col in zip(np.arange(12), cols):
             theta_i = theta[i,:]
             exo = theta_i[:13]
             res[col] = res.get(col, []) + [exo]
-            phi = theta_i[14:].reshape((len(theta_i[14:])//12,12))
+            phi = theta_i[13:].reshape((len(theta_i[13:])//12,12))
             num_datapoints = (phi.shape[0] + 2)//2
             min_lag =  1e-3
             max_lag = 500
@@ -106,20 +137,22 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             timegrid = np.append(timegridLin[:-1], timegridLog)
             for j in range(len(cols)):
                 col2 = cols[j]
-                points = phi[:,j]
+                points = phi[:,j][1:]
                 timegrid_len = np.diff(timegrid)/2
                 timegrid_mid = timegrid[:-1] + timegrid_len
-                points = points / timegrid_len
+                points = points / timegrid_len[1:]
 
-                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
+                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
     for k, v in res.items():
         if "->" not in k:
             params[k] = np.mean(v)
         else:
-            pars, resTemp = ParametricFit(v).fitPowerLaw()
-            params[k] = pars
+            numDays = len(v)//len(timegrid_len[1:])
+            side = np.sign(np.average(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays))))
+            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw()
+            params[k] = (side, pars)
 
-    with open(l.dataPath + ric + "_ParamsInferred_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_ParamsInferred_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +paramsId + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 
