@@ -71,7 +71,7 @@ def main():
         #df = df.loc[df.Time < 100]
 
     cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
-    thetas = cls.fit()
+    thetas = cls.fitConditionalTimeOfDayInSpread()
     # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump(thetas, f)
     return 0

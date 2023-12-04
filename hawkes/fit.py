@@ -441,6 +441,8 @@ class ConditionalLeastSquaresLogLin():
                         if len(r_d[0]) == 2:
                             r_d = sum(r_d, [])
                         res_d.append(r_d)
+                        # if len(res_d) >= 2:
+                        #     break
                     except EOFError:
                         break
             res_d = sum(res_d, [])
@@ -541,7 +543,7 @@ class ConditionalLeastSquaresLogLin():
                 params1 =  lr.coef_
             elif self.cfg.get("solver", "sgd") == "constrained":
                 params = ()
-                for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [Ys_inspreadBid, Ys_inspreadAsk, Ys_oth]):
+                for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
                     nTimesteps = (Xs[0].shape[0] - 13)//Ys[0].shape[0]
                     nDim = Ys[0].shape[0]
                     I = np.eye(nDim)
