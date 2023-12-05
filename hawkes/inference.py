@@ -70,13 +70,11 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
                 theta = list(pickle.load(f).values())[0]
                 if len(theta) == 3:
                     theta1, theta2, theta3 = theta
-                    theta = np.vstack([theta1[:5,:], theta2, theta3, theta1[5:,:]])
-                    paramsId = "todIS"
+                    theta = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
                 if theta.shape[0] == 217:
                     theta = (theta[0,:], theta[1:,:].transpose())
                 if theta.shape[0] == 229:
                     theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
-                    paramsId = "tod"
                 thetas.update({d.strftime("%Y-%m-%d") : theta })
 
     # each theta in kernel = \delta * h(midpoint)
@@ -164,7 +162,7 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
             params[k] = (side, pars)
 
-    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +paramsId + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +suffix + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 
