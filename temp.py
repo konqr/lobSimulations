@@ -57,33 +57,34 @@ def main():
     # cls.fitBoth()
     # return 0
 
-    ric = "AAPL.OQ"
-    sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,2)
-    dictIp = {}
-    for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
-        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
-            dictIp.update({ d.strftime("%Y-%m-%d") : []})
-        else:
-            continue
-        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-        #df = df.loc[df.Time < 100]
-
-    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
-    thetas = cls.fitConditionalTimeOfDayInSpread()
+    # ric = "AAPL.OQ"
+    # sDate = dt.date(2019,1,2)
+    # eDate = dt.date(2019,1,2)
+    # dictIp = {}
+    # for d in pd.date_range(sDate, eDate):
+    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
+    #         dictIp.update({ d.strftime("%Y-%m-%d") : []})
+    #     else:
+    #         continue
+    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+    #     #df = df.loc[df.Time < 100]
+    #
+    # cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
+    # thetas = cls.fitConditionalTimeOfDayInSpread()
     # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump(thetas, f)
-    return 0
+    # return 0
 
-    #inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_ridge") #suffix = "_sgd"
-    # inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_tod_ridge")
-    # inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_todIS_ridge")
+    # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
+    # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_tod_cvx")
+    # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_todIS_cvx")
+    # return 0
+    T, lob, lobL3=simulate.simulate(3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-14_CLSLogLin__todIS_cvx_10")
+    for l in lob:
+        print(l)
+    return T, lob, lobL3
 
-    # lob, lobL3=simulate.simulate(1000, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredRawPoints_2019-01-02_2019-01-16_CLSLogLin_10")
-    # for l in lob:
-    #     print(l)
-    # return lob, lobL3
 main()
 
 # df = pd.read_csv("/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/AAPL.OQ_2019-01-10_12D.csv")

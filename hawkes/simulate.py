@@ -7,12 +7,12 @@ import pandas as pd
 
 import numpy as np
 
-def powerLawKernel(x, alpha = 1., t0 = -1., beta = -2.):
-    if x + t0 <= 0: return 0
+def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
+    if x - t0 <= 0: return 0
     return alpha*((x)**beta)
 
-def thinningOgata(T, paramsPath, num_nodes = 12):
-
+def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
+    if maxJumps is None: maxJumps = np.inf
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -23,20 +23,28 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
         for j in range(num_nodes):
             kernelParams = params[cols[i] + "->" + cols[j]]
             print(cols[i] + "->" + cols[j])
-            print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1]))
-            mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(1e-4)**(-1 - kernelParams[1][1]))
+            print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
+            mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
     print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
     s = 0
+    numJumps = 0
     n = num_nodes*[0]
     Ts = num_nodes*[()]
-    lamb = sum(baselines)
+    if type(baselines[0]) == float:
+        lamb = sum(baselines)
+    else:
+        lamb = sum(np.array(baselines)[:,0])
     while s <= T:
         lambBar = lamb
         u = np.random.uniform(0,1)
         w = -1*np.log(u)/lambBar
         s += np.max([1e-6,w])
-        decays = baselines.copy()
+        if type(baselines[0]) == float:
+            decays = baselines.copy()
+        else:
+            hourIndex = int(np.floor(s/1800))
+            decays = np.array(baselines)[:,hourIndex]
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
@@ -44,7 +52,7 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
                 if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params[cols[i] + "->" + cols[j]]
-                    decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = -1e-4, beta = kernelParams[1][1])
+                    decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
         lamb = sum(decays)
@@ -55,8 +63,72 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
                 k+=1
             n[k] += 1
             Ts[k] += (s,)
+            numJumps += 1
+            if numJumps >= maxJumps:
+                return n,Ts
     return n, Ts
 
+def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.41):
+    if maxJumps is None: maxJumps = np.inf
+    with open(paramsPath, "rb") as f:
+        params = pickle.load(f)
+    cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    baselines = num_nodes*[0]
+    mat = np.zeros((num_nodes, num_nodes))
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            kernelParams = params[cols[i] + "->" + cols[j]]
+            print(cols[i] + "->" + cols[j])
+            print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
+            mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
+        baselines[i] = params[cols[i]]
+    print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
+    if s is None: s = 0
+    numJumps = 0
+    if n is None: n = num_nodes*[0]
+    if Ts is None: Ts = num_nodes*[()]
+    Ts_new = num_nodes*[()]
+    if spread is None: spread = 1
+    if type(baselines[0]) == float:
+        lamb = sum(baselines)
+    else:
+        lamb = sum(np.array(baselines)[:,0])
+    while s <= T:
+        lambBar = lamb
+        u = np.random.uniform(0,1)
+        w = -1*np.log(u)/lambBar
+        s += np.max([1e-6,w])
+        if type(baselines[0]) == float:
+            decays = baselines.copy()
+        else:
+            hourIndex = int(np.floor(s/1800))
+            decays = np.array(baselines)[:,hourIndex]
+        for i in range(len(Ts)):
+            taus = Ts[i]
+            for tau in taus:
+                if s - tau >= 500: continue
+                if s - tau < 1e-4: continue
+                for j in range(len(Ts)):
+                    kernelParams = params[cols[i] + "->" + cols[j]]
+                    decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                    decays[j] += decay
+        decays = [np.max([0, d]) for d in decays]
+        decays[5] = (spread**beta)*decays[5]
+        decays[6] = (spread**beta)*decays[6]
+        lamb = sum(decays)
+        D = np.random.uniform(0,1)
+        if D*lambBar <= lamb: #accepted
+            k = 0
+            while D*lambBar >= sum(decays[:k+1]):
+                k+=1
+            n[k] += 1
+            Ts[k] += (s,)
+            Ts_new[k] += (s,)
+            numJumps += 1
+            if numJumps >= maxJumps:
+                return s,n,Ts, Ts_new
+    return s,n, Ts, Ts_new
 
 def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
     """
@@ -83,78 +155,92 @@ def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
         }
         Pi_Q0["Bid_touch"] = Pi_Q0["Ask_touch"]
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
-        # hawkes = SimuHawkes(n_nodes=12, end_time=T, verbose=True)
-    # with open(paramsPath, "rb") as f:
-    #     params = pickle.load(f)
 
-    # norms = {}
-    # for i in range(12):
-    #     for j in range(12):
-    #         kernelParams = params[cols[i] + "->" + cols[j]]
-    #         kernel = HawkesKernelPowerLaw(kernelParams[0]*np.exp(kernelParams[1][0]), 8.1*1e-4, -1*kernelParams[1][1], support = 1000)
-    #         print(cols[i] + "->" + cols[j])
-    #         print(kernel.get_norm())
-    #         norms[cols[i] + "->" + cols[j] ] = kernel.get_norm()
-    #         #print(kernelParams[0]*np.exp(kernelParams[1][0]))
-    #         #print(-1*kernelParams[1][1])
-    #         if abs(kernel.get_norm()) >= 0.1 :
-    #             hawkes.set_kernel(j,i, kernel)
-    #     hawkes.set_baseline(i, params[cols[i]])
-    # fig = plot_hawkes_kernel_norms(12, np.array(list(norms.values())).reshape((12,12)).T,
-    #                          node_names=["LO_{ask_{+1}}", "CO_{ask_{+1}}",
-    #                                      "LO_{ask_{0}}", "CO_{ask_{0}}", "MO_{ask_{0}}",
-    #                                      "LO_{ask_{-1}}",
-    #                                      "LO_{bid_{+1}}",
-    #                                      "LO_{bid_{0}}", "CO_{bid_{0}}", "MO_{bid_{0}}",
-    #                                      "LO_{bid_{-1}}", "CO_{bid_{-1}}"])
-    # fig.savefig(paramsPath + "_kernels.png")
-    # dt = 1e-4
-    # hawkes.track_intensity(dt)
-    # hawkes.simulate()
-    # timestamps = hawkes.timestamps
-    #
-    # fig, ax = plt.subplots(12, 2, figsize=(16, 50))
-    # plot_point_process(hawkes, n_points=50000, t_min=2, max_jumps=10, ax=ax[:,0])
-    # plot_point_process(hawkes, n_points=50000, t_min=2, t_max=20, ax=ax[:, 1])
-    # fig.savefig(paramsPath+".png")
+    if "todIS" not in paramsPath:
+        n, timestamps = thinningOgata(T, paramsPath)
 
-    n, timestamps = thinningOgata(T, paramsPath)
-
-    sizes = {}
-    dictTimestamps = {}
-    for t, col in zip(timestamps, cols):
-        if len(t) == 0: continue
-        if "co" in col: # handle size of cancel order in createLOB
-            size = 0
-        else:
-            pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-            p = pi[0]
-            dd = pi[1]
-            pi = np.array([p*(1-p)**k for k in range(1,10000)])
-            pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-            for i, p_i in dd:
-                pi[i-1] = p_i + pi[i-1]
-            pi = pi/sum(pi)
-            cdf = np.cumsum(pi)
-            a = np.random.uniform(0, 1, size = len(t))
-            if type(a) != float:
-                size =[]
-                for i in a:
-                    size.append(np.argmax(cdf>=i)+1)
+        sizes = {}
+        dictTimestamps = {}
+        for t, col in zip(timestamps, cols):
+            if len(t) == 0: continue
+            if "co" in col: # handle size of cancel order in createLOB
+                size = 0
             else:
-                size = np.argmax(cdf>=a)+1
-        sizes[col]  = size
-        dictTimestamps[col] = t
+                pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+                p = pi[0]
+                dd = pi[1]
+                pi = np.array([p*(1-p)**k for k in range(1,10000)])
+                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                for i, p_i in dd:
+                    pi[i-1] = p_i + pi[i-1]
+                pi = pi/sum(pi)
+                cdf = np.cumsum(pi)
+                a = np.random.uniform(0, 1, size = len(t))
+                if type(a) != float:
+                    size =[]
+                    for i in a:
+                        size.append(np.argmax(cdf>=i)+1)
+                else:
+                    size = np.argmax(cdf>=a)+1
+            sizes[col]  = size
+            dictTimestamps[col] = t
 
-    lob, lobL3 = createLOB(dictTimestamps, sizes, Pi_Q0)
-    return lob, lobL3
+        Ts, lob, lobL3 = createLOB(dictTimestamps, sizes, Pi_Q0)
+    else:
+        s = 0
+        Ts,lob,lobL3 = [],[],[]
+        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = 100, spread0 = 10, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {})
+        Ts.append(0)
+        lob.append(lob0[-1])
+        lobL3.append(lob0_l3[-1])
+        spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
+        n = None
+        timestamps = None
+        lob0 = lob0[0]
+        lob0_l3 = lob0_l3[0]
+        while s <= T:
+            s, n, timestamps, timestamps_this = thinningOgataIS(T, paramsPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = 0.41)
+            sizes = {}
+            dictTimestamps = {}
+            for t, col in zip(timestamps_this, cols):
+                if len(t) == 0: continue
+                if "co" in col: # handle size of cancel order in createLOB
+                    size = 0
+                else:
+                    pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+                    p = pi[0]
+                    dd = pi[1]
+                    pi = np.array([p*(1-p)**k for k in range(1,10000)])
+                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    for i, p_i in dd:
+                        pi[i-1] = p_i + pi[i-1]
+                    pi = pi/sum(pi)
+                    cdf = np.cumsum(pi)
+                    a = np.random.uniform(0, 1, size = len(t))
+                    if type(a) != float:
+                        size =[]
+                        for i in a:
+                            size.append(np.argmax(cdf>=i)+1)
+                    else:
+                        size = np.argmax(cdf>=a)+1
+                sizes[col]  = size
+                dictTimestamps[col] = t
 
-def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticksize = 0.01, numOrdersPerLevel = 10):
+            TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
+            spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
+            lob0 = lobTmp[-1]
+            lob0_l3 = lobL3Tmp[-1]
+            Ts.append(TsTmp[-1])
+            lob.append(lob0)
+            lobL3.append(lob0_l3)
+    return Ts, lob, lobL3
+
+
+
+def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {}):
     lob = []
     lob_l3 = []
     T = []
-    lob0 = {}
-    lob0_l3 = {}
     levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
@@ -164,29 +250,32 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticks
         "lo_top_Bid" : "Bid_touch",
         "lo_deep_Bid" : "Bid_deep"
     }
-    lob0['Ask_touch'] = (priceMid0 + np.floor(spread0/2)*ticksize, 0)
-    lob0['Bid_touch'] = (priceMid0 - np.ceil(spread0/2)*ticksize, 0)
-    lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + ticksize, 0)
-    lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - ticksize, 0)
-    for k, pi in Pi_Q0.items():
-        #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-        p = pi[0]
-        dd = pi[1]
-        pi = np.array([p*(1-p)**k for k in range(1,100000)])
-        pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-        for i, p_i in dd:
-            pi[i-1] = p_i + pi[i-1]
-        pi = pi/sum(pi)
-        cdf = np.cumsum(pi)
-        a = np.random.uniform(0, 1)
-        qSize = np.argmax(cdf>=a) + 1
-        lob0[k] = (lob0[k][0], qSize)
-    for l in levels:
-        tmp = (numOrdersPerLevel - 1)*[np.floor(lob0[l][1]/numOrdersPerLevel)]
-        if tmp !=0:
-            lob0_l3[l] = [lob0[l][1] - sum(tmp)] + tmp
-        else:
-            lob0_l3[l] = [lob0[l][1]]
+    if len(lob0) == 0:
+        lob0['Ask_touch'] = (priceMid0 + np.floor(spread0/2)*ticksize, 0)
+        lob0['Bid_touch'] = (priceMid0 - np.ceil(spread0/2)*ticksize, 0)
+        lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + ticksize, 0)
+        lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - ticksize, 0)
+        for k, pi in Pi_Q0.items():
+            #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+            p = pi[0]
+            dd = pi[1]
+            pi = np.array([p*(1-p)**k for k in range(1,100000)])
+            pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+            for i, p_i in dd:
+                pi[i-1] = p_i + pi[i-1]
+            pi = pi/sum(pi)
+            cdf = np.cumsum(pi)
+            a = np.random.uniform(0, 1)
+            qSize = np.argmax(cdf>=a) + 1
+            lob0[k] = (lob0[k][0], qSize)
+        for l in levels:
+            tmp = (numOrdersPerLevel - 1)*[np.floor(lob0[l][1]/numOrdersPerLevel)]
+            if tmp !=0:
+                lob0_l3[l] = [lob0[l][1] - sum(tmp)] + tmp
+            else:
+                lob0_l3[l] = [lob0[l][1]]
+    if len(dictTimestamps) == 0:
+        return T, [lob0], [lob0_l3]
 
     dfs = []
     for event in dictTimestamps.keys():
@@ -200,118 +289,119 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticks
     T.append(0)
     lob_l3.append(lob0_l3.copy())
     for i in range(len(dfs)):
-        r = dfs.iloc[i]
-        lobNew = lob[i].copy()
-        lob_l3New = lob_l3[i].copy()
-        T.append(r.time)
-        if "Ask" in r.event :
-            side = "Ask"
-        else:
-            side = "Bid"
+            r = dfs.iloc[i]
+            lobNew = lob[i].copy()
+            lob_l3New = lob_l3[i].copy()
+            T.append(r.time)
+            if "Ask" in r.event :
+                side = "Ask"
+            else:
+                side = "Bid"
 
-        if "lo" in r.event:
-            if "deep" in r.event:
-                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] + r['size'])
-                lob_l3New[side + "_deep"] += [r['size']]
-            elif "top" in r.event:
-                lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] + r['size'])
-                lob_l3New[side + "_touch"] += [r['size']]
-            else: #inspread
-                direction = 1
-                if side == "Ask": direction = -1
-                lobNew[side + "_deep"] = lobNew[side + "_touch"]
-                lob_l3New[side + "_deep"] = lob_l3New[side + "_touch"]
-                lobNew[side + "_touch"] = (np.round(lobNew[side + "_touch"][0] + direction*ticksize, decimals=2), r['size'])
-                lob_l3New[side + "_touch"] = [r['size']]
+            if "lo" in r.event:
+                if "deep" in r.event:
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] + r['size'])
+                    lob_l3New[side + "_deep"] += [r['size']]
+                elif "top" in r.event:
+                    lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] + r['size'])
+                    lob_l3New[side + "_touch"] += [r['size']]
+                else: #inspread
+                    direction = 1
+                    if side == "Ask": direction = -1
+                    lobNew[side + "_deep"] = lobNew[side + "_touch"]
+                    lob_l3New[side + "_deep"] = lob_l3New[side + "_touch"].copy()
+                    lobNew[side + "_touch"] = (np.round(lobNew[side + "_touch"][0] + direction*ticksize, decimals=2), r['size'])
+                    lob_l3New[side + "_touch"] = [r['size']]
 
-        if "mo" in r.event:
-            lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - r['size'])
-            if lobNew[side + "_touch"][1] > 0:
-                cumsum = np.cumsum(lob_l3New[side + "_touch"])
-                idx = np.argmax(cumsum >= r['size'])
-                tmp = lob_l3New[side + "_touch"][idx:]
-                offset = 0
-                if idx > 0: offset = cumsum[idx - 1]
-                tmp[0] = tmp[0] + offset - r['size']
-                lob_l3New[side + "_touch"] = tmp
-            while lobNew[side + "_touch"][1] <= 0: # queue depletion
-                extraVolume = -1*lobNew[side + "_touch"][1]
-                lobNew[side + "_touch"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - extraVolume)
-                lob_l3New[side + "_touch"] = lob_l3New[side + "_deep"]
+            if "mo" in r.event:
+                lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - r['size'])
                 if lobNew[side + "_touch"][1] > 0:
                     cumsum = np.cumsum(lob_l3New[side + "_touch"])
-                    idx = np.argmax(cumsum >= extraVolume)
+                    idx = np.argmax(cumsum >= r['size'])
                     tmp = lob_l3New[side + "_touch"][idx:]
-                    tmp[0] = tmp[0] - cumsum[idx] + extraVolume
-                    lob_l3New[side + "_touch"] = tmp
-                direction = 1
-                if side == "Bid": direction = -1
-                #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-                pi = Pi_Q0[side+"_deep"]
-                p = pi[0]
-                dd = pi[1]
-                pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-                for i, p_i in dd:
-                    pi[i-1] = p_i + pi[i-1]
-                pi = pi/sum(pi)
-                cdf = np.cumsum(pi)
-                a = np.random.uniform(0, 1)
-                qSize = np.argmax(cdf>=a)+1
-                lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
-                tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
-                lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
+                    offset = 0
+                    if idx > 0: offset = cumsum[idx - 1]
+                    tmp[0] = tmp[0] + offset - r['size']
+                    lob_l3New[side + "_touch"] = tmp.copy()
+                while lobNew[side + "_touch"][1] <= 0: # queue depletion
+                    extraVolume = -1*lobNew[side + "_touch"][1]
+                    lobNew[side + "_touch"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - extraVolume)
+                    lob_l3New[side + "_touch"] = lob_l3New[side + "_deep"].copy()
+                    if lobNew[side + "_touch"][1] > 0:
+                        if extraVolume > 0:
+                            cumsum = np.cumsum(lob_l3New[side + "_touch"])
+                            idx = np.argmax(cumsum >= extraVolume)
+                            tmp = np.array(lob_l3New[side + "_touch"][idx:])
+                            tmp[0] = cumsum[idx] - extraVolume
+                            tmp = tmp[tmp>0]
+                            lob_l3New[side + "_touch"] = list(tmp).copy()
+                    direction = 1
+                    if side == "Bid": direction = -1
+                    #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+                    pi = Pi_Q0[side+"_deep"]
+                    p = pi[0]
+                    dd = pi[1]
+                    pi = np.array([p*(1-p)**k for k in range(1,100000)])
+                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    for i, p_i in dd:
+                        pi[i-1] = p_i + pi[i-1]
+                    pi = pi/sum(pi)
+                    cdf = np.cumsum(pi)
+                    a = np.random.uniform(0, 1)
+                    qSize = np.argmax(cdf>=a)+1
+                    lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
+                    tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
+                    lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
 
-        if "co" in r.event:
+            if "co" in r.event:
 
-            if "deep" in r.event:
-                size = np.random.choice(lob_l3New[side + "_deep"])
-                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - size)
-                lob_l3New[side + "_deep"].remove(size)
-            elif "top" in r.event:
-                size = np.random.choice(lob_l3New[side + "_touch"])
-                lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - size)
-                lob_l3New[side + "_touch"].remove(size)
-            if lobNew[side + "_touch"][1] <= 0: # queue depletion
-                lobNew[side + "_touch"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1])
-                lob_l3New[side + "_touch"] = lob_l3New[side + "_deep"]
-                direction = 1
-                if side == "Bid": direction = -1
-                pi = Pi_Q0[side+"_deep"]
-                p = pi[0]
-                dd = pi[1]
-                pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-                for i, p_i in dd:
-                    pi[i-1] = p_i + pi[i-1]
-                pi = pi/sum(pi)
-                cdf = np.cumsum(pi)
-                a = np.random.uniform(0, 1)
-                qSize = np.argmax(cdf>=a)-1
-                lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
-                tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
-                lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
+                if "deep" in r.event:
+                    size = np.random.choice(lob_l3New[side + "_deep"])
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - size)
+                    lob_l3New[side + "_deep"].remove(size)
+                elif "top" in r.event:
+                    size = np.random.choice(lob_l3New[side + "_touch"])
+                    lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - size)
+                    lob_l3New[side + "_touch"].remove(size)
+                if lobNew[side + "_touch"][1] <= 0: # queue depletion
+                    lobNew[side + "_touch"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1])
+                    lob_l3New[side + "_touch"] = lob_l3New[side + "_deep"].copy()
+                    direction = 1
+                    if side == "Bid": direction = -1
+                    pi = Pi_Q0[side+"_deep"]
+                    p = pi[0]
+                    dd = pi[1]
+                    pi = np.array([p*(1-p)**k for k in range(1,100000)])
+                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    for i, p_i in dd:
+                        pi[i-1] = p_i + pi[i-1]
+                    pi = pi/sum(pi)
+                    cdf = np.cumsum(pi)
+                    a = np.random.uniform(0, 1)
+                    qSize = np.argmax(cdf>=a)-1
+                    lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
+                    tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
+                    lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
 
-            if lobNew[side + "_deep"][1] <= 0: # queue depletion
-                direction = 1
-                if side == "Bid": direction = -1
-                #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-                pi = Pi_Q0[side+"_deep"]
-                p = pi[0]
-                dd = pi[1]
-                pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-                for i, p_i in dd:
-                    pi[i-1] = p_i + pi[i-1]
-                pi = pi/sum(pi)
-                cdf = np.cumsum(pi)
-                a = np.random.uniform(0, 1)
-                qSize = np.argmax(cdf>=a)+1
-                lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
-                tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
-                lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
-
-        lob.append(lobNew.copy())
-        lob_l3.append(lob_l3New.copy())
-    return lob, lob_l3
+                if lobNew[side + "_deep"][1] <= 0: # queue depletion
+                    direction = 1
+                    if side == "Bid": direction = -1
+                    #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+                    pi = Pi_Q0[side+"_deep"]
+                    p = pi[0]
+                    dd = pi[1]
+                    pi = np.array([p*(1-p)**k for k in range(1,100000)])
+                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    for i, p_i in dd:
+                        pi[i-1] = p_i + pi[i-1]
+                    pi = pi/sum(pi)
+                    cdf = np.cumsum(pi)
+                    a = np.random.uniform(0, 1)
+                    qSize = np.argmax(cdf>=a)+1
+                    lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
+                    tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
+                    lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
+            lob.append(lobNew.copy())
+            lob_l3.append(lob_l3New.copy())
+    return T, lob, lob_l3
 
