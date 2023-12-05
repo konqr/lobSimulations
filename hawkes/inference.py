@@ -64,10 +64,19 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
     l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "D:\\Work\\PhD\\Expt 1\\params\\")
     thetas = {}
     for d in pd.date_range(sDate,eDate):
+        if d.strftime("%Y-%m-%d") == "2019-01-09": continue
         if os.path.exists(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix):
             with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
                 theta = list(pickle.load(f).values())[0]
-                theta = (theta[0,:], theta[1:,:].transpose())
+                if len(theta) == 3:
+                    theta1, theta2, theta3 = theta
+                    theta = np.vstack([theta1[:5,:], theta2, theta3, theta1[5:,:]])
+                    paramsId = "todIS"
+                if theta.shape[0] == 217:
+                    theta = (theta[0,:], theta[1:,:].transpose())
+                if theta.shape[0] == 229:
+                    theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
+                    paramsId = "tod"
                 thetas.update({d.strftime("%Y-%m-%d") : theta })
 
     # each theta in kernel = \delta * h(midpoint)
@@ -75,7 +84,7 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
     # 1. plain
     res = {}
     params = {}
-    if len(thetas[sDate.strftime('%Y-%m-%d')][0]) == 12:
+    if len(thetas[sDate.strftime('%Y-%m-%d')][0].shape) == 1:
         for d, theta in thetas.items():
             if d=="2019-01-09": continue
             for i, col in zip(np.arange(12), cols):
@@ -120,25 +129,16 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             pickle.dump(params, f)
         return params, res
     # 3. spread + TOD
-    elif len(thetas[sDate.strftime('%Y-%m-%d')]) == 3:
 
-        newThetas = {}
-        for d, theta in thetas.items():
-            if d=="2019-01-09": continue
-            theta1, theta2, theta3 = theta
-            newThetas[d] = np.vstack([theta1[:5,:], theta2, theta3, theta1[5:,:]])
-        thetas = newThetas
-        paramsId = "todIS"
-    else:
-        paramsId = "tod"
     # 2. TOD
     for d, theta in thetas.items():
         if d=="2019-01-09": continue
         for i, col in zip(np.arange(12), cols):
-            theta_i = theta[i,:]
-            exo = theta_i[:13]
+            theta_i = theta[0][i,:]
+            exo = theta_i
             res[col] = res.get(col, []) + [exo]
-            phi = theta_i[13:].reshape((len(theta_i[13:])//12,12))
+            phi = theta[1][i,:]
+            phi = phi.reshape((len(phi)//12,12))
             num_datapoints = (phi.shape[0] + 2)//2
             min_lag =  1e-3
             max_lag = 500
@@ -155,7 +155,7 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
                 res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
     for k, v in res.items():
         if "->" not in k:
-            params[k] = np.mean(v)
+            params[k] = np.array(v).mean(axis=0)
         else:
             numDays = len(v)//len(timegrid_len[1:])
             norm = np.sum(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays)))/numDays
@@ -164,7 +164,7 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
             pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
             params[k] = (side, pars)
 
-    with open(l.dataPath + ric + "_ParamsInferred_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +paramsId + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +paramsId + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 

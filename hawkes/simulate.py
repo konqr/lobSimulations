@@ -30,13 +30,20 @@ def thinningOgata(T, paramsPath, num_nodes = 12):
     s = 0
     n = num_nodes*[0]
     Ts = num_nodes*[()]
-    lamb = sum(baselines)
+    if type(baselines[0]) == float:
+        lamb = sum(baselines)
+    else:
+        lamb = sum(np.array(baselines)[:,0])
     while s <= T:
         lambBar = lamb
         u = np.random.uniform(0,1)
         w = -1*np.log(u)/lambBar
         s += np.max([1e-6,w])
-        decays = baselines.copy()
+        if type(baselines[0]) == float:
+            decays = baselines.copy()
+        else:
+            hourIndex = int(np.floor(s/1800))
+            decays = np.array(baselines)[:,hourIndex]
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:

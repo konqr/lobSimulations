@@ -76,14 +76,15 @@ def main():
     #     pickle.dump(thetas, f)
     # return 0
 
-    #inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
+    # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_tod_idge")
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,16), suffix = "_todIS_ridge")
 
-    lob, lobL3=simulate.simulate(1000, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-14_CLSLogLin_10")
+    lob, lobL3=simulate.simulate(3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-14_CLSLogLin_tod_10")
     for l in lob:
         print(l)
     return lob, lobL3
+
 main()
 
 # df = pd.read_csv("/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/AAPL.OQ_2019-01-10_12D.csv")
