@@ -508,7 +508,7 @@ class ConditionalLeastSquaresLogLin():
             Ys_inspreadBid = [res_d[i][5] for i in range(0,len(res_d),2)]
             dummiesIS = dummies / (100*df['spread'].values.sum(axis = 1)[:,np.newaxis])**spreadBeta
             #XsIS = Xs/(df['spread'].values.sum(axis = 1)[:,np.newaxis])**spreadBeta
-            XsIS = np.hstack([dummiesIS, XsIS])
+            XsIS = np.hstack([dummiesIS, Xs])
             print("done editing dummies")
             # model = ElasticNet(alpha = 1e-6, fit_intercept=False, max_iter=5000).fit(XsBid, Ys_inspreadBid)
             # params2 = model.coef_
