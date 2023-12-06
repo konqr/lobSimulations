@@ -98,24 +98,25 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
         lambBar = lamb
         u = np.random.uniform(0,1)
         w = -1*np.log(u)/lambBar
-        s += np.max([1e-6,w])
+        s += w
         if type(baselines[0]) == float:
             decays = baselines.copy()
         else:
             hourIndex = np.min([12,int(np.floor(s/1800))])
             decays = np.array(baselines)[:,hourIndex]
+        decays[5] = ((100*spread)**beta)*decays[5]
+        decays[6] = ((100*spread)**beta)*decays[6]
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
-                if s - tau >= 500: continue
-                if s - tau < 1e-4: continue
+                if s - tau >= 1000: continue
+                #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params[cols[i] + "->" + cols[j]]
                     decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
-        decays[5] = (spread**beta)*decays[5]
-        decays[6] = (spread**beta)*decays[6]
+        if 100*spread < 2 : decays[5] = decays[6] = 0
         lamb = sum(decays)
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
@@ -189,7 +190,7 @@ def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
     else:
         s = 0
         Ts,lob,lobL3 = [],[],[]
-        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = 100, spread0 = 10, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {})
+        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = 260, spread0 = 3, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
         Ts.append(0)
         lob.append(lob0[-1])
         lobL3.append(lob0_l3[-1])
@@ -230,14 +231,14 @@ def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
             spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
             lob0 = lobTmp[-1]
             lob0_l3 = lobL3Tmp[-1]
-            Ts.append(TsTmp[-1])
+            Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1]])
             lob.append(lob0)
             lobL3.append(lob0_l3)
     return Ts, lob, lobL3
 
 
 
-def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 100, spread0 = 10, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {}):
+def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 3, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {}):
     lob = []
     lob_l3 = []
     T = []

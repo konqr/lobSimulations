@@ -157,8 +157,9 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
         else:
             numDays = len(v)//len(timegrid_len[1:])
             norm = np.sum(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays)))/numDays
+            print(k, norm)
             side = np.sign(norm)
-            if np.abs(norm) > 1: norm = side*0.85
+            #if np.abs(norm) > 1: norm = side*0.95
             pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
             params[k] = (side, pars)
 
