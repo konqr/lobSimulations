@@ -22,11 +22,11 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params[cols[i] + "->" + cols[j]]
-            print(cols[i] + "->" + cols[j])
-            print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
+            # print(cols[i] + "->" + cols[j])
+            # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
-    print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
+    # print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
     s = 0
     numJumps = 0
     n = num_nodes*[0]
@@ -43,7 +43,7 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
         if type(baselines[0]) == float:
             decays = baselines.copy()
         else:
-            hourIndex = int(np.floor(s/1800))
+            hourIndex = np.min([12,int(np.floor(s/1800))])
             decays = np.array(baselines)[:,hourIndex]
         for i in range(len(Ts)):
             taus = Ts[i]
@@ -79,8 +79,8 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params[cols[i] + "->" + cols[j]]
-            print(cols[i] + "->" + cols[j])
-            print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
+            # print(cols[i] + "->" + cols[j])
+            # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
     print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
@@ -102,7 +102,7 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
         if type(baselines[0]) == float:
             decays = baselines.copy()
         else:
-            hourIndex = int(np.floor(s/1800))
+            hourIndex = np.min([12,int(np.floor(s/1800))])
             decays = np.array(baselines)[:,hourIndex]
         for i in range(len(Ts)):
             taus = Ts[i]
