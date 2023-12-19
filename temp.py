@@ -57,33 +57,33 @@ def main():
     # cls.fitBoth()
     # return 0
 
-    # ric = "AAPL.OQ"
-    # sDate = dt.date(2019,1,2)
-    # eDate = dt.date(2019,1,2)
-    # dictIp = {}
-    # for d in pd.date_range(sDate, eDate):
-    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
-    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
-    #         dictIp.update({ d.strftime("%Y-%m-%d") : []})
-    #     else:
-    #         continue
-    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-    #     #df = df.loc[df.Time < 100]
-    #
-    # cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
-    # thetas = cls.fitConditionalTimeOfDayInSpread()
-    # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
-    #     pickle.dump(thetas, f)
-    # return 0
+    ric = "AAPL.OQ"
+    sDate = dt.date(2019,1,2)
+    eDate = dt.date(2019,1,3)
+    dictIp = {}
+    for d in pd.date_range(sDate, eDate):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
+            dictIp.update({ d.strftime("%Y-%m-%d") : []})
+        else:
+            continue
+        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+        #df = df.loc[df.Time < 100]
+
+    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
+    thetas = cls.fitConditionalInSpread()
+    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
+        pickle.dump(thetas, f)
+    return 0
 
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_tod_cvx")
-    inference.run(dt.date(2019,1,2),dt.date(2019,1,2), suffix = "_todIS_cvx3")
+    # inference.run(dt.date(2019,1,2),dt.date(2019,1,31), suffix = "_todIS_cvx3")
     # return 0
-    # T, lob, lobL3=simulate.simulate(1000, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-02_CLSLogLin__todIS_cvx2_10")
+    # T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10")
     # for l in lob:
     #     print(l)
-    # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-01-02_CLSLogLin__todIS_cvx2_10" , "wb") as f: #"/home/konajain/params/"
+    # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10" , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump((T, lob, lobL3), f)
     # return T, lob, lobL3
 
@@ -129,3 +129,20 @@ main()
 #             res_d.append(r_d)
 #         except EOFError:
 #             break
+
+# col = ['Ask Price ', 'Ask Size ', 'Bid Price ', 'Bid Size ']
+#
+# theNames = []
+# cols = []
+# for i in range(1, 11):
+#     for j in col:
+#         cols.append(str(j)+str(i))
+#         theNames.append(str(j) + str(i))
+#
+# for d in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+#     try:
+#         df = pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/INTC_"+d.strftime("%Y-%m-%d")+"_34200000_57600000_orderbook_10.csv",names=theNames)
+#         df['spread'] = df['Ask Price 1'] - df['Bid Price 1']
+#         print(len(df.loc[df.spread == 100])/len(df))
+#     except:
+#         continue

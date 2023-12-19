@@ -8,6 +8,7 @@ import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
 import time
 import cvxpy as cp
+import datetime as dt
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -580,6 +581,166 @@ class ConditionalLeastSquaresLogLin():
                 params1 = [model.coef_ for model in models]
 
             thetas[i] = (params1, params2, params3) #, paramsUncertainty)
+        return thetas
+
+    def fitConditionalInSpread(self, spreadBeta = 0.41):
+
+        thetas = {}
+
+        # TOD conditioning
+        dfs = []
+        for i in self.dates:
+            try:
+                df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+                dfs.append(df)
+            except:
+                continue
+        df = pd.concat(dfs)
+        # Special Date:
+        specDate = {
+            "MEXP" : [dt.date(2019,1,18), dt.date(2019,2,15), dt.date(2019,4,18), dt.date(2019,5,17), dt.date(2019,7,19), dt.date(2019,8,16), dt.date(2019,10,18), dt.date(2019,11,15), dt.date(2020,1,17), dt.date(2020,2,21), dt.date(2020,4,17), dt.date(2020,5,15)],
+            "FOMC3" : [dt.date(2019,1,30), dt.date(2019,3,20), dt.date(2019,5,1), dt.date(2019,6,19), dt.date(2019,7,31), dt.date(2019,9,18), dt.date(2019,10,30), dt.date(2019,12,11), dt.date(2020,1,29), dt.date(2020,3,18), dt.date(2020,4,29), dt.date(2020,6,10)],
+            "MEND" : [dt.date(2019,1,31), dt.date(2019,4,30), dt.date(2019,5,31), dt.date(2019,10,31), dt.date(2020,1,31), dt.date(2020,4, 30)],
+            "MSCIQ" : [dt.date(2019,2,28), dt.date(2019,8,27), dt.date(2020,2,28)],
+            "QEXP" : [dt.date(2019,3,15), dt.date(2019,6,21), dt.date(2019,9,20), dt.date(2019,12,20), dt.date(2020,3,20), dt.date(2020,6,19) ],
+            "QEND" : [dt.date(2019,3,29), dt.date(2019,6,28), dt.date(2019,9,30), dt.date(2019,12,31), dt.date(2020,3,31), dt.date(2020,6,30)],
+            "MSCIS" : [dt.date(2019,5,28), dt.date(2019,11,26), dt.date(2020,5,29)],
+            "HALF" : [dt.date(2019,7,3), dt.date(2019,11,29), dt.date(2019,12,24)],
+            "DISRUPTION" : [dt.date(2019,1,9),dt.date(2020,3,9), dt.date(2020,3,12), dt.date(2020,3,16)],
+            "RSL" : [dt.date(2020,6,26)]
+        }
+        specDates = []
+        for ds in specDate.values():
+            specDates += [i.strftime("%Y-%m-%d") for i in ds]
+        df['halfHourId'] = df['Time'].apply(lambda x: int(np.floor(x/1800)))
+        df = df.loc[df.Date.apply(lambda x : x not in specDate.values())]
+        dictTOD = {}
+        for e in df.event.unique():
+            df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
+            df_e = df_e/df_e.mean()
+            dictTOD[e] = df_e.to_dict()
+
+        XsIS_list = []
+        Xs_oth_list = []
+        Ys_inspreadBid_list = []
+        Ys_inspreadAsk_list = []
+        Ys_oth_list = []
+        for i in self.dates:
+            res_d = []
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputRes" , "rb") as f: #"/home/konajain/params/"
+                while True:
+                    try:
+                        r_d = pickle.load(f)
+                        if len(r_d[0]) == 2:
+                            r_d = sum(r_d, [])
+                        res_d.append(r_d)
+                        # if len(res_d) >= 2:
+                        #     break
+                    except EOFError:
+                        break
+            res_d = sum(res_d, [])
+
+            Xs = np.array([res_d[i+1] for i in range(0,len(res_d),2)])
+
+            df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_"+ i+"_12D.csv")
+
+            df['spread'] = df['Ask Price 1'] - df['Bid Price 1'] + df['BidDiff'] - df['AskDiff']
+
+            eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
+            arrs = list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)
+            spreads = list(df.groupby('event')['spread'].apply(np.array)[eventOrder].values)
+            num_datapoints = 10
+            min_lag =  1e-3
+            max_lag = 500
+            timegridLin = np.linspace(0,min_lag, num_datapoints)
+            timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
+            timegrid = np.append(timegridLin[:-1], timegridLog)
+            ser = []
+            bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
+            cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                    "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+            for arr, sp, col in zip(arrs, spreads, cols):
+                print(col)
+                arr = np.max(arr) - arr
+                sp[sp==0] = 1e-6
+                assignedBins = np.searchsorted(bins, arr, side="right")
+                binDf = np.unique(assignedBins, return_counts = True)
+                avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
+                #print(avgSp.shape)
+                avgSp = avgSp[avgSp > 0]
+                print(avgSp.shape)
+                if avgSp.shape[0] != binDf[1].shape[0]:
+                    avgSp = np.append(avgSp, 1e-6+np.zeros((binDf[1].shape[0] -avgSp.shape[0], )))
+                print(avgSp.shape)
+                avgSp = avgSp / binDf[1]
+                binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1], "spread" : avgSp})
+                print(binDf.head())
+                binDf = binDf.set_index("bin")
+                ser += [binDf]
+
+            print("done with binning")
+            df = pd.concat(ser, axis = 1)
+            df = df.fillna(0)
+            df = df.sort_index(ascending=False)
+            df = df.iloc[len(df) - Xs.shape[0]:]
+            timestamps = np.floor(df.index.values * (timegridLin[1] - timegridLin[0]) / 1800)
+
+            Xs = np.array([r.flatten() for r in Xs])
+            Xs = sm.add_constant(Xs)
+
+            spr = (df['spread'].apply(lambda x: np.mean(x[x>0]), axis = 1))**spreadBeta
+            spr = spr.values.reshape((len(spr),1))
+            XsIS = Xs*spr
+            Xs_oth = Xs
+            print(Xs_oth.shape)
+            Ys_inspreadBid = np.array([res_d[i][5] for i in range(0,len(res_d),2)])
+            todMultiplier = np.array([dictTOD['lo_inspread_Bid'][x] for x in timestamps])
+            Ys_inspreadBid = Ys_inspreadBid/todMultiplier
+            Ys_oth = np.array([np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)])
+            todMultiplier = np.array([[dictTOD[k][x] for k in ['lo_deep_Ask', 'co_deep_Ask', 'lo_top_Ask', 'co_top_Ask', 'mo_Ask', 'mo_Bid', 'co_top_Bid',
+                                                               'lo_top_Bid', 'co_deep_Bid', 'lo_deep_Bid']] for x in timestamps])
+            Ys_oth = Ys_oth / todMultiplier
+            Ys_inspreadAsk = np.array([res_d[i][6] for i in range(0,len(res_d),2)])
+            todMultiplier = np.array([dictTOD['lo_inspread_Ask'][x] for x in timestamps])
+            Ys_inspreadAsk = Ys_inspreadAsk/todMultiplier
+            #Ys_oth = np.array(Ys_oth)
+            XsIS_list.append(XsIS)
+            Xs_oth_list.append(Xs_oth)
+            Ys_oth_list.append(Ys_oth)
+            Ys_inspreadAsk_list.append(Ys_inspreadAsk)
+            Ys_inspreadBid_list.append(Ys_inspreadBid)
+
+        XsIS = np.vstack(XsIS_list)
+        Xs_oth = np.vstack(Xs_oth_list)
+        Ys_oth = np.vstack(Ys_oth_list)
+        Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
+        Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
+        params = ()
+        for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
+            if len(Ys.shape) == 1: nDim = 1
+            else: nDim = Ys[0].shape[0]
+            nTimesteps = 18
+            I = np.eye(12)
+            constrsX = []
+            constrsY = []
+            for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
+                r = I[:,i]
+                constrsX.append(np.array(nTimesteps*list(r)))
+                constrsY.append(0.999*np.ones(nDim))
+                # Xs.append(np.array(nTimesteps*list(r)))
+                # Ys.append(-1*r)
+            constrsX = np.array(constrsX)
+            constrsY = np.array(constrsY)
+            x = cp.Variable((Xs.shape[1], nDim))
+            constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY]
+            objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
+            prob = cp.Problem(objective, constraints)
+            result = prob.solve(solver=cp.SCS, verbose=True)
+            print(result)
+            params += (x.value,)
+        params2, params3, params1 = params
+
+        thetas[i] = (params1, params2, params3) #, paramsUncertainty)
         return thetas
 
 
