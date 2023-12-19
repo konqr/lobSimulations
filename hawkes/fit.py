@@ -725,7 +725,7 @@ class ConditionalLeastSquaresLogLin():
             constrsY = []
             for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
                 r = I[:,i]
-                constrsX.append(np.array(nTimesteps*list(r)))
+                constrsX.append(np.array([0] + nTimesteps*list(r)))
                 constrsY.append(0.999*np.ones(nDim))
                 # Xs.append(np.array(nTimesteps*list(r)))
                 # Ys.append(-1*r)

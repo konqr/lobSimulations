@@ -59,7 +59,7 @@ def main():
 
     ric = "AAPL.OQ"
     sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,3)
+    eDate = dt.date(2019,1,2)
     dictIp = {}
     for d in pd.date_range(sDate, eDate):
         l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
