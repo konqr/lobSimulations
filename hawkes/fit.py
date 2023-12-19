@@ -619,7 +619,7 @@ class ConditionalLeastSquaresLogLin():
             df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
             df_e = df_e/df_e.mean()
             dictTOD[e] = df_e.to_dict()
-        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
             pickle.dump(dictTOD, f)
         XsIS_list = []
         Xs_oth_list = []
