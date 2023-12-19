@@ -619,13 +619,15 @@ class ConditionalLeastSquaresLogLin():
             df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
             df_e = df_e/df_e.mean()
             dictTOD[e] = df_e.to_dict()
-
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
+            pickle.dump(dictTOD, f)
         XsIS_list = []
         Xs_oth_list = []
         Ys_inspreadBid_list = []
         Ys_inspreadAsk_list = []
         Ys_oth_list = []
         for i in self.dates:
+            date = i
             res_d = []
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputRes" , "rb") as f: #"/home/konajain/params/"
                 while True:
@@ -704,43 +706,45 @@ class ConditionalLeastSquaresLogLin():
             todMultiplier = np.array([dictTOD['lo_inspread_Ask'][x] for x in timestamps])
             Ys_inspreadAsk = Ys_inspreadAsk/todMultiplier
             #Ys_oth = np.array(Ys_oth)
-            XsIS_list.append(XsIS)
-            Xs_oth_list.append(Xs_oth)
-            Ys_oth_list.append(Ys_oth)
-            Ys_inspreadAsk_list.append(Ys_inspreadAsk)
-            Ys_inspreadBid_list.append(Ys_inspreadBid)
+            # XsIS_list.append(XsIS)
+            # Xs_oth_list.append(Xs_oth)
+            # Ys_oth_list.append(Ys_oth)
+            # Ys_inspreadAsk_list.append(Ys_inspreadAsk)
+            # Ys_inspreadBid_list.append(Ys_inspreadBid)
+            #
+            # XsIS = np.vstack(XsIS_list)
+            # Xs_oth = np.vstack(Xs_oth_list)
+            # Ys_oth = np.vstack(Ys_oth_list)
+            # Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
+            # Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
+            params = ()
+            for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
+                if len(Ys.shape) == 1: nDim = 1
+                else: nDim = Ys[0].shape[0]
+                nTimesteps = 18
+                I = np.eye(12)
+                constrsX = []
+                constrsY = []
+                for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
+                    r = I[:,i]
+                    constrsX.append(np.array([0] + nTimesteps*list(r)))
+                    constrsY.append(0.999*np.ones(nDim))
+                    # Xs.append(np.array(nTimesteps*list(r)))
+                    # Ys.append(-1*r)
+                constrsX = np.array(constrsX)
+                constrsY = np.array(constrsY)
+                x = cp.Variable((Xs.shape[1], nDim))
+                constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY]
+                objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
+                prob = cp.Problem(objective, constraints)
+                result = prob.solve(solver=cp.SCS, verbose=True)
+                print(result)
+                params += (x.value,)
+            params2, params3, params1 = params
 
-        XsIS = np.vstack(XsIS_list)
-        Xs_oth = np.vstack(Xs_oth_list)
-        Ys_oth = np.vstack(Ys_oth_list)
-        Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
-        Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
-        params = ()
-        for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
-            if len(Ys.shape) == 1: nDim = 1
-            else: nDim = Ys[0].shape[0]
-            nTimesteps = 18
-            I = np.eye(12)
-            constrsX = []
-            constrsY = []
-            for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
-                r = I[:,i]
-                constrsX.append(np.array([0] + nTimesteps*list(r)))
-                constrsY.append(0.999*np.ones(nDim))
-                # Xs.append(np.array(nTimesteps*list(r)))
-                # Ys.append(-1*r)
-            constrsX = np.array(constrsX)
-            constrsY = np.array(constrsY)
-            x = cp.Variable((Xs.shape[1], nDim))
-            constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY]
-            objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
-            prob = cp.Problem(objective, constraints)
-            result = prob.solve(solver=cp.SCS, verbose=True)
-            print(result)
-            params += (x.value,)
-        params2, params3, params1 = params
-
-        thetas[i] = (params1, params2, params3) #, paramsUncertainty)
+            thetas[date] = (params1, params2, params3) #, paramsUncertainty)
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_SCS" , "wb") as f: #"/home/konajain/params/"
+                pickle.dump(thetas, f)
         return thetas
 
 
