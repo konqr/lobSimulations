@@ -621,11 +621,14 @@ class ConditionalLeastSquaresLogLin():
             dictTOD[e] = df_e.to_dict()
         with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
             pickle.dump(dictTOD, f)
-        XsIS_list = []
-        Xs_oth_list = []
-        Ys_inspreadBid_list = []
-        Ys_inspreadAsk_list = []
-        Ys_oth_list = []
+        if self.cfg.get("path_dictTOD", 0):
+            with open( self.cfg.get("path_dictTOD"), "rb") as f: #"/home/konajain/params/"
+                dictTOD = pickle.load(f)
+        # XsIS_list = []
+        # Xs_oth_list = []
+        # Ys_inspreadBid_list = []
+        # Ys_inspreadAsk_list = []
+        # Ys_oth_list = []
         for i in self.dates:
             date = i
             res_d = []
