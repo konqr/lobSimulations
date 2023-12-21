@@ -746,7 +746,7 @@ class ConditionalLeastSquaresLogLin():
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_SCS" , "wb") as f: #"/home/konajain/params/"
-                pickle.dump(thetas[i], f)
+                pickle.dump(thetas[date], f)
         return thetas
 
 
