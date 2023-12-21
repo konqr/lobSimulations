@@ -55,27 +55,30 @@ class ParametricFit():
             thetas = thetasPowerLaw
         return thetas
 
-def run(sDate, eDate, suffix  = "_todIS_sgd"):
+def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs"):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-    ric = "AAPL.OQ"
 
-
-    l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "D:\\Work\\PhD\\Expt 1\\params\\")
-    thetas = {}
-    for d in pd.date_range(sDate,eDate):
-        if d.strftime("%Y-%m-%d") == "2019-01-09": continue
-        if os.path.exists(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix):
-            with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
-                theta = list(pickle.load(f).values())[0]
-                if len(theta) == 3:
-                    theta1, theta2, theta3 = theta
-                    theta = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
-                if theta.shape[0] == 217:
-                    theta = (theta[0,:], theta[1:,:].transpose())
-                if theta.shape[0] == 229:
-                    theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
-                thetas.update({d.strftime("%Y-%m-%d") : theta })
+    l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+    # thetas = {}
+    # for d in pd.date_range(sDate,eDate):
+    #     if d.strftime("%Y-%m-%d") == "2019-01-09": continue
+    #     if os.path.exists(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix):
+    #         with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
+    #             theta = list(pickle.load(f).values())[0]
+    #             if len(theta) == 3:
+    #                 theta1, theta2, theta3 = theta
+    #                 theta = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
+    #             if theta.shape[0] == 217:
+    #                 theta = (theta[0,:], theta[1:,:].transpose())
+    #             if theta.shape[0] == 229:
+    #                 theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
+    #             thetas.update({d.strftime("%Y-%m-%d") : theta })
+    with open(l.dataPath + ric + "_Params_" + str(eDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + suffix , "rb") as f: #"/home/konajain/params/"
+        thetas = pickle.load(f)
+        for k, v in thetas.items():
+            theta1, theta2, theta3 = v
+            thetas[k] = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
 
     # each theta in kernel = \delta * h(midpoint)
 
@@ -132,10 +135,14 @@ def run(sDate, eDate, suffix  = "_todIS_sgd"):
     for d, theta in thetas.items():
         if d=="2019-01-09": continue
         for i, col in zip(np.arange(12), cols):
-            theta_i = theta[0][i,:]
-            exo = theta_i
+            if suffix == "_IS_scs":
+                exo = theta[i,0]
+                phi = theta[i,1:]
+            else:
+                theta_i = theta[0][i,:]
+                exo = theta_i
+                phi = theta[1][i,:]
             res[col] = res.get(col, []) + [exo]
-            phi = theta[1][i,:]
             phi = phi.reshape((len(phi)//12,12))
             num_datapoints = (phi.shape[0] + 2)//2
             min_lag =  1e-3

@@ -730,7 +730,7 @@ class ConditionalLeastSquaresLogLin():
                 constrsY = []
                 for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
                     r = I[:,i]
-                    constrsX.append(np.array([0] + nTimesteps*list(r)))
+                    constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                     constrsY.append(0.999*np.ones(nDim))
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
@@ -744,10 +744,9 @@ class ConditionalLeastSquaresLogLin():
                 print(result)
                 params += (x.value,)
             params2, params3, params1 = params
-
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_SCS" , "wb") as f: #"/home/konajain/params/"
-                pickle.dump(thetas, f)
+                pickle.dump(thetas[i], f)
         return thetas
 
 
