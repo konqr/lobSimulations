@@ -888,14 +888,14 @@ class ConditionalLeastSquaresLogLin():
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                         ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
                         lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
-                        boundsY_u.append(ub*np.ones(nDim))
-                        boundsY_l.append(lb*np.ones(nDim))
+                        boundsY_u.append(ub*np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                        boundsY_l.append(lb*np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                     if id == "inspreadAsk":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                         ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
                         lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
-                        boundsY_u.append(ub*np.ones(nDim))
-                        boundsY_l.append(lb*np.ones(nDim))
+                        boundsY_u.append(ub*np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                        boundsY_l.append(lb*np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                     if id == "oth":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                         ubL, lbL = np.ones(nDim), np.ones(nDim)
@@ -903,8 +903,8 @@ class ConditionalLeastSquaresLogLin():
 
                             ub = np.max([0,boundsDict[cols[i] +"->" + col]])
                             lb = np.min([0,boundsDict[cols[i] +"->" + col]])
-                            ubL[j] = ub
-                            lbL[j] = lb
+                            ubL[j] = ub*np.array([0] + 12*[0] + (nTimesteps-1)*list(r))
+                            lbL[j] = lb*np.array([0] + 12*[0] + (nTimesteps-1)*list(r))
                         print(ubL, lbL)
                         boundsY_u.append(ubL)
                         boundsY_l.append(lbL)
@@ -915,7 +915,7 @@ class ConditionalLeastSquaresLogLin():
                 boundsY_l = np.array(boundsY_l)
 
                 x = cp.Variable((Xs.shape[1], nDim))
-                constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, boundsX@x >= boundsY_l, boundsX@x <= boundsY_u]
+                constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
                 result = prob.solve(solver=cp.SCS, verbose=True)
