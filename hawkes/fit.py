@@ -584,6 +584,152 @@ class ConditionalLeastSquaresLogLin():
         return thetas
 
     def fitConditionalInSpread(self, spreadBeta = 0.41):
+        cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        boundsDict = {'mo_Ask->lo_deep_Ask': 0,
+                      'mo_Bid->lo_deep_Ask': 0,
+                      'lo_deep_Bid->lo_deep_Ask': 0,
+                      'lo_deep_Ask->co_deep_Ask': 0,
+                      'lo_top_Ask->co_deep_Ask': 0,
+                      'mo_Ask->co_deep_Ask': 0,
+                      'mo_Bid->co_deep_Ask': 0,
+                      'lo_deep_Ask->lo_top_Ask': 0,
+                      'co_deep_Ask->lo_top_Ask': 0,
+                      'mo_Ask->lo_top_Ask': 0,
+                      'lo_inspread_Bid->lo_top_Ask': 0,
+                      'mo_Bid->lo_top_Ask': 0,
+                      'co_top_Bid->lo_top_Ask': 0,
+                      'lo_top_Bid->lo_top_Ask': 0,
+                      'co_deep_Bid->lo_top_Ask': 0,
+                      'lo_deep_Bid->lo_top_Ask': 0,
+                      'mo_Ask->co_top_Ask': 0,
+                      'mo_Bid->co_top_Ask': 0,
+                      'co_top_Bid->co_top_Ask': 0,
+                      'lo_top_Bid->co_top_Ask': 0,
+                      'lo_deep_Ask->mo_Ask': 0,
+                      'co_deep_Ask->mo_Ask': 0,
+                      'lo_top_Ask->mo_Ask': 0,
+                      'co_top_Ask->mo_Ask': 0,
+                      'lo_inspread_Ask->mo_Ask': 0,
+                      'lo_inspread_Bid->mo_Ask': 0,
+                      'mo_Bid->mo_Ask': 0,
+                      'co_top_Bid->mo_Ask': 0,
+                      'lo_top_Bid->mo_Ask': 0,
+                      'co_deep_Bid->mo_Ask': 0,
+                      'lo_deep_Bid->mo_Ask': 0,
+                      'lo_top_Ask->lo_inspread_Ask': 0,
+                      'co_top_Ask->lo_inspread_Ask': 0,
+                      'mo_Ask->lo_inspread_Ask': 0,
+                      'mo_Bid->lo_inspread_Ask': 0,
+                      'mo_Ask->lo_inspread_Bid': 0,
+                      'lo_inspread_Ask->lo_inspread_Bid': 0,
+                      'mo_Bid->lo_inspread_Bid': 0,
+                      'lo_deep_Ask->mo_Bid': 0,
+                      'co_deep_Ask->mo_Bid': 0,
+                      'lo_top_Ask->mo_Bid': 0,
+                      'co_top_Ask->mo_Bid': 0,
+                      'mo_Ask->mo_Bid': 0,
+                      'lo_inspread_Ask->mo_Bid': 0,
+                      'lo_inspread_Bid->mo_Bid': 0,
+                      'co_top_Bid->mo_Bid': 0,
+                      'lo_top_Bid->mo_Bid': 0,
+                      'co_deep_Bid->mo_Bid': 0,
+                      'lo_deep_Bid->mo_Bid': 0,
+                      'mo_Ask->co_top_Bid': 0,
+                      'mo_Bid->co_top_Bid': 0,
+                      'co_deep_Ask->lo_top_Bid': 0,
+                      'lo_top_Ask->lo_top_Bid': 0,
+                      'co_top_Ask->lo_top_Bid': 0,
+                      'mo_Ask->lo_top_Bid': 0,
+                      'lo_inspread_Ask->lo_top_Bid': 0,
+                      'lo_inspread_Bid->lo_top_Bid': 0,
+                      'mo_Bid->lo_top_Bid': 0,
+                      'co_top_Bid->lo_top_Bid': 0,
+                      'co_deep_Bid->lo_top_Bid': 0,
+                      'co_top_Ask->co_deep_Bid': 0,
+                      'mo_Ask->co_deep_Bid': 0,
+                      'mo_Bid->co_deep_Bid': 0,
+                      'co_top_Bid->co_deep_Bid': 0,
+                      'lo_top_Bid->co_deep_Bid': 0,
+                      'lo_top_Ask->lo_deep_Bid': 0,
+                      'co_top_Ask->lo_deep_Bid': 0,
+                      'mo_Ask->lo_deep_Bid': 0,
+                      'lo_inspread_Ask->lo_deep_Bid': 0,
+                      'mo_Bid->lo_deep_Bid': 0,
+                      'lo_top_Bid->lo_deep_Bid': 0,
+                      'lo_top_Ask->lo_deep_Ask': -1,
+                      'lo_inspread_Ask->lo_deep_Ask': -1,
+                      'lo_inspread_Bid->lo_deep_Ask': -1,
+                      'lo_top_Bid->lo_deep_Ask': -1,
+                      'lo_inspread_Ask->co_deep_Ask': -1,
+                      'co_top_Bid->co_deep_Ask': -1,
+                      'co_deep_Bid->co_deep_Ask': -1,
+                      'lo_deep_Bid->co_deep_Ask': -1,
+                      'co_top_Ask->lo_top_Ask': -1,
+                      'lo_deep_Ask->co_top_Ask': -1,
+                      'lo_top_Ask->co_top_Ask': -1,
+                      'lo_inspread_Bid->co_top_Ask': -1,
+                      'lo_deep_Bid->co_top_Ask': -1,
+                      'co_deep_Ask->lo_inspread_Ask': -1,
+                      'co_top_Bid->lo_inspread_Ask': -1,
+                      'co_deep_Bid->lo_inspread_Ask': -1,
+                      'lo_deep_Ask->lo_inspread_Bid': -1,
+                      'lo_top_Ask->lo_inspread_Bid': -1,
+                      'lo_top_Bid->lo_inspread_Bid': -1,
+                      'lo_deep_Bid->lo_inspread_Bid': -1,
+                      'co_deep_Ask->co_top_Bid': -1,
+                      'lo_top_Ask->co_top_Bid': -1,
+                      'lo_inspread_Ask->co_top_Bid': -1,
+                      'lo_inspread_Bid->co_top_Bid': -1,
+                      'co_deep_Bid->co_top_Bid': -1,
+                      'lo_deep_Bid->lo_top_Bid': -1,
+                      'lo_deep_Ask->co_deep_Bid': -1,
+                      'lo_inspread_Bid->co_deep_Bid': -1,
+                      'lo_deep_Ask->lo_deep_Bid': -1,
+                      'co_top_Bid->lo_deep_Bid': -1,
+                      'lo_deep_Ask->lo_deep_Ask': 1,
+                      'co_deep_Ask->lo_deep_Ask': 1,
+                      'co_top_Ask->lo_deep_Ask': 1,
+                      'co_top_Bid->lo_deep_Ask': 1,
+                      'co_deep_Bid->lo_deep_Ask': 1,
+                      'co_deep_Ask->co_deep_Ask': 1,
+                      'co_top_Ask->co_deep_Ask': 1,
+                      'lo_inspread_Bid->co_deep_Ask': 1,
+                      'lo_top_Bid->co_deep_Ask': 1,
+                      'lo_top_Ask->lo_top_Ask': 1,
+                      'lo_inspread_Ask->lo_top_Ask': 1,
+                      'co_deep_Ask->co_top_Ask': 1,
+                      'co_top_Ask->co_top_Ask': 1,
+                      'lo_inspread_Ask->co_top_Ask': 1,
+                      'co_deep_Bid->co_top_Ask': 1,
+                      'mo_Ask->mo_Ask': 1,
+                      'lo_deep_Ask->lo_inspread_Ask': 1,
+                      'lo_inspread_Ask->lo_inspread_Ask': 1,
+                      'lo_inspread_Bid->lo_inspread_Ask': 1,
+                      'lo_top_Bid->lo_inspread_Ask': 1,
+                      'lo_deep_Bid->lo_inspread_Ask': 1,
+                      'co_deep_Ask->lo_inspread_Bid': 1,
+                      'co_top_Ask->lo_inspread_Bid': 1,
+                      'lo_inspread_Bid->lo_inspread_Bid': 1,
+                      'co_top_Bid->lo_inspread_Bid': 1,
+                      'co_deep_Bid->lo_inspread_Bid': 1,
+                      'mo_Bid->mo_Bid': 1,
+                      'lo_deep_Ask->co_top_Bid': 1,
+                      'co_top_Ask->co_top_Bid': 1,
+                      'co_top_Bid->co_top_Bid': 1,
+                      'lo_top_Bid->co_top_Bid': 1,
+                      'lo_deep_Bid->co_top_Bid': 1,
+                      'lo_deep_Ask->lo_top_Bid': 1,
+                      'lo_top_Bid->lo_top_Bid': 1,
+                      'co_deep_Ask->co_deep_Bid': 1,
+                      'lo_top_Ask->co_deep_Bid': 1,
+                      'lo_inspread_Ask->co_deep_Bid': 1,
+                      'co_deep_Bid->co_deep_Bid': 1,
+                      'lo_deep_Bid->co_deep_Bid': 1,
+                      'co_deep_Ask->lo_deep_Bid': 1,
+                      'lo_inspread_Bid->lo_deep_Bid': 1,
+                      'co_deep_Bid->lo_deep_Bid': 1,
+                      'lo_deep_Bid->lo_deep_Bid': 1}
 
         thetas = {}
 
@@ -721,23 +867,51 @@ class ConditionalLeastSquaresLogLin():
             # Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
             # Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
             params = ()
-            for Xs, Ys in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth]):
+            for Xs, Ys, id in zip([XsIS, XsIS, Xs_oth], [np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk), Ys_oth], ["inspreadBid", "inspreadAsk", "oth"]):
                 if len(Ys.shape) == 1: nDim = 1
                 else: nDim = Ys[0].shape[0]
                 nTimesteps = 18
                 I = np.eye(12)
                 constrsX = []
                 constrsY = []
-                for i in range(12): # TODO: this is not perfect - need to add constraints and solve the problem then
+                for i in range(12): # i
                     r = I[:,i]
                     constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
-                    constrsY.append(0.999*np.ones(nDim))
+                    constrsY.append(0.999*np.ones(nDim)) # j
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
+                boundsX, boundsY_u, boundsY_l = [] ,[],[]
+                for i in range(12): # i
+                    r = I[:,i]
+
+                    if id == "inspreadBid":
+                        boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                        ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
+                        lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
+                        boundsY_u.append(ub*np.ones(nDim))
+                        boundsY_l.append(lb*np.ones(nDim))
+                    if id == "inspreadAsk":
+                        boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                        ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
+                        lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
+                        boundsY_u.append(ub*np.ones(nDim))
+                        boundsY_l.append(lb*np.ones(nDim))
+                    if id == "oth":
+                        for col in cols[:5]+cols[7:]:
+                            boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                            ub = np.max([0,boundsDict[cols[i] +"->" + col]])
+                            lb = np.min([0,boundsDict[cols[i] +"->" + col]])
+                            boundsY_u.append(ub*np.ones(1))
+                            boundsY_l.append(lb*np.ones(1))
+
                 constrsX = np.array(constrsX)
                 constrsY = np.array(constrsY)
+                boundsX = np.array(boundsX)
+                boundsY_u = np.array(boundsY_u)
+                boundsY_l = np.array(boundsY_l)
+
                 x = cp.Variable((Xs.shape[1], nDim))
-                constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY]
+                constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, boundsX@x >= boundsY_l, boundsX <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
                 result = prob.solve(solver=cp.SCS, verbose=True)
