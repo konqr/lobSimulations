@@ -898,7 +898,7 @@ class ConditionalLeastSquaresLogLin():
                         boundsY_l.append(lb*np.array([-1*np.inf] + 12*[0] + (nTimesteps-1)*list(r)))
                     if id == "oth":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
-                        ubL, lbL = np.ones(nDim), np.ones(nDim)
+                        ubL, lbL = np.ones((nDim, Xs.shape[1])), np.ones((nDim, Xs.shape[1]))
                         for j,col in zip(range(10),cols[:5]+cols[7:]):
 
                             ub = np.max([0,boundsDict[cols[i] +"->" + col]])
