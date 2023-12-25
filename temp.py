@@ -72,8 +72,8 @@ def main():
 
     cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
     thetas = cls.fitConditionalInSpread()
-    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
-        pickle.dump(thetas, f)
+    # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
+    #     pickle.dump(thetas, f)
     return 0
 
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
