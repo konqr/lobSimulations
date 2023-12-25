@@ -898,7 +898,7 @@ class ConditionalLeastSquaresLogLin():
                         boundsY_l.append(lb*np.array([-1*np.inf] + 12*[0] + (nTimesteps-1)*list(r)))
                     if id == "oth":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
-                        ubL, lbL = np.ones(nDim), np.ones(nDim)
+                        ubL, lbL = np.ones((nDim, Xs.shape[1])), np.ones((nDim, Xs.shape[1]))
                         for j,col in zip(range(10),cols[:5]+cols[7:]):
 
                             ub = np.max([0,boundsDict[cols[i] +"->" + col]])
@@ -911,8 +911,8 @@ class ConditionalLeastSquaresLogLin():
                 constrsX = np.array(constrsX)
                 constrsY = np.array(constrsY)
                 boundsX = np.array(boundsX)
-                boundsY_u = np.array(boundsY_u).sum(axis=0).reshape((Xs.shape[1], nDim))
-                boundsY_l = np.array(boundsY_l).sum(axis=0).reshape((Xs.shape[1], nDim))
+                boundsY_u = np.array(boundsY_u).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
+                boundsY_l = np.array(boundsY_l).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
 
                 x = cp.Variable((Xs.shape[1], nDim))
                 constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
