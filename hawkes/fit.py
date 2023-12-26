@@ -905,7 +905,7 @@ class ConditionalLeastSquaresLogLin():
                             lb = np.min([0,boundsDict[cols[i] +"->" + col]])
                             ubL[j] = np.append([1.], ub*np.array(12*[0] + (nTimesteps-1)*list(r)))
                             lbL[j] = np.append([0], lb*np.array( 12*[0] + (nTimesteps-1)*list(r)))
-                        print(ubL, lbL)
+                        # print(ubL, lbL)
                         boundsY_u.append(ubL)
                         boundsY_l.append(lbL)
                 constrsX = np.array(constrsX)
@@ -918,12 +918,12 @@ class ConditionalLeastSquaresLogLin():
                 constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
-                result = prob.solve(solver=cp.SCS, verbose=True)
+                result = prob.solve(solver=cp.ECOS, verbose=True)
                 print(result)
                 params += (x.value,)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_SCS_bounds" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_ECOS_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
