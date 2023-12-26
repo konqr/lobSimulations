@@ -912,6 +912,7 @@ class ConditionalLeastSquaresLogLin():
                 constrsY = np.array(constrsY)
                 boundsX = np.array(boundsX)
                 boundsY_u = np.array(boundsY_u).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
+                print(boundsY_u)
                 boundsY_l = np.array(boundsY_l).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
 
                 x = cp.Variable((Xs.shape[1], nDim))
