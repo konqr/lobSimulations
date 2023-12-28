@@ -925,6 +925,7 @@ class ConditionalLeastSquaresLogLin():
                     thetas_old0 = thetas_old[2]
                 elif id == "inspreadAsk":
                     thetas_old0 = thetas_old[0]
+                print(thetas_old0.shape)
                 constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
