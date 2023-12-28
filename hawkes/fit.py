@@ -917,10 +917,18 @@ class ConditionalLeastSquaresLogLin():
                 boundsY_l = np.array(boundsY_l).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
                 print(boundsY_l)
                 x = cp.Variable((Xs.shape[1], nDim))
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + "2019-01-03" + "_" + "2019-01-03" + "_IS_SCS_bounds" , "rb") as f: #"/home/konajain/params/"
+                    thetas_old = pickle.load(f)
+                if id == "oth":
+                    x.value = thetas_old['2019-01-03'][1]
+                elif id == "inspreadBid":
+                    x.value = thetas_old['2019-01-03'][2]
+                elif id == "inspreadAsk":
+                    x.value = thetas_old['2019-01-03'][0]
                 constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
-                result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=21600)
+                result = prob.solve(warm_start = True, solver=cp.SCS, verbose=True, time_limit_secs=21600)
                 print(result)
                 params += (x.value,)
             params2, params3, params1 = params
