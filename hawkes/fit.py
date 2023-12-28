@@ -928,7 +928,7 @@ class ConditionalLeastSquaresLogLin():
                 constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
                 objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
                 prob = cp.Problem(objective, constraints)
-                result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=2160*nDim, gpu=True) #x = thetas_old0,
+                result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=2160*nDim, x = thetas_old0) #
                 print(result)
                 params += (x.value,)
             params2, params3, params1 = params
