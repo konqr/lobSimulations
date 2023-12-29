@@ -937,11 +937,11 @@ class ConditionalLeastSquaresLogLin():
                 else:
                     p = []
                     for i in range(nDim):
-                        p += [lsq_linear(Xs, Ys[:,i], bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2).x]
+                        p += [lsq_linear(Xs, Ys[:,i], bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
                     params = np.vstack(p)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_SCS_bounds" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
