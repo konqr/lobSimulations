@@ -942,8 +942,8 @@ class ConditionalLeastSquaresLogLin():
                     if nDim == 1:
                         Ys = Ys.reshape(len(Ys), 1)
                     for i in range(nDim):
-                        A = np.vstack([Xs, 1e-6*constrsX])
-                        B = np.hstack([Ys[:,i], 1e-6*constrsY[:,i]])
+                        A = np.vstack([Xs, constrsX])
+                        B = np.hstack([Ys[:,i], constrsY[:,i]])
                         p += [lsq_linear(A, B, bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
                     params += (np.vstack(p),)
             params2, params3, params1 = params
