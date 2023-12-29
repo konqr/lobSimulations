@@ -940,7 +940,7 @@ class ConditionalLeastSquaresLogLin():
                         A = np.vstack([Xs, 1e-6*constrsX])
                         B = np.vstack([Ys[:,i], 1e-6*constrsY])
                         p += [lsq_linear(A, B, bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
-                    params = np.vstack(p)
+                    params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"_bounds" , "wb") as f: #"/home/konajain/params/"
