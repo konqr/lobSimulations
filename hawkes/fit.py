@@ -918,22 +918,25 @@ class ConditionalLeastSquaresLogLin():
                 boundsY_l = np.array(boundsY_l).sum(axis=0).transpose().reshape((Xs.shape[1], nDim))
                 print(boundsY_l)
                 if self.cfg.get("solver", "sgd") == "scs":
-                    x = cp.Variable((Xs.shape[1], nDim))
-                    # with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + "2019-01-03" + "_" + "2019-01-03" + "_IS_SCS_bounds" , "rb") as f: #"/home/konajain/params/"
-                    #     thetas_old = pickle.load(f)
-                    # if id == "oth":
-                    #     thetas_old0 = thetas_old[1]
-                    # elif id == "inspreadBid":
-                    #     thetas_old0 = thetas_old[2]
-                    # elif id == "inspreadAsk":
-                    #     thetas_old0 = thetas_old[0]
-                    # print(thetas_old0.shape)
-                    constraints = [constrsX@x <= constrsY, constrsX@x >= -1*constrsY, x >= boundsY_l, x <= boundsY_u]
-                    objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)))
-                    prob = cp.Problem(objective, constraints)
-                    result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=2160*nDim, mkl=True) #, x = thetas_old0
-                    print(result)
-                    params += (x.value,)
+                    p = []
+                    for i in range(nDim):
+                        x = cp.Variable((Xs.shape[1], 1))
+                        # with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + "2019-01-03" + "_" + "2019-01-03" + "_IS_SCS_bounds" , "rb") as f: #"/home/konajain/params/"
+                        #     thetas_old = pickle.load(f)
+                        # if id == "oth":
+                        #     thetas_old0 = thetas_old[1]
+                        # elif id == "inspreadBid":
+                        #     thetas_old0 = thetas_old[2]
+                        # elif id == "inspreadAsk":
+                        #     thetas_old0 = thetas_old[0]
+                        # print(thetas_old0.shape)
+                        constraints = [constrsX@x <= constrsY[:,i], constrsX@x >= -1*constrsY[:,i], x >= boundsY_l[:,i], x <= boundsY_u[:,i]]
+                        objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)[:,i]))
+                        prob = cp.Problem(objective, constraints)
+                        result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=7200) #, x = thetas_old0
+                        print(result)
+                        p += [x.value]
+                    params += (np.vstack(p),)
                 else:
                     p = []
                     for i in range(nDim):
