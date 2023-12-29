@@ -930,7 +930,7 @@ class ConditionalLeastSquaresLogLin():
                         # elif id == "inspreadAsk":
                         #     thetas_old0 = thetas_old[0]
                         # print(thetas_old0.shape)
-                        constraints = [constrsX@x <= constrsY[:,i], constrsX@x >= -1*constrsY[:,i], x >= boundsY_l[:,i], x <= boundsY_u[:,i]]
+                        constraints = [constrsX@x <= constrsY[:,i].reshape(constrsY.shape[0], 1), constrsX@x >= -1*constrsY[:,i].reshape(constrsY.shape[0], 1), x >= boundsY_l[:,i].reshape(boundsY_l.shape[0], 1), x <= boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)]
                         objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)[:,i]))
                         prob = cp.Problem(objective, constraints)
                         result = prob.solve(solver=cp.SCS, verbose=True, time_limit_secs=7200) #, x = thetas_old0
