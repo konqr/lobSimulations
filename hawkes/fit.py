@@ -937,7 +937,9 @@ class ConditionalLeastSquaresLogLin():
                 else:
                     p = []
                     for i in range(nDim):
-                        p += [lsq_linear(Xs, Ys[:,i], bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
+                        A = np.vstack([Xs, 1e-6*constrsX])
+                        B = np.vstack([Ys[:,i], 1e-6*constrsY])
+                        p += [lsq_linear(A, B, bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
                     params = np.vstack(p)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
