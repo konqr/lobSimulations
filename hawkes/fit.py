@@ -587,7 +587,7 @@ class ConditionalLeastSquaresLogLin():
             thetas[i] = (params1, params2, params3) #, paramsUncertainty)
         return thetas
 
-    def fitConditionalInSpread(self, spreadBeta = 0.41):
+    def fitConditionalInSpread(self, spreadBeta = 0.41, avgSpread = 0.028):
         cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                 "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         boundsDict = {'lo_deep_Ask->lo_deep_Ask': 1.0,
@@ -952,11 +952,14 @@ class ConditionalLeastSquaresLogLin():
                 elif self.cfg.get("solver", "sgd") == "osqp":
                     p = []
                     for i in range(nDim):
+                        mult =1.
+                        if nDim == 1:
+                            mult = 1./avgSpread**spreadBeta
                         R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs))
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
-                        l = np.vstack([-1*constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])
-                        u = np.vstack([constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])
+                        l = np.vstack([-1*constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])/mult
+                        u = np.vstack([constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])/mult
                         prob = osqp.OSQP()
                         prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True)
                         res = prob.solve()
