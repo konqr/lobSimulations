@@ -848,14 +848,14 @@ class ConditionalLeastSquaresLogLin():
             XsIS = Xs*spr
             Xs_oth = Xs
             print(Xs_oth.shape)
-            Ys_inspreadBid = np.array([res_d[i][5] for i in range(0,len(res_d),2)])
+            Ys_inspreadBid = np.array([res_d[i][6] for i in range(0,len(res_d),2)])
             todMultiplier = np.array([dictTOD['lo_inspread_Bid'][x] for x in timestamps])
             Ys_inspreadBid = Ys_inspreadBid/todMultiplier
             Ys_oth = np.array([np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)])
             todMultiplier = np.array([[dictTOD[k][x] for k in ['lo_deep_Ask', 'co_deep_Ask', 'lo_top_Ask', 'co_top_Ask', 'mo_Ask', 'mo_Bid', 'co_top_Bid',
                                                                'lo_top_Bid', 'co_deep_Bid', 'lo_deep_Bid']] for x in timestamps])
             Ys_oth = Ys_oth / todMultiplier
-            Ys_inspreadAsk = np.array([res_d[i][6] for i in range(0,len(res_d),2)])
+            Ys_inspreadAsk = np.array([res_d[i][5] for i in range(0,len(res_d),2)])
             todMultiplier = np.array([dictTOD['lo_inspread_Ask'][x] for x in timestamps])
             Ys_inspreadAsk = Ys_inspreadAsk/todMultiplier
             #Ys_oth = np.array(Ys_oth)
