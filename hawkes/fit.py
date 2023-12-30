@@ -10,6 +10,9 @@ import time
 import cvxpy as cp
 import datetime as dt
 from scipy.optimize import lsq_linear
+import osqp
+import scipy as sp
+from scipy import sparse
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -937,7 +940,7 @@ class ConditionalLeastSquaresLogLin():
                         print(result)
                         p += [x.value]
                     params += (np.vstack(p),)
-                else:
+                elif self.cfg.get("solver", "sgd") == "scipy":
                     p = []
                     if nDim == 1:
                         Ys = Ys.reshape(len(Ys), 1)
@@ -945,6 +948,19 @@ class ConditionalLeastSquaresLogLin():
                         A = np.vstack([Xs, constrsX])
                         B = np.hstack([Ys[:,i], constrsY[:,i]])
                         p += [lsq_linear(A, B, bounds=(boundsY_l[:,i], boundsY_u[:,i]), lsmr_tol='auto', verbose=2, max_iter = 10000).x]
+                    params += (np.vstack(p),)
+                elif self.cfg.get("solver", "sgd") == "osqp":
+                    p = []
+                    for i in range(nDim):
+                        R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs))
+                        q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
+                        G = np.vstack([constrsX, np.eye(Xs.shape[1])])
+                        l = np.vstack([-1*constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])
+                        u = np.vstack([constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])
+                        prob = osqp.OSQP()
+                        prob.setup(R, q, G, l, u, alpha=1.0)
+                        res = prob.solve()
+                        p += [res.x]
                     params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
