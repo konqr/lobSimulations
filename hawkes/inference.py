@@ -130,8 +130,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             if "->" not in k:
                 params[k] = np.mean(v)
             else:
-                numDays = len(v)//len(timegrid_len[1:])
-                norm = np.sum(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays)))/numDays
+                # numDays = len(v)//len(timegrid_len[1:])
+                norm = np.average(norms[k])
                 side = np.sign(norm)
                 # if np.abs(norm) > 1: norm = 0.99
                 pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
