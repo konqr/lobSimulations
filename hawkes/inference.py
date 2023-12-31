@@ -81,17 +81,36 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             # thetas[k] = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
             thetas[k] = np.hstack([theta2.transpose()[:,:5], theta1.transpose()*(avgSpread)**spreadBeta, theta3.transpose()*(avgSpread)**spreadBeta, theta2.transpose()[:,5:]])
     # each theta in kernel = \delta * h(midpoint)
+    # Special Date:
+    specDate = {
+        "MEXP" : [dt.date(2019,1,18), dt.date(2019,2,15), dt.date(2019,4,18), dt.date(2019,5,17), dt.date(2019,7,19), dt.date(2019,8,16), dt.date(2019,10,18), dt.date(2019,11,15), dt.date(2020,1,17), dt.date(2020,2,21), dt.date(2020,4,17), dt.date(2020,5,15)],
+        "FOMC3" : [dt.date(2019,1,30), dt.date(2019,3,20), dt.date(2019,5,1), dt.date(2019,6,19), dt.date(2019,7,31), dt.date(2019,9,18), dt.date(2019,10,30), dt.date(2019,12,11), dt.date(2020,1,29), dt.date(2020,3,18), dt.date(2020,4,29), dt.date(2020,6,10)],
+        "MEND" : [dt.date(2019,1,31), dt.date(2019,4,30), dt.date(2019,5,31), dt.date(2019,10,31), dt.date(2020,1,31), dt.date(2020,4, 30)],
+        "MSCIQ" : [dt.date(2019,2,28), dt.date(2019,8,27), dt.date(2020,2,28)],
+        "QEXP" : [dt.date(2019,3,15), dt.date(2019,6,21), dt.date(2019,9,20), dt.date(2019,12,20), dt.date(2020,3,20), dt.date(2020,6,19) ],
+        "QEND" : [dt.date(2019,3,29), dt.date(2019,6,28), dt.date(2019,9,30), dt.date(2019,12,31), dt.date(2020,3,31), dt.date(2020,6,30)],
+        "MSCIS" : [dt.date(2019,5,28), dt.date(2019,11,26), dt.date(2020,5,29)],
+        "HALF" : [dt.date(2019,7,3), dt.date(2019,11,29), dt.date(2019,12,24)],
+        "DISRUPTION" : [dt.date(2020,3,9), dt.date(2020,3,12), dt.date(2020,3,16)],
+        "RSL" : [dt.date(2020,6,26)]
+    }
 
+    specDates = []
+    for ds in specDate.values():
+        specDates += [i.strftime("%Y-%m-%d") for i in ds]
     # 1. plain
     res = {}
     params = {}
+    norms = {}
     if len(thetas[sDate.strftime('%Y-%m-%d')][0].shape) == 1:
         for d, theta in thetas.items():
             if d=="2019-01-09": continue
+            if d in specDates: continue
             for i, col in zip(np.arange(12), cols):
-                exo = theta[0][i]
+                exo = theta[0,i]
+                phi = theta[1:,i]
                 res[col] = res.get(col, []) + [exo]
-                phi = theta[1][i,:].reshape((len(theta[1][i,:])//12,12))
+                phi = phi.reshape((len(phi)//12,12))
                 num_datapoints = (phi.shape[0] + 2)//2
                 min_lag =  1e-3
                 max_lag = 500
@@ -100,19 +119,13 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 timegrid = np.append(timegridLin[:-1], timegridLog)
                 for j in range(len(cols)):
                     col2 = cols[j]
-                    points = phi[:,j][1:]
-                    timegrid_len = np.diff(timegrid)/2
-                    timegrid_mid = timegrid[:-1] + timegrid_len
-                    points = points / timegrid_len[1:]
+                    points = phi[:,j]
+                    timegrid_len = np.diff(timegrid)
+                    timegrid_mid = timegrid[:-1] + timegrid_len/2
+                    norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
+                    points = points / timegrid_len
 
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
-
-                    # points = phi[:,j]
-                    # timegrid_len = np.diff(timegrid)/2
-                    # timegrid_mid = timegrid[:-1] + timegrid_len
-                    # points = points / timegrid_len
-                    #
-                    # res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
+                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
@@ -120,7 +133,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 numDays = len(v)//len(timegrid_len[1:])
                 norm = np.sum(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays)))/numDays
                 side = np.sign(norm)
-                if np.abs(norm) > 1: norm = 0.85
+                # if np.abs(norm) > 1: norm = 0.99
                 pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
                 params[k] = (side, pars)
                 print(k, params[k])
