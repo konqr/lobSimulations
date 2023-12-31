@@ -55,7 +55,7 @@ class ParametricFit():
             thetas = thetasPowerLaw
         return thetas
 
-def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs"):
+def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169, spreadBeta = 0.7479):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
 
@@ -78,8 +78,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs"):
         thetas = pickle.load(f)
         for k, v in thetas.items():
             theta1, theta2, theta3 = v
-            thetas[k] = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
-
+            # thetas[k] = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
+            thetas[k] = np.hstack([theta2.transpose()[:,:5], theta1.transpose()*(avgSpread)**spreadBeta, theta3.transpose()*(avgSpread)**spreadBeta, theta2.transpose()[:,5:]])
     # each theta in kernel = \delta * h(midpoint)
 
     # 1. plain
