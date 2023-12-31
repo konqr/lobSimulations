@@ -74,7 +74,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     #             if theta.shape[0] == 229:
     #                 theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
     #             thetas.update({d.strftime("%Y-%m-%d") : theta })
-    with open(l.dataPath + ric + "_Params_" + str(eDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + suffix , "rb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + suffix , "rb") as f: #"/home/konajain/params/"
         thetas = pickle.load(f)
         for k, v in thetas.items():
             theta1, theta2, theta3 = v
