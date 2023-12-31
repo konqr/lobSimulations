@@ -125,13 +125,15 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
                     points = points / timegrid_len
 
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
+                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points[1:])]
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
             else:
                 # numDays = len(v)//len(timegrid_len[1:])
                 norm = np.average(norms[k])
+                if norm < 1e-6:
+                    continue
                 side = np.sign(norm)
                 # if np.abs(norm) > 1: norm = 0.99
                 pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
