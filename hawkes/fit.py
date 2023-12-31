@@ -969,7 +969,7 @@ class ConditionalLeastSquaresLogLin():
                     params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"noPolish_bounds" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
