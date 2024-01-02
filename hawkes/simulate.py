@@ -145,7 +145,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 T_Minus1 = Ts[k][-1]
             else:
                 T_Minus1 = 0
-            decays = baselines.copy()
+            decays = np.array(baselines.copy())
             hourIndex = np.min([12,int(np.floor(s/1800))])
             decays[5] = ((spread)**beta)*decays[5]
             decays[6] = ((spread)**beta)*decays[6]
