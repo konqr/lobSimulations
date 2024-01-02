@@ -14,10 +14,12 @@ class ParametricFit():
 
     def fitPowerLaw(self, norm):
         Xs = np.hstack([np.log(d[0]) for d in self.data])
-        Xs = sm.add_constant(Xs)
+        Xs = Xs[Xs > 0.0009]
         Ys = np.hstack([np.log(d[1]) for d in self.data])
-        Xs = Xs[Ys > 0.0009]
-        Ys = Ys[Ys > 0.0009]
+
+        Ys = Ys[Xs > 0.0009]
+        Xs = sm.add_constant(Xs)
+
         model = sm.OLS(Ys, Xs)
         res = model.fit()
         print(res.summary())
