@@ -8,8 +8,8 @@ import pandas as pd
 import numpy as np
 
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
-    if x - t0 <= 0: return 0
-    return alpha*((x)**beta)
+    if x < 0: return 0
+    return alpha*((x+t0)**beta)
 
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
@@ -104,7 +104,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         hourIndex = np.min([12,int(np.floor(s/1800))])
         decays = baselines.copy()
         for i in range(len(Ts)):
-            todMult = tod[cols[i]][hourIndex]
+            todMult = 1. #tod[cols[i]][hourIndex]
             decays[i] = todMult*decays[i]
         if type(baselines[0]) == np.float64:
             lamb = sum(decays)
@@ -124,7 +124,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         hourIndex = np.min([12,int(np.floor(s/1800))])
 
         for i in range(len(Ts)):
-            todMult = tod[cols[i]][hourIndex]
+            todMult = 1. #tod[cols[i]][hourIndex]
             decays[i] = todMult*decays[i]
         for i in range(len(Ts)):
             taus = Ts[i]
@@ -133,7 +133,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params.get(cols[i] + "->" + cols[j], None)
-                    todMult = tod[cols[j]][hourIndex]
+                    todMult = 1. #tod[cols[j]][hourIndex]
                     if kernelParams is None: continue
                     if np.isnan(kernelParams[1][2]): continue
                     decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
@@ -168,7 +168,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     kernelParams = params.get(cols[i] + "->" + cols[k], None)
                     if kernelParams is None: continue
                     if np.isnan(kernelParams[1][2]): continue
-                    todMult = tod[cols[k]][hourIndex]
+                    todMult = 1. #tod[cols[k]][hourIndex]
                     decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[k] += decay
             tau = decays[k]
