@@ -819,9 +819,9 @@ class ConditionalLeastSquaresLogLin():
                             col = colsOth[i]
                             mult = mult/max(list(dictTOD[col].values()))
                         R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs))
-                        print(R)
+                        # print(R)
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
-                        print(q)
+                        # print(q)
                         G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
                         l = np.vstack([-1*constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
                         u = np.vstack([constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
