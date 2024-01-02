@@ -158,7 +158,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
                 # params[k] = pars
-        with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLinExp_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+        with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
             pickle.dump(params, f)
         return params, res
     # 3. spread + TOD
