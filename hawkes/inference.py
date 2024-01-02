@@ -13,6 +13,7 @@ class ParametricFit():
         self.data = data # list of 2D vectors : time, value of kernels
 
     def fitPowerLaw(self, norm):
+        print(self.data)
         Xs = np.hstack([np.log(d[0]) for d in self.data])
         Xs = Xs[Xs > 0.0009]
         Ys = np.hstack([np.log(d[1]) for d in self.data])
