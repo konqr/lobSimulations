@@ -130,7 +130,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     if kernelParams is None: continue
                     if np.isnan(kernelParams[1][2]): continue
                     decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
-                    print(decay)
+                    # print(decay)
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
         print(decays)

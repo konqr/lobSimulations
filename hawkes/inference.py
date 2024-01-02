@@ -146,7 +146,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     continue
                 side = np.sign(norm)
                 # if np.abs(norm) > 1: norm = 0.99
-                pars, resTemp = ParametricFit(np.abs(v)).fitExponential() #.fitPowerLaw(norm= np.abs(norm))
+                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
                 params[k] = (side, pars)
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
