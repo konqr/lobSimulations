@@ -122,8 +122,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
 
         decays = baselines.copy()
         hourIndex = np.min([12,int(np.floor(s/1800))])
-        decays[5] = ((spread)**beta)*decays[5]
-        decays[6] = ((spread)**beta)*decays[6]
+
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]
             decays[i] = todMult*decays[i]
@@ -141,6 +140,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     # print(decay)
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
+        decays[5] = ((spread)**beta)*decays[5]
+        decays[6] = ((spread)**beta)*decays[6]
         print(decays)
         if 100*spread < 2 : decays[5] = decays[6] = 0
         lamb = sum(decays)
