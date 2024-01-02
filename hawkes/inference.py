@@ -13,9 +13,10 @@ class ParametricFit():
         self.data = data # list of 2D vectors : time, value of kernels
 
     def fitPowerLaw(self, norm):
-        Xs = sm.add_constant(np.hstack([np.log(d[0]) for d in self.data]))
+        Xs = np.hstack([np.log(d[0]) for d in self.data])
+        Xs = sm.add_constant(Xs)
         Ys = np.hstack([np.log(d[1]) for d in self.data])
-        model = sm.OLS(Ys, Xs)
+        model = sm.RLM(Ys, Xs)
         res = model.fit()
         print(res.summary())
         thetas = res.params
