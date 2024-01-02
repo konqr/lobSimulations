@@ -190,7 +190,7 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
         Pi_Q0["Bid_touch"] = Pi_Q0["Ask_touch"]
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
 
-    if "todIS" not in paramsPath:
+    if "CLSLogLin" not in paramsPath:
         n, timestamps = thinningOgata(T, paramsPath)
 
         sizes = {}
