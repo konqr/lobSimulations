@@ -121,7 +121,8 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
                 if s - tau >= 1000: continue
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
-                    kernelParams = params[cols[i] + "->" + cols[j]]
+                    kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                    if kernelParams is None: continue
                     decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]

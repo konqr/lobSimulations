@@ -120,12 +120,19 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 for j in range(len(cols)):
                     col2 = cols[j]
                     points = phi[:,j]
+                    for k in range(len(phi)//12):
+                        t = points[k,1]
+                        med = np.median(t)
+                        if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
+                        t[np.abs(med/t) > 1e6] = med
+                        t[np.abs(med/t) < 1e-6] = med
+                        points[k,1] = t
                     timegrid_len = np.diff(timegrid)
                     timegrid_mid = timegrid[:-1] + timegrid_len/2
                     norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
                     points = points / timegrid_len
 
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points[1:])]
+                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
