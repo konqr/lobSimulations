@@ -140,6 +140,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     t[np.abs(med/t) > 1e6] = med
                     t[np.abs(med/t) < 1e-6] = med
                     points[:,j,1] = t
+                v = points.reshape((numDays*(len(phi)//12), 2))
                 norm = np.average(norms[k])
                 if np.abs(norm) < 1e-6:
                     continue
