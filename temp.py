@@ -80,11 +80,11 @@ def main():
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_tod_cvx")
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,31), suffix = "_todIS_cvx3")
     # return 0
-    # T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10")
-    # for l in lob:
-    #     print(l)
-    # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10" , "wb") as f: #"/home/konajain/params/"
-    #     pickle.dump((T, lob, lobL3), f)
+    T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10")
+    for l in lob:
+        print(l)
+    with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10" , "wb") as f: #"/home/konajain/params/"
+        pickle.dump((T, lob, lobL3), f)
     # return T, lob, lobL3
 
 main()
