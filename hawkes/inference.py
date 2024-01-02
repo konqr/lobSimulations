@@ -16,9 +16,7 @@ class ParametricFit():
         print(self.data)
         Xs = np.hstack([d[0] for d in self.data])
         Ys = np.hstack([np.log(d[1]) for d in self.data])
-
-        Ys = Ys[Xs > 0.0009]
-        Xs = np.log(Xs[Xs > 0.0009])
+        Xs = np.log(Xs)
 
         Xs = sm.add_constant(Xs)
 
@@ -139,15 +137,17 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 params[k] = np.mean(v)
             else:
                 numDays = len(v)//(len(phi)//12)
-                points = np.array(v).reshape((numDays,len(phi)//12,2))
-                for j in range(len(phi)//12):
+                points = np.array(v).reshape((52,17,2))
+                print(points)
+                for j in range(17):
                     t = points[:,j,1]
                     med = np.median(t)
                     if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
                     t[np.abs(med/t) > 1e6] = med
                     t[np.abs(med/t) < 1e-6] = med
                     points[:,j,1] = t
-                v = points.reshape((numDays*(len(phi)//12), 2))
+                v = points.reshape((52*17, 2))
+                print(v)
                 norm = np.average(norms[k])
                 if np.abs(norm) < 1e-6:
                     continue
