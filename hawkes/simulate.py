@@ -71,10 +71,12 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
                 return n,Ts
     return n, Ts
 
-def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.41, lamb= None):
+def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.41, lamb= None):
     if maxJumps is None: maxJumps = np.inf
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
+    with open(todPath, "rb") as f:
+        tod = pickle.load(f)
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     baselines = num_nodes*[0]
@@ -108,13 +110,10 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
             w = -1*np.log(u)/lambBar
             s += w
 
-        if type(baselines[0]) == float:
-            decays = baselines.copy()
-        else:
-            hourIndex = np.min([12,int(np.floor(s/1800))])
-            decays = np.array(baselines)[:,hourIndex]
-        decays[5] = ((100*spread)**beta)*decays[5]
-        decays[6] = ((100*spread)**beta)*decays[6]
+        decays = baselines.copy()
+        hourIndex = np.min([12,int(np.floor(s/1800))])
+        decays[5] = ((spread)**beta)*decays[5]
+        decays[6] = ((spread)**beta)*decays[6]
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
@@ -122,8 +121,10 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                    todMult = tod[cols[j]][hourIndex]
                     if kernelParams is None: continue
-                    decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                    if np.isnan(kernelParams[1][2]): continue
+                    decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
         print(decays)
@@ -139,13 +140,10 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
                 T_Minus1 = Ts[k][-1]
             else:
                 T_Minus1 = 0
-            if type(baselines[0]) == float:
-                decays = baselines.copy()
-            else:
-                hourIndex = np.min([12,int(np.floor(s/1800))])
-                decays = np.array(baselines)[:,hourIndex]
-            decays[5] = ((100*spread)**beta)*decays[5]
-            decays[6] = ((100*spread)**beta)*decays[6]
+            decays = baselines.copy()
+            hourIndex = np.min([12,int(np.floor(s/1800))])
+            decays[5] = ((spread)**beta)*decays[5]
+            decays[6] = ((spread)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
             for i in range(len(Ts)):
                 taus = Ts[i]
@@ -153,7 +151,8 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
                     if s - tau >= 1000: continue
                     #if s - tau < 1e-4: continue
                     kernelParams = params[cols[i] + "->" + cols[k]]
-                    decay = powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                    todMult = tod[cols[k]][hourIndex]
+                    decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[k] += decay
             tau = decays[k]
             Ts[k] += (s,)
@@ -163,7 +162,7 @@ def thinningOgataIS(T, paramsPath, num_nodes = 12, maxJumps = None, s = None, n 
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
 
-def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
+def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -222,7 +221,7 @@ def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
     else:
         s = 0
         Ts,lob,lobL3 = [],[],[]
-        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = 260, spread0 = 3, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
         Ts.append(0)
         lob.append(lob0[-1])
         lobL3.append(lob0_l3[-1])
@@ -233,7 +232,7 @@ def simulate(T , paramsPath , Pis = None, Pi_Q0 = None):
         lob0_l3 = lob0_l3[0]
         lamb = None
         while s <= T:
-            s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = 0.41, lamb = lamb)
+            s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, lamb = lamb)
             sizes = {}
             dictTimestamps = {}
             for t, col in zip(timestamps_this, cols):
