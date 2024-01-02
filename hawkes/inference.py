@@ -120,13 +120,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 for j in range(len(cols)):
                     col2 = cols[j]
                     points = phi[:,j]
-                    for k in range(len(phi)//12):
-                        t = points[k,1]
-                        med = np.median(t)
-                        if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
-                        t[np.abs(med/t) > 1e6] = med
-                        t[np.abs(med/t) < 1e-6] = med
-                        points[k,1] = t
+
                     timegrid_len = np.diff(timegrid)
                     timegrid_mid = timegrid[:-1] + timegrid_len/2
                     norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
@@ -137,7 +131,15 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             if "->" not in k:
                 params[k] = np.mean(v)
             else:
-                # numDays = len(v)//len(timegrid_len[1:])
+                numDays = len(v)//(len(phi)//12)
+                points = np.array(v).reshape((numDays,len(phi)//12,2))
+                for k in range(len(phi)//12):
+                    t = points[k,1]
+                    med = np.median(t)
+                    if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
+                    t[np.abs(med/t) > 1e6] = med
+                    t[np.abs(med/t) < 1e-6] = med
+                    points[k,1] = t
                 norm = np.average(norms[k])
                 if np.abs(norm) < 1e-6:
                     continue
