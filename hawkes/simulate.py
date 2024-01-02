@@ -83,7 +83,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     mat = np.zeros((num_nodes, num_nodes))
     for i in range(num_nodes):
         for j in range(num_nodes):
-            kernelParams = params[cols[i] + "->" + cols[j]]
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
+            if kernelParams is None: continue
             # print(cols[i] + "->" + cols[j])
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
@@ -150,7 +151,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 for tau in taus:
                     if s - tau >= 1000: continue
                     #if s - tau < 1e-4: continue
-                    kernelParams = params[cols[i] + "->" + cols[k]]
+                    kernelParams = params.get(cols[i] + "->" + cols[k], None)
+                    if kernelParams is None: continue
                     todMult = tod[cols[k]][hourIndex]
                     decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[k] += decay
