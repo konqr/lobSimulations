@@ -90,6 +90,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
+    baselines[5] = ((spread)**beta)*baselines[5]
+    baselines[6] = ((spread)**beta)*baselines[6]
     print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
     if s is None: s = 0
     numJumps = 0
@@ -98,7 +100,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     Ts_new = num_nodes*[()]
     if spread is None: spread = 1
     if lamb is None:
-        print(baselines)
+        print(type(baselines[0]))
         if type(baselines[0]) == float:
             lamb = sum(baselines)
         else:
