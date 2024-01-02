@@ -90,8 +90,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
         baselines[i] = params[cols[i]]
-    baselines[5] = ((spread)**beta)*baselines[5]
-    baselines[6] = ((spread)**beta)*baselines[6]
+    baselines[5] = ((spread/0.0169)**beta)*baselines[5]
+    baselines[6] = ((spread/0.0169)**beta)*baselines[6]
     print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
     if s is None: s = 0
     numJumps = 0
@@ -140,8 +140,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     # print(decay)
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
-        decays[5] = ((spread)**beta)*decays[5]
-        decays[6] = ((spread)**beta)*decays[6]
+        decays[5] = ((spread/0.0169)**beta)*decays[5]
+        decays[6] = ((spread/0.0169)**beta)*decays[6]
         print(decays)
         if 100*spread < 2 : decays[5] = decays[6] = 0
         lamb = sum(decays)
@@ -157,8 +157,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 T_Minus1 = 0
             decays = np.array(baselines.copy())
             hourIndex = np.min([12,int(np.floor(s/1800))])
-            decays[5] = ((spread)**beta)*decays[5]
-            decays[6] = ((spread)**beta)*decays[6]
+            decays[5] = ((spread/0.0169)**beta)*decays[5]
+            decays[6] = ((spread/0.0169)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
             for i in range(len(Ts)):
                 taus = Ts[i]
