@@ -100,8 +100,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     Ts_new = num_nodes*[()]
     if spread is None: spread = 1
     if lamb is None:
-        print(type(baselines[0]))
-        if type(baselines[0]) == float:
+        print(baselines)
+        if type(baselines[0]) == np.float64:
             lamb = sum(baselines)
         else:
             lamb = sum(np.array(baselines)[:,0])
