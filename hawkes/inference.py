@@ -133,13 +133,13 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             else:
                 numDays = len(v)//(len(phi)//12)
                 points = np.array(v).reshape((numDays,len(phi)//12,2))
-                for k in range(len(phi)//12):
-                    t = points[k,1]
+                for j in range(len(phi)//12):
+                    t = points[:,j,1]
                     med = np.median(t)
                     if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
                     t[np.abs(med/t) > 1e6] = med
                     t[np.abs(med/t) < 1e-6] = med
-                    points[k,1] = t
+                    points[:,j,1] = t
                 norm = np.average(norms[k])
                 if np.abs(norm) < 1e-6:
                     continue
