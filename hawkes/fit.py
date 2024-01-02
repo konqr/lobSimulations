@@ -812,6 +812,12 @@ class ConditionalLeastSquaresLogLin():
                         mult =1.
                         if nDim == 1:
                             mult = 1./avgSpread**spreadBeta
+                            if id == "inspreadBid": mult = mult/max(list(dictTOD["lo_inspread_Bid"].values()))
+                            if id == "inspreadAsk": mult = mult/max(list(dictTOD["lo_inspread_Ask"].values()))
+                        else:
+                            colsOth = cols[:5] + cols[7:]
+                            col = colsOth[i]
+                            mult = mult/max(list(dictTOD[col].values()))
                         R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs))
                         print(R)
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
