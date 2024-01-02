@@ -85,6 +85,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         for j in range(num_nodes):
             kernelParams = params.get(cols[i] + "->" + cols[j], None)
             if kernelParams is None: continue
+            if np.isnan(kernelParams[1][2]): continue
             # print(cols[i] + "->" + cols[j])
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
@@ -153,6 +154,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     #if s - tau < 1e-4: continue
                     kernelParams = params.get(cols[i] + "->" + cols[k], None)
                     if kernelParams is None: continue
+                    if np.isnan(kernelParams[1][2]): continue
                     todMult = tod[cols[k]][hourIndex]
                     decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     decays[k] += decay
