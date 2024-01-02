@@ -126,7 +126,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
                     points = points / timegrid_len
 
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid, points)]
+                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points[1:])]
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
