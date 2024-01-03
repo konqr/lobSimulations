@@ -105,13 +105,13 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
                 idxs = np.searchsorted(times, sample_x)[1:-1] - 1
                 # print(idxs)
                 sample_y = mid[idxs]
-                rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(sample_y))])
+                rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(np.log(sample_y)))])
         with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
             pickle.dump(rvs, f)
     fig = plt.figure()
     plt.title(ric + " signature plot")
     plt.xlabel("Sampling Frequency (seconds)")
-    plt.ylabel("Realized Volatility")
+    plt.ylabel("Realized Variance")
     plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
     rvsSim = {}
@@ -128,13 +128,13 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
             idxs = np.searchsorted(times, sample_x)[1:-1] - 1
             # print(idxs)
             sample_y = mid[idxs]
-            rvsSim[t] =  np.hstack([rvsSim.get(t, np.array([])), np.square(np.diff(sample_y))])
+            rvsSim[t] =  np.hstack([rvsSim.get(t, np.array([])), np.square(np.diff(np.log(sample_y)))])
     with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictSimulated", "wb") as f:
         pickle.dump(rvsSim, f)
     fig = plt.figure()
     plt.title(ric + " signature plot")
     plt.xlabel("Sampling Frequency (seconds)")
-    plt.ylabel("Realized Volatility")
+    plt.ylabel("Realized Variance")
     plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
     plt.scatter(list(rvsSim.keys()), [np.sum(l)/(countSim*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
     plt.legend()
