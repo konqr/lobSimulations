@@ -90,12 +90,13 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
         if len(data): data = data[0]
         else: continue
         data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        times = data.Time.values()
-        mid = data.mid.values()
+        times = data.Time.values
+        mid = data.mid.values
         rv = []
         for t in range(1,51):
             sample_x = np.linspace(0, 23400, int(23400/t))
             idxs = np.searchsorted(times, sample_x)[1:-1]
+            print(idxs)
             sample_y = mid[idxs]
             rv.append([t, np.sum(np.square(np.diff(sample_y)))/23400])
         rvs[d.strftime("%Y-%m-%d")] = np.array(rv)
