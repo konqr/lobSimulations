@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pickle
 import time
+import datetime as dt
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
@@ -72,7 +73,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     return
 
 
-def run(ric = "AAPL.OQ", sDate = "2019-01-02", eDate = "2019-03-31", suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
+def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
     runQQInterArrival(ric, sDate, eDate, resultsPath)
     # runSignaturePlots(paths, resultsPath)
