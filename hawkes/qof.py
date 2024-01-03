@@ -115,11 +115,11 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
     plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
     rvsSim = {}
-    count = 0
+    countSim = 0
     for path in paths:
         with open(path, "rb") as f:
             data = pickle.load(f)
-        count += 1
+        countSim += 1
         times = np.append([0], np.array(data[0][1:])[:,1])
         lob = data[1]
         mid = np.array([0.5*(r['Ask_touch'][0] + r['Bid_touch'][0]) for r in lob])
@@ -136,7 +136,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
     plt.xlabel("Sampling Frequency (seconds)")
     plt.ylabel("Realized Volatility")
     plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
-    plt.scatter(list(rvsSim.keys()), [np.sum(l)/(count*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
+    plt.scatter(list(rvsSim.keys()), [np.sum(l)/(countSim*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterSimulated.png")
     return
