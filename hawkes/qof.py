@@ -87,6 +87,8 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 
         l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
         data = l.load()
+        if len(data): data = data[0]
+        else: continue
         data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         times = data.Time.values()
         mid = data.mid.values()
