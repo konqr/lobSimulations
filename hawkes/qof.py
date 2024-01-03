@@ -84,25 +84,29 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
 def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted"):
     rvs = {}
     count = 0
-    for d in pd.date_range(sDate,eDate):
+    if os.path.isfile(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical"):
+        with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "rb") as f:
+            rvs = pickle.load(f)
+    else:
+        for d in pd.date_range(sDate,eDate):
 
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-        data = l.load()
-        if len(data): data = data[0]
-        else: continue
-        count +=1
-        data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        times = data.Time.values - 34200
-        mid = data.mid.values
-        # rv = []
-        for t in range(1,2001):
-            sample_x = np.linspace(0, 23400, int(23400/t))
-            idxs = np.searchsorted(times, sample_x)[1:-1] - 1
-            # print(idxs)
-            sample_y = mid[idxs]
-            rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(sample_y))])
-    with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
-        pickle.dump(rvs, f)
+            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+            data = l.load()
+            if len(data): data = data[0]
+            else: continue
+            count +=1
+            data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+            times = data.Time.values - 34200
+            mid = data.mid.values
+            # rv = []
+            for t in range(1,2001):
+                sample_x = np.linspace(0, 23400, int(23400/t))
+                idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+                # print(idxs)
+                sample_y = mid[idxs]
+                rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(sample_y))])
+        with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
+            pickle.dump(rvs, f)
     fig = plt.figure()
     plt.title(ric + " signature plot")
     plt.xlabel("Sampling Frequency (seconds)")
