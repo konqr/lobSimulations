@@ -87,6 +87,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
     if os.path.isfile(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical"):
         with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "rb") as f:
             rvs = pickle.load(f)
+        count = len(rvs[1])//(23400 -2 -1)
     else:
         for d in pd.date_range(sDate,eDate):
 
