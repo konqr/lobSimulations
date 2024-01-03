@@ -28,11 +28,11 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     datas = []
     for d in pd.date_range(sDate, eDate):
 
-        inputCsvPath = inputDataPath + "/" + ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
+        inputCsvPath = ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
         if inputCsvPath not in os.listdir(inputDataPath): continue
         print(d)
         print(time.time())
-        data = pd.read_csv(inputCsvPath)
+        data = pd.read_csv(inputDataPath + "/" + inputCsvPath)
         data["Tminus1"] = 0
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
