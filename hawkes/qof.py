@@ -103,7 +103,11 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
             rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(sample_y))])
     with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
         pickle.dump(rvs, f)
-    fig = plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
+    fig = plt.figure()
+    plt.title(ric + " signature plot")
+    plt.xlabel("Sampling Frequency (seconds)")
+    plt.ylabel("Realized Volatility")
+    plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
     rvsSim = {}
     count = 0
@@ -123,8 +127,12 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
     with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictSimulated", "wb") as f:
         pickle.dump(rvsSim, f)
     fig = plt.figure()
+    plt.title(ric + " signature plot")
+    plt.xlabel("Sampling Frequency (seconds)")
+    plt.ylabel("Realized Volatility")
     plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
     plt.scatter(list(rvsSim.keys()), [np.sum(l)/(count*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
+    plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterSimulated.png")
     return
 
