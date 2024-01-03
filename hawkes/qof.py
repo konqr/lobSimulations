@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pickle
 import time
+import datetime as dt
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
@@ -28,11 +29,11 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     datas = []
     for d in pd.date_range(sDate, eDate):
 
-        inputCsvPath = inputDataPath + "/" + ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
+        inputCsvPath = ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
         if inputCsvPath not in os.listdir(inputDataPath): continue
         print(d)
         print(time.time())
-        data = pd.read_csv(inputCsvPath)
+        data = pd.read_csv(inputDataPath + "/" + inputCsvPath)
         data["Tminus1"] = 0
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
@@ -72,7 +73,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     return
 
 
-def run(ric = "AAPL.OQ", sDate = "2019-01-02", eDate = "2019-03-31", suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
+def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
     runQQInterArrival(ric, sDate, eDate, resultsPath)
     # runSignaturePlots(paths, resultsPath)
