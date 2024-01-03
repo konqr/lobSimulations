@@ -21,7 +21,8 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     paramsDict = {}
     for i in range(num_nodes):
         for j in range(num_nodes):
-            kernelParams = params[cols[i] + "->" + cols[j]]
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
+            if kernelParams is None: continue
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*np.exp(kernelParams[1][0]), kernelParams[1][1] , kernelParams[1][2])
         baselines[i] = params[cols[i]]
     datas = []
@@ -52,8 +53,9 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
                     r = r[1]
                     if col + '->' + r.event in paramsDict.keys():
                         _params = paramsDict[col + '->' + r.event]
+                        if np.isnan(_params[2]): continue
                         intensity += _params[0]*(t - r.Time + _params[2])**_params[1]
-                tracked_intensity = tracked_intensity + [mult*tod[col][hourIdx]*intensity]
+                tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity])]
             tracked_intensities = tracked_intensities + [tracked_intensity]
         tracked_intensities = np.array(tracked_intensities)
         def calc(r):
