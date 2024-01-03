@@ -40,7 +40,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
         data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
         tracked_intensities = [list(baselines.values())]
         for t in np.linspace(0, 23400, int(23400/1e-1)):
-            df = data.loc[(data.Time < t)&(data.Time >= t-1000)]
+            df = data.loc[(data.Time < t)&(data.Time >= t-10)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0: continue
             tracked_intensity = []
