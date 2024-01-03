@@ -4,6 +4,11 @@ import os
 import pickle
 import time
 import datetime as dt
+from scipy import stats
+import statsmodels.api as sm
+from hawkes import dataLoader
+import matplotlib.pyplot as plt
+
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
@@ -70,13 +75,41 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
         data["lambdaIntegral"] = data[['event','Time', 'Tminus1']].apply(calc, axis=1)
         data[["Time", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
         # datas.append(data[["Time", "event", "lambdaIntegral"]])
+        dictLambdaIntegral = data[["event", "lambdaIntegral"]].groupby("event").apply(np.array).to_dict()
+        for k in dictLambdaIntegral.keys():
+            fig = sm.qqplot(dictLambdaIntegral[k], stats.expon, line='45', ylabel=  k)
+            fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_qq_" + k + ".png")
     return
+
+def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted"):
+    rvs = {}
+    for d in pd.date_range(sDate,eDate):
+
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+        data = l.load()
+        data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+        times = data.Time.values()
+        mid = data.mid.values()
+        rv = []
+        for t in range(1,51):
+            sample_x = np.linspace(0, 23400, int(23400/t))
+            idxs = np.searchsorted(times, sample_x)[1:-1]
+            sample_y = mid[idxs]
+            rv.append([t, np.sum(np.square(np.diff(sample_y)))/23400])
+        rvs[d.strftime("%Y-%m-%d")] = np.array(rv)
+    with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_signatureDict", "wb") as f:
+        pickle.dump(rvs, f)
+    for k in rvs.keys():
+        fig = plt.scatter(rvs[k][:,0], rvs[k][:,1])
+        fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_signatureScatter_" + k + ".png")
+    return
+
 
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
-    runQQInterArrival(ric, sDate, eDate, resultsPath)
-    # runSignaturePlots(paths, resultsPath)
+    # runQQInterArrival(ric, sDate, eDate, resultsPath)
+    runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath, dist = "spread" )
     # runDistribution(paths, resultsPath, dist = "returns")
     # runAverageShapeOfBook(paths, resultsPath)
