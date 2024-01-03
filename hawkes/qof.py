@@ -83,34 +83,55 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
 
 def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted"):
     rvs = {}
+    count = 0
     for d in pd.date_range(sDate,eDate):
 
         l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
         data = l.load()
         if len(data): data = data[0]
         else: continue
+        count +=1
         data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        times = data.Time.values
+        times = data.Time.values - 34200
         mid = data.mid.values
-        rv = []
-        for t in range(1,51):
+        # rv = []
+        for t in range(1,2001):
             sample_x = np.linspace(0, 23400, int(23400/t))
-            idxs = np.searchsorted(times, sample_x)[1:-1]
-            print(idxs)
+            idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+            # print(idxs)
             sample_y = mid[idxs]
-            rv.append([t, np.sum(np.square(np.diff(sample_y)))/23400])
-        rvs[d.strftime("%Y-%m-%d")] = np.array(rv)
-    with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_signatureDict", "wb") as f:
+            rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.diff(sample_y))])
+    with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
         pickle.dump(rvs, f)
-    for k in rvs.keys():
-        fig = plt.scatter(rvs[k][:,0], rvs[k][:,1])
-        fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_signatureScatter_" + k + ".png")
+    fig = plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
+    rvsSim = {}
+    count = 0
+    for path in paths:
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        count += 1
+        times = np.append([0], np.array(data[0][1:])[:,1])
+        lob = data[1]
+        mid = np.array([0.5*(r['Ask_touch'][0] + r['Bid_touch'][0]) for r in lob])
+        for t in range(1,2001):
+            sample_x = np.linspace(0, 23400, int(23400/t))
+            idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+            # print(idxs)
+            sample_y = mid[idxs]
+            rvsSim[t] =  np.hstack([rvsSim.get(t, np.array([])), np.square(np.diff(sample_y))])
+    with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictSimulated", "wb") as f:
+        pickle.dump(rvsSim, f)
+    fig = plt.figure()
+    plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
+    plt.scatter(list(rvsSim.keys()), [np.sum(l)/(count*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterSimulated.png")
     return
 
 
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
-    paths = [i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
+    paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
     runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath, dist = "spread" )
