@@ -18,14 +18,14 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     num_nodes = len(cols)
-    baselines = num_nodes*[0]
+    baselines = {}
     paramsDict = {}
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params.get(cols[i] + "->" + cols[j], None)
             if kernelParams is None: continue
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*np.exp(kernelParams[1][0]), kernelParams[1][1] , kernelParams[1][2])
-        baselines[i] = params[cols[i]]
+        baselines[cols[i]] = params[cols[i]]
     datas = []
     for d in pd.date_range(sDate, eDate):
 
@@ -52,8 +52,8 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
                 intensity = baselines[col]
                 for r in df.iterrows():
                     r = r[1]
-                    if col + '->' + r.event in paramsDict.keys():
-                        _params = paramsDict[col + '->' + r.event]
+                    if r.event + '->' + col in paramsDict.keys():
+                        _params = paramsDict[r.event + '->' + col]
                         if np.isnan(_params[2]): continue
                         intensity += _params[0]*(t - r.Time + _params[2])**_params[1]
                 tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity])]
