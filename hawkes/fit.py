@@ -167,6 +167,7 @@ class ConditionalLeastSquaresLogLin():
         # list of list of 12 np arrays
 
     def transformData(self, timegrid, date, arrs):
+        print(date)
         timegrid_new = np.floor(timegrid/(timegrid[1] - timegrid[0])).astype(np.longlong)
         ser = []
         # bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
@@ -222,12 +223,12 @@ class ConditionalLeastSquaresLogLin():
 
             if i%5000 == 0 :
                 print(i)
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
             elif i==len(df)-2:
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
