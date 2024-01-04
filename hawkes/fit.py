@@ -255,12 +255,12 @@ class ConditionalLeastSquaresLogLin():
             return ranges
         for i in self.dates:
             dictPerDate = self.dictBinnedData[i]
-            for i in range(len(dictPerDate)):
-                arr = dictPerDate[i]
+            for j in range(len(dictPerDate)):
+                arr = dictPerDate[j]
                 zeroRanges = zero_runs(np.diff(arr))
                 for x in zeroRanges:
                     arr[x[0]:x[1]+1] += np.linspace(0,1e-9,2+x[1] - x[0])[:-1]
-                dictPerDate[i]= arr
+                dictPerDate[j]= arr
 
             self.transformData(timegrid, i, dictPerDate)
         return
