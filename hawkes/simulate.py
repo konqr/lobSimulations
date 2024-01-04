@@ -147,10 +147,13 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         lamb = sum(decays)
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
+            print(w)
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
             # instantaneous lamb jumps
+            if k in [5,6]:
+                spread = spread - 0.01
             newdecays = len(cols)*[0]
             for i in range(len(Ts)):
                 kernelParams = params.get(cols[k] + "->" + cols[i], None)
@@ -163,6 +166,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             newdecays = [np.max([0, d]) for d in newdecays]
             newdecays[5] = ((spread/0.0169)**beta)*newdecays[5]
             newdecays[6] = ((spread/0.0169)**beta)*newdecays[6]
+            if 100*spread < 2 : newdecays[5] = newdecays[6] = 0
             lamb += sum(newdecays)
             n[k] += 1
             if len(Ts[k]) > 0:
