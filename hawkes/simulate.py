@@ -147,6 +147,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         lamb = sum(decays)
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
+            print(w)
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
