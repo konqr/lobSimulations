@@ -150,6 +150,20 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
+            # instantaneous lamb jumps
+            newdecays = len(cols)*[0]
+            for i in range(len(Ts)):
+                kernelParams = params.get(cols[k] + "->" + cols[i], None)
+                todMult = tod[cols[i]][hourIndex]
+                if kernelParams is None: continue
+                if np.isnan(kernelParams[1][2]): continue
+                decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                # print(decay)
+                newdecays[i] += decay
+            newdecays = [np.max([0, d]) for d in newdecays]
+            newdecays[5] = ((spread/0.0169)**beta)*newdecays[5]
+            newdecays[6] = ((spread/0.0169)**beta)*newdecays[6]
+            lamb += sum(newdecays)
             n[k] += 1
             if len(Ts[k]) > 0:
                 T_Minus1 = Ts[k][-1]
