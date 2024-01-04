@@ -128,7 +128,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
             idxs = np.searchsorted(times, sample_x)[1:-1] - 1
             # print(idxs)
             sample_y = mid[idxs]
-            rvsSim[t] =  np.hstack([rvsSim.get(t, np.array([])), np.square(np.diff(np.log(sample_y)))])
+            rvsSim[t] =  np.hstack([rvsSim.get(t, np.array([])), np.square(np.exp(np.diff(np.log(sample_y))) - 1)])
     with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictSimulated", "wb") as f:
         pickle.dump(rvsSim, f)
     fig = plt.figure()
