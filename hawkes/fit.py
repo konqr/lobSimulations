@@ -167,13 +167,13 @@ class ConditionalLeastSquaresLogLin():
         # list of list of 12 np arrays
 
     def transformData(self, timegrid, date, arrs):
-        timegrid_new = np.floor(timegrid/(timegrid[1] - timegrid[0])).astype(int)
+        timegrid_new = np.floor(timegrid/(timegrid[1] - timegrid[0])).astype(np.longlong)
         ser = []
-        bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
+        # bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
         for arr, col in zip(arrs, self.cols):
             print(col)
-            arr = np.max(arr) - arr
-            assignedBins = np.searchsorted(bins, arr, side="right")
+            arr = arr[::-1]
+            assignedBins = np.ceil(arr/(timegrid[1] - timegrid[0])).astype(np.longlong)
             binDf = np.unique(assignedBins, return_counts = True)
             binDf = pd.DataFrame({"bin" : binDf[0], col : binDf[1]})
             binDf = binDf.set_index("bin")
@@ -182,12 +182,12 @@ class ConditionalLeastSquaresLogLin():
         print("done with binning")
         df = pd.concat(ser, axis = 1)
         df = df.fillna(0)
-        df = df.sort_index()
+        df = df.sort_index(ascending=False)
         del arrs
         gc.collect()
         res = []
         try:
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_" + str(len(timegrid)) +  "_inputRes" , "rb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + str(date) + "_" + str(date) + "_" + str(len(timegrid)) +  "_inputResNano" , "rb") as f: #"/home/konajain/params/"
                 while True:
                     try:
                         res.append(len(pickle.load(f)))
@@ -197,58 +197,37 @@ class ConditionalLeastSquaresLogLin():
             print("no previous data cache found")
         restartIdx = int(np.sum(res))
         res = []
-        # for i in range(restartIdx+1,len(df)-1):
-        #     print(i)
-        #     idx = df.index[i]
-        #     df['binIndexNew'] = np.searchsorted(timegrid_new, df.index - idx, side="right")
-        #     lastIdx = len(timegrid_new)
-        #     dfFiltered = df.loc[df['binIndexNew'] != lastIdx]
-        #     binDf = dfFiltered.loc[dfFiltered.index[i+1]:].groupby("binIndexNew")[self.cols].sum()
-        #
-        #     binDf['const'] = 1.
-        #     if len(binDf) < len(timegrid_new):
-        #         missing = np.setdiff1d(np.arange(1,len(timegrid_new)+1), binDf.index, assume_unique=True)
-        #         empty = pd.DataFrame(index=missing)
-        #         binDf = pd.concat([empty, binDf], axis=1).fillna(0.)
-        #         binDf = binDf.sort_index()
-        #     lags = binDf.values
-        #     res.append([df[self.cols].loc[idx].values, lags])
 
         for i in range(restartIdx + 1, len(df) - 1):
 
             idx = df.index[i]
-            bin_index_new = np.searchsorted(timegrid_new, df.index - idx, side="right")
+            bin_index_new = np.searchsorted(timegrid_new, idx - df.index, side="right")
             last_idx = len(timegrid_new)
 
             df['binIndexNew'] = bin_index_new
-            df_filtered = df[df['binIndexNew'] != last_idx]
+            df_filtered = df[df['binIndexNew'] != last_idx] # remove past > last elt in timegrid
 
-            unique_bins, bin_counts = np.unique(df_filtered['binIndexNew'], return_counts=True)
+            # unique_bins, bin_counts = np.unique(df_filtered['binIndexNew'], return_counts=True)
 
             bin_df = np.zeros((len(timegrid_new) - 1, len(self.cols)))
             df_filtered = df_filtered.loc[df_filtered.index[i+1]:]
+            # rCurr = df.iloc[i].values[:-1]
             for j, col in enumerate(self.cols):
+
                 bin_df[:, j] = np.bincount(df_filtered['binIndexNew'], weights=df_filtered[col], minlength=len(timegrid_new))[1:]
-
-            #bin_df = np.hstack((bin_df, np.ones((len(unique_bins), 1))))  # Adding 'const' column
-
-            # if len(unique_bins) < len(timegrid_new):
-            #     missing = np.setdiff1d(np.arange(1, len(timegrid_new) + 1), unique_bins, assume_unique=True)
-            #     empty = np.zeros((len(missing), len(self.cols) + 1))
-            #     bin_df = np.vstack((empty, bin_df))
-            #     bin_df = bin_df[np.argsort(bin_df[:, 0])]
+                # tmp = rCurr.copy()
 
             lags = bin_df
             res.append([df.loc[idx, self.cols].values, lags])
 
             if i%5000 == 0 :
                 print(i)
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
             elif i==len(df)-2:
-                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputRes" , "ab") as f: #"/home/konajain/params/"
+                with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + date + "_" + date + "_" + str(len(timegrid)) + "_inputResNano" , "ab") as f: #"/home/konajain/params/"
                     pickle.dump(res, f)
                 res =[]
                 gc.collect()
@@ -257,17 +236,31 @@ class ConditionalLeastSquaresLogLin():
 
     def runTransformDate(self):
         num_datapoints = self.cfg.get("num_datapoints", 10)
-        min_lag = self.cfg.get("min_lag", 1e-3)
+        min_lag = self.cfg.get("min_lag", 9e-9)
         max_lag = self.cfg.get("max_lag" , 500)
-        timegridLin = np.linspace(0,min_lag, num_datapoints)
+
+        timegridLin =np.append(np.linspace(0,1e-9, num_datapoints//2)[:-1], np.linspace(1e-9,min_lag, num_datapoints//2))
         timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
         timegrid = np.append(timegridLin[:-1], timegridLog)
         # can either use np.histogram with custom binsize for adaptive grid
         # or
         # bin data by delta_lag*min_lag and then add bins for exponential lags
-
+        def zero_runs(a):
+            # Create an array that is 1 where a is 0, and pad each end with an extra 0.
+            iszero = np.concatenate(([0], np.equal(a, 0).view(np.int8), [0]))
+            absdiff = np.abs(np.diff(iszero))
+            # Runs start and end where absdiff is 1.
+            ranges = np.where(absdiff == 1)[0].reshape(-1, 2)
+            return ranges
         for i in self.dates:
             dictPerDate = self.dictBinnedData[i]
+            for i in range(len(dictPerDate)):
+                arr = dictPerDate[i]
+                zeroRanges = zero_runs(np.diff(arr))
+                for x in zeroRanges:
+                    arr[x[0]:x[1]+1] += np.linspace(0,1e-9,2+x[1] - x[0])[:-1]
+                dictPerDate[i]= arr
+
             self.transformData(timegrid, i, dictPerDate)
         return
 
