@@ -68,10 +68,13 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
             event =r.event
             Time = r.Time
             Tminus1 = r.Tminus1
-            i_end = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Time)
-            i_start = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Tminus1)
+            i_end = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Time) - 1
+            i_start = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Tminus1) - 1
             idx = np.argmax(cols == event)
-            return 1e-1*np.sum(tracked_intensities[i_start:i_end, idx])
+            if Time - Tminus1 < 1e-1:
+                return tracked_intensities[i_start, idx]*(Time-Tminus1)
+            integral = 1e-1*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, 1))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, 1))*tracked_intensities[i_start, idx]
+            return integral
         data["lambdaIntegral"] = data[['event','Time', 'Tminus1']].apply(calc, axis=1)
         data[["Time", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
         # datas.append(data[["Time", "event", "lambdaIntegral"]])
