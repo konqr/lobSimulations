@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
 
-def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted", avgSpread = 0.169, spreadBeta =0.7479):
+def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted", avgSpread = 0.169, spreadBeta =0.7479):
     paramsPath = inputDataPath + "/"+ric+"_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10"
     todPath = inputDataPath + "/"+ric+"_Params_2019-01-02_2019-03-29_dictTOD"
     with open(paramsPath, "rb") as f:
@@ -32,19 +32,23 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*np.exp(kernelParams[1][0]), kernelParams[1][1] , kernelParams[1][2])
         baselines[cols[i]] = params[cols[i]]
     datas = []
+    timesLinspace = np.linspace(0, 23400, int(23400/delta))
+    rounder= -1*int(np.round(np.log(delta)/np.log(10)))
     for d in pd.date_range(sDate, eDate):
 
         inputCsvPath = ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
         if inputCsvPath not in os.listdir(inputDataPath): continue
         print(d)
-        print(time.time())
+        logger_time=time.time()
+        print(logger_time)
         data = pd.read_csv(inputDataPath + "/" + inputCsvPath)
         data["Tminus1"] = 0
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
         data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
         tracked_intensities = [list(baselines.values())]
-        for t in np.linspace(0, 23400, int(23400/1e-1)):
+        for t in timesLinspace:
+            print(t)
             df = data.loc[(data.Time < t)&(data.Time >= t-10)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0: continue
@@ -64,19 +68,25 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, inputDataPath = "/SAN/fca/
                 tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity])]
             tracked_intensities = tracked_intensities + [tracked_intensity]
         tracked_intensities = np.array(tracked_intensities)
-        def calc(r):
-            event =r.event
-            Time = r.Time
-            Tminus1 = r.Tminus1
-            i_end = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Time) - 1
-            i_start = np.argmax(np.linspace(0, 23400, int(23400/1e-1)) > Tminus1) - 1
-            idx = np.argmax(cols == event)
-            if Time - Tminus1 < 1e-1:
-                return tracked_intensities[i_start, idx]*(Time-Tminus1)
-            integral = 1e-1*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, 1))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, 1))*tracked_intensities[i_start, idx]
+
+        print(time.time() - logger_time)
+        logger_time = time.time()
+        def calc(idx, Time, Tminus1):
+            # event =r.event
+            # Time = r.Time
+            # Tminus1 = r.Tminus1
+            i_end = np.argmax(timesLinspace > Time) - 1
+            i_start = np.argmax(timesLinspace > Tminus1) - 1
+            # idx = np.argmax(cols == event)
+            if Time - Tminus1 < delta:
+                return tracked_intensities[i_start, idx]*np.max([0.5*1e-9,(Time-Tminus1)])
+
+            integral = delta*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, rounder))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, rounder))*tracked_intensities[i_start, idx]
             return integral
-        data["lambdaIntegral"] = data[['event','Time', 'Tminus1']].apply(calc, axis=1)
-        data[["Time", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
+        data['eventID'] = data.event.apply(lambda x: np.argmax(np.array(cols) == x))
+        data["lambdaIntegral"] = np.apply_along_axis(calc, 1, data[['eventID','Time', 'Tminus1']].values)
+        print(time.time() - logger_time)
+        data[["Time", "OrderID", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
         # datas.append(data[["Time", "event", "lambdaIntegral"]])
         dictLambdaIntegral = data[["event", "lambdaIntegral"]].groupby("event").apply(np.array).to_dict()
         for k in dictLambdaIntegral.keys():
