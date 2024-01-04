@@ -158,8 +158,8 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)]
-    # runQQInterArrival(ric, sDate, eDate, resultsPath)
-    runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
+    runQQInterArrival(ric, sDate, eDate, resultsPath)
+    # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath, dist = "spread" )
     # runDistribution(paths, resultsPath, dist = "returns")
     # runAverageShapeOfBook(paths, resultsPath)
