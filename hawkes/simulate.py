@@ -8,8 +8,8 @@ import pandas as pd
 import numpy as np
 
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
-    if x < 0: return 0
-    return alpha*((x+t0)**beta)
+    if x < t0: return 0
+    return alpha*(x**beta)
 
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
