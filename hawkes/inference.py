@@ -14,7 +14,7 @@ class ParametricFit():
 
     def fitPowerLaw(self, norm):
         # print(self.data)
-        # beta*(alpha -1)*(1+t)**(-alpha), norm =beta
+        # beta*(alpha -1)*gamma*(1+gamma*t)**(-alpha), norm =beta
         Xs = np.hstack([1+d[0] for d in self.data])
         Ys = np.hstack([np.log(d[1]) for d in self.data])
         Xs = np.log(Xs)
@@ -32,14 +32,14 @@ class ParametricFit():
         return thetas, res
 
     def fitPowerLawCutoff(self, norm):
-        def powerLawCutoff(time, beta, gamma, t0 = (10/9)*1e-4, norm = norm):
-            alpha = norm*beta*(gamma - 1)*(1+beta*t0)**(gamma - 1)
+        def powerLawCutoff(time, beta, gamma,norm = norm):
+            alpha = norm*beta*(gamma - 1)
             funcEval = alpha/((1 + beta*time)**gamma)
-            funcEval[time < t0] = 0
+            # funcEval[time < t0] = 0
             return funcEval
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([0, -2], [np.inf, 0]), maxfev = 1e6)
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([np.inf, 0], [2, 0]), maxfev = 1e6)
         thetas = params
         return thetas, cov
 
@@ -141,7 +141,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             else:
                 numDays = len(v)//17
                 points = np.array(v).reshape((numDays,17,2))
-                print(points)
+                # print(points)
                 for j in range(17):
                     t = points[:,j,1]
                     med = np.median(t)
@@ -150,13 +150,13 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     t[np.abs(med/t) < 1e-6] = med
                     points[:,j,1] = t
                 v = points.reshape((numDays*17, 2))
-                print(v)
+                # print(v)
                 norm = np.average(norms[k])
                 if np.abs(norm) < 5e-2:
                     continue
                 side = np.sign(norm)
                 # if np.abs(norm) > 1: norm = 0.99
-                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
+                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoff(norm= np.abs(norm))
                 params[k] = (side, pars)
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
