@@ -142,9 +142,10 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         decays = [np.max([0, d]) for d in decays]
         decays[5] = ((spread/0.0169)**beta)*decays[5]
         decays[6] = ((spread/0.0169)**beta)*decays[6]
+        if 100*np.round(spread, 2) < 2 : decays[5] = decays[6] = 0
         print(decays)
-        if 100*spread < 2 : decays[5] = decays[6] = 0
         lamb = sum(decays)
+        print(lamb)
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
             print(w)
@@ -166,8 +167,9 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             newdecays = [np.max([0, d]) for d in newdecays]
             newdecays[5] = ((spread/0.0169)**beta)*newdecays[5]
             newdecays[6] = ((spread/0.0169)**beta)*newdecays[6]
-            if 100*spread < 2 : newdecays[5] = newdecays[6] = 0
+            if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
             lamb += sum(newdecays)
+            print(lamb)
             n[k] += 1
             if len(Ts[k]) > 0:
                 T_Minus1 = Ts[k][-1]
@@ -301,6 +303,8 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
             lobL3.append(lob0_l3)
+            with open("/SAN/fca/Konark_PhD_Experiments/simulated/AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_tmp" , "ab") as f: #"/home/konajain/params/"
+                pickle.dump(([list(dictTimestamps.keys())[0], TsTmp[-1], tau], lob0, lob0_l3), f)
     return Ts, lob, lobL3
 
 
