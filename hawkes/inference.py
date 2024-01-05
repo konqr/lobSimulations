@@ -32,14 +32,16 @@ class ParametricFit():
         return thetas, res
 
     def fitPowerLawCutoff(self, norm):
-        def powerLawCutoff(time, beta, gamma,norm = norm):
-            alpha = norm*beta*(gamma - 1)
+        def powerLawCutoff(time, beta, gamma, a):
+            alpha = a*beta*(gamma - 1)
             funcEval = alpha/((1 + beta*time)**gamma)
             # funcEval[time < t0] = 0
             return funcEval
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys,bounds=([0, 0], [1, 2]), maxfev = 1e6)
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = 1e6) #bounds=([0, 0], [1, 2]),
+        print(params[2])
+        print(norm)
         thetas = params
         return thetas, cov
 
