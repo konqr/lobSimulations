@@ -71,10 +71,10 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
 
         print(time.time() - logger_time)
         logger_time = time.time()
-        def calc(idx, Time, Tminus1):
-            # event =r.event
-            # Time = r.Time
-            # Tminus1 = r.Tminus1
+        def calc(r):
+            idx =r.eventID
+            Time = r.Time
+            Tminus1 = r.Tminus1
             i_end = np.argmax(timesLinspace > Time) - 1
             i_start = np.argmax(timesLinspace > Tminus1) - 1
             # idx = np.argmax(cols == event)
@@ -84,7 +84,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             integral = delta*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, rounder))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, rounder))*tracked_intensities[i_start, idx]
             return integral
         data['eventID'] = data.event.apply(lambda x: np.argmax(np.array(cols) == x))
-        data["lambdaIntegral"] = np.apply_along_axis(calc, 1, data[['eventID','Time', 'Tminus1']].values)
+        data["lambdaIntegral"] = data[['eventID','Time', 'Tminus1']].apply(calc, axis=1) #np.apply_along_axis(calc, 1, data[['eventID','Time', 'Tminus1']].values)
         print(time.time() - logger_time)
         data[["Time", "OrderID", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
         # datas.append(data[["Time", "event", "lambdaIntegral"]])
