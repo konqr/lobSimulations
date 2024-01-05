@@ -13,8 +13,9 @@ class ParametricFit():
         self.data = data # list of 2D vectors : time, value of kernels
 
     def fitPowerLaw(self, norm):
-        print(self.data)
-        Xs = np.hstack([d[0] for d in self.data])
+        # print(self.data)
+        # beta*(alpha -1)*(1+t)**(-alpha), norm =beta
+        Xs = np.hstack([1+d[0] for d in self.data])
         Ys = np.hstack([np.log(d[1]) for d in self.data])
         Xs = np.log(Xs)
 
@@ -24,8 +25,10 @@ class ParametricFit():
         res = model.fit()
         print(res.summary())
         thetas = res.params
-        t0 = np.exp(-1*np.log(norm*(-1*thetas[1] - 1)/np.exp(thetas[0]))/(-1*thetas[1] - 1))
-        thetas = np.append(thetas, [t0])
+        print(np.exp(thetas[0])/(-1*thetas[1] - 1))
+        print(norm)
+        # t0 = np.exp(-1*np.log(norm*(-1*thetas[1] - 1)/np.exp(thetas[0]))/(-1*thetas[1] - 1))
+        # thetas = np.append(thetas, [t0])
         return thetas, res
 
     def fitPowerLawCutoff(self, norm):
