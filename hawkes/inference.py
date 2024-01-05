@@ -14,8 +14,8 @@ class ParametricFit():
 
     def fitPowerLaw(self, norm):
         # print(self.data)
-        # beta*(alpha -1)*gamma*(1+gamma*t)**(-alpha), norm =beta
-        Xs = np.hstack([1+d[0] for d in self.data])
+        # beta*t**(-alpha)*1(t >= t0)
+        Xs = np.hstack([d[0] for d in self.data])
         Ys = np.hstack([np.log(d[1]) for d in self.data])
         Xs = np.log(Xs)
 
@@ -25,20 +25,18 @@ class ParametricFit():
         res = model.fit()
         print(res.summary())
         thetas = res.params
-        print(np.exp(thetas[0])/(-1*thetas[1] - 1))
-        print(norm)
-        # t0 = np.exp(-1*np.log(norm*(-1*thetas[1] - 1)/np.exp(thetas[0]))/(-1*thetas[1] - 1))
-        # thetas = np.append(thetas, [t0])
+        t0 = np.exp(-1*np.log(norm*(-1*thetas[1] - 1)/np.exp(thetas[0]))/(-1*thetas[1] - 1))
+        thetas = np.append(thetas, [t0])
         return thetas, res
 
     def fitPowerLawCutoff(self, norm):
         def powerLawCutoff(time, beta, gamma, a):
             alpha = a*beta*(gamma - 1)
-            funcEval = alpha/((1 + beta*time)**gamma)
+            funcEval = np.log(alpha) - np.log(1 + beta*time)*gamma
             # funcEval[time < t0] = 0
             return funcEval
         Xs = np.hstack( [d[0] for d in self.data] )
-        Ys = np.hstack([d[1] for d in self.data])
+        Ys = np.log(np.hstack([d[1] for d in self.data]))
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6)) #bounds=([0, 0], [1, 2]),
         print(params[2])
         print(norm)
