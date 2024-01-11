@@ -62,7 +62,7 @@ class ParametricFit():
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, alphaInit/(norm*0.7)], bounds = ([0,0], [2, np.inf])) #bounds=([0, 0], [1, 2]),
         # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
         # print(norm)
-        thetas = params
+        thetas = np.append([norm*(params[1]*(params[0] - 1))], params)
         return thetas, cov
 
     def fitExponential(self):
