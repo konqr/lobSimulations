@@ -57,7 +57,9 @@ class ParametricFit():
             return np.array([f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*time))]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, Ys[0]/(norm*0.7)], bounds = ([0,0], [2, np.inf])) #bounds=([0, 0], [1, 2]),
+        alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
+        print(Ys.reshape((len(Ys)//17, 17))[:,0])
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, alphaInit/(norm*0.7)], bounds = ([0,0], [2, np.inf])) #bounds=([0, 0], [1, 2]),
         # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
         # print(norm)
         thetas = params
