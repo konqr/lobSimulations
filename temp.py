@@ -87,7 +87,7 @@ def main():
     #     pickle.dump((T, lob, lobL3), f)
     # return T, lob, lobL3
     T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10", "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_Params_2019-01-02_2019-03-29_dictTOD")
-    with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_noOrderSizes"+str(i) , "wb") as f: #"/home/konajain/params/"
+    with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_"+str(i) , "wb") as f: #"/home/konajain/params/"
         pickle.dump((T, lob, lobL3), f)
     return
 
