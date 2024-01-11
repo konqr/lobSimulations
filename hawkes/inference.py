@@ -40,7 +40,24 @@ class ParametricFit():
             return np.array([f/alpha, f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*time))]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [1000*norm, 1.7, 1000], bounds = ([0,0,0], [np.inf, 2, np.inf])) #bounds=([0, 0], [1, 2]),
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [1000*norm*0.7, 1.7, 1000], bounds = ([0,0,0], [np.inf, 2, np.inf])) #bounds=([0, 0], [1, 2]),
+        print(params[0]/(params[2]*(params[1] - 1)))
+        print(norm)
+        thetas = params
+        return thetas, cov
+
+    def fitPowerLawCutoffNormConstrained(self, norm): # a not the same as norm in calibration
+        def powerLawCutoff(time, beta, gamma):
+            alpha = norm*(gamma*(beta - 1))
+            funcEval = alpha/((1 + gamma*time)**beta)
+            # funcEval[time < t0] = 0
+            return funcEval
+        def jac(time, beta, gamma):
+            f = powerLawCutoff(time, beta, gamma)
+            return np.array([f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*time))]).T
+        Xs = np.hstack( [d[0] for d in self.data] )
+        Ys = np.hstack([d[1] for d in self.data])
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, Ys[0]/(norm*0.7)], bounds = ([0,0], [2, np.inf])) #bounds=([0, 0], [1, 2]),
         print(params[0]/(params[2]*(params[1] - 1)))
         print(norm)
         thetas = params
@@ -159,7 +176,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     continue
                 side = np.sign(norm)
                 # if np.abs(norm) > 1: norm = 0.99
-                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoff(norm= np.abs(norm))
+                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm))
                 params[k] = (side, pars)
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
