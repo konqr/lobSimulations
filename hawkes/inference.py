@@ -12,7 +12,7 @@ class ParametricFit():
     def __init__(self, data):
         self.data = data # list of 2D vectors : time, value of kernels
 
-    def fitPowerLaw(self, norm):
+    def fitPowerLaw(self, norm): # integral infinity - how to control norm? - actually if t0 < min(t), then its ok
         # print(self.data)
         # beta*t**(-alpha)*1(t >= t0)
         Xs = np.hstack([d[0] for d in self.data])
@@ -29,16 +29,19 @@ class ParametricFit():
         thetas = np.append(thetas, [t0])
         return thetas, res
 
-    def fitPowerLawCutoff(self, norm):
-        def powerLawCutoff(time, beta, gamma, a):
-            alpha = a*beta*(gamma - 1)
-            funcEval = alpha/((1 + beta*time)**gamma)
+    def fitPowerLawCutoff(self, norm): # a not the same as norm in calibration
+        def powerLawCutoff(time, alpha, beta, gamma):
+            # alpha = a*beta*(gamma - 1)
+            funcEval = alpha/((1 + gamma*time)**beta)
             # funcEval[time < t0] = 0
             return funcEval
+        def jac(time, alpha, beta, gamma):
+            f = powerLawCutoff(time, alpha, beta, gamma)
+            return np.array([f/alpha, f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*t))]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6)) #bounds=([0, 0], [1, 2]),
-        print(params[2])
+        params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [1000, 1.7, 1111], bounds = ([0,0,0], [np.inf, 2, np.inf])) #bounds=([0, 0], [1, 2]),
+        print(params[0]/(params[3]*(params[2] - 1)))
         print(norm)
         thetas = params
         return thetas, cov
