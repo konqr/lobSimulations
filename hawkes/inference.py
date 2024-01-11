@@ -58,8 +58,8 @@ class ParametricFit():
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, Ys[0]/(norm*0.7)], bounds = ([0,0], [2, np.inf])) #bounds=([0, 0], [1, 2]),
-        print(params[0]/(params[2]*(params[1] - 1)))
-        print(norm)
+        # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
+        # print(norm)
         thetas = params
         return thetas, cov
 
