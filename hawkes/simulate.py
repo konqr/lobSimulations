@@ -11,6 +11,12 @@ def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
     if x < t0: return 0
     return alpha*(x**beta)
 
+def powerLawCutoff(time, alpha, beta, gamma):
+    # alpha = a*beta*(gamma - 1)
+    funcEval = alpha/((1 + gamma*time)**beta)
+    # funcEval[time < t0] = 0
+    return funcEval
+
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
 
@@ -88,7 +94,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             if np.isnan(kernelParams[1][2]): continue
             # print(cols[i] + "->" + cols[j])
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
-            mat[i][j]  = kernelParams[0]*np.exp(kernelParams[1][0])/((-1 - kernelParams[1][1])*(kernelParams[1][2])**(-1 - kernelParams[1][1]))
+            mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
         baselines[i] = params[cols[i]]
     baselines[5] = ((spread/0.0169)**beta)*baselines[5]
     baselines[6] = ((spread/0.0169)**beta)*baselines[6]
@@ -136,8 +142,9 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     todMult = tod[cols[j]][hourIndex]
                     if kernelParams is None: continue
                     if np.isnan(kernelParams[1][2]): continue
-                    decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                    # decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     # print(decay)
+                    decay = todMult*powerLawCutoff(s - tau, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
         decays[5] = ((spread/0.0169)**beta)*decays[5]
@@ -161,7 +168,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 todMult = tod[cols[i]][hourIndex]
                 if kernelParams is None: continue
                 if np.isnan(kernelParams[1][2]): continue
-                decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                # decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                decay = todMult*powerLawCutoff(s - tau, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
                 # print(decay)
                 newdecays[i] += decay
             newdecays = [np.max([0, d]) for d in newdecays]
@@ -180,17 +188,17 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             decays[5] = ((spread/0.0169)**beta)*decays[5]
             decays[6] = ((spread/0.0169)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
-            for i in range(len(Ts)):
-                taus = Ts[i]
-                for tau in taus:
-                    if s - tau >= 1000: continue
-                    #if s - tau < 1e-4: continue
-                    kernelParams = params.get(cols[i] + "->" + cols[k], None)
-                    if kernelParams is None: continue
-                    if np.isnan(kernelParams[1][2]): continue
-                    todMult = tod[cols[k]][hourIndex]
-                    decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
-                    decays[k] += decay
+            # for i in range(len(Ts)):
+            #     taus = Ts[i]
+            #     for tau in taus:
+            #         if s - tau >= 1000: continue
+            #         #if s - tau < 1e-4: continue
+            #         kernelParams = params.get(cols[i] + "->" + cols[k], None)
+            #         if kernelParams is None: continue
+            #         if np.isnan(kernelParams[1][2]): continue
+            #         todMult = tod[cols[k]][hourIndex]
+            #         decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+            #         decays[k] += decay
             tau = decays[k]
             Ts[k] += (s,)
             Ts_new[k] += (s,)
