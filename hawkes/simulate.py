@@ -123,7 +123,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         if lambBar == 0:
             s += 0.1 # wait for some time
         else:
-            w = -1*np.log(u)/lambBar
+            w = np.max([1e-7,-1*np.log(u)/lambBar]) # floor at 0.1 microsec
             s += w
 
         decays = baselines.copy()
@@ -228,7 +228,7 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
     if Pi_Q0 == None:
         Pi_Q0 = {
             "Ask_touch" : [0.0015, [(1, 0.013), (10, 0.016), (50, 0.004), (100, 0.166), (200, 0.133), (500, 0.04)]],
-            "Ask_deep" : [0.0012, [(1, 0.002), (10, 0.004), (50, 0.001), (100, 0.042), (200, 0.046), (500, 0.057)]]
+            "Ask_deep" : [0.0012, [(1, 0.002), (10, 0.004), (50, 0.001), (100, 0.042), (200, 0.046), (500, 0.057), (1000,0.031 )]]
         }
         Pi_Q0["Bid_touch"] = Pi_Q0["Ask_touch"]
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
@@ -380,8 +380,14 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
 
             if "lo" in r.event:
                 if "deep" in r.event:
-                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] + r['size'])
-                    lob_l3New[side + "_deep"] += [r['size']]
+                    if np.abs(lobNew[side + "_touch"][0] - lobNew[side + "_deep"][0]) <  2*ticksize:
+                        direction = 1
+                        if side == "Ask": direction = -1
+                        lobNew[side + "_deep"] = (np.round(lobNew[side + "_touch"][0] - direction*ticksize, decimals=2), r['size'])
+                        lob_l3New[side + "_deep"] = [r['size']]
+                    else:
+                        lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] + r['size'])
+                        lob_l3New[side + "_deep"] += [r['size']]
                 elif "top" in r.event:
                     lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] + r['size'])
                     lob_l3New[side + "_touch"] += [r['size']]
@@ -479,7 +485,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                     a = np.random.uniform(0, 1)
                     qSize = np.argmax(cdf>=a)+1
                     lobNew[side + "_deep"] = (np.round(lobNew[side + "_deep"][0] + direction*ticksize, decimals=2), qSize)
-                    tmp = (numOrdersPerLevel - 1)*[np.floor(lobNew[side + "_deep"][1]/numOrdersPerLevel)]
+                    tmp = ((2*numOrdersPerLevel) - 1)*[np.floor(lobNew[side + "_deep"][1]/(2*numOrdersPerLevel))]
                     lob_l3New[side + "_deep"] = [lobNew[side + "_deep"][1] - sum(tmp)] + tmp
             lob.append(lobNew.copy())
             lob_l3.append(lob_l3New.copy())
