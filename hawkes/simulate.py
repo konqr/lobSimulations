@@ -380,7 +380,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
 
             if "lo" in r.event:
                 if "deep" in r.event:
-                    if np.abs(lobNew[side + "_touch"][0] - lobNew[side + "_deep"][0]) <  2*ticksize:
+                    if np.abs(lobNew[side + "_touch"][0] - lobNew[side + "_deep"][0]) >  2.5*ticksize:
                         direction = 1
                         if side == "Ask": direction = -1
                         lobNew[side + "_deep"] = (np.round(lobNew[side + "_touch"][0] - direction*ticksize, decimals=2), r['size'])
