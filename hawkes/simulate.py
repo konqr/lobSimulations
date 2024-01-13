@@ -87,6 +87,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     baselines = num_nodes*[0]
     mat = np.zeros((num_nodes, num_nodes))
+    if s is None: s = 0
+    hourIndex = np.min([12,int(np.floor(s/1800))])
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params.get(cols[i] + "->" + cols[j], None)
@@ -94,12 +96,13 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             if np.isnan(kernelParams[1][2]): continue
             # print(cols[i] + "->" + cols[j])
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
-            mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            todMult = tod[cols[j]][hourIndex]
+            mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
         baselines[i] = params[cols[i]]
     baselines[5] = ((spread/0.0169)**beta)*baselines[5]
     baselines[6] = ((spread/0.0169)**beta)*baselines[6]
     print("spectral radius = ", np.max(np.linalg.eig(mat)[0]))
-    if s is None: s = 0
+
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
@@ -107,7 +110,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     if spread is None: spread = 1
     if lamb is None:
         print(baselines)
-        hourIndex = np.min([12,int(np.floor(s/1800))])
+
         decays = baselines.copy()
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]
@@ -135,7 +138,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
-                if s - tau >= 1000: continue
+                if s - tau >= 500: continue
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params.get(cols[i] + "->" + cols[j], None)
