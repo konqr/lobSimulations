@@ -29,7 +29,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         for j in range(num_nodes):
             kernelParams = params.get(cols[i] + "->" + cols[j], None)
             if kernelParams is None: continue
-            paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*np.exp(kernelParams[1][0]), kernelParams[1][1] , kernelParams[1][2])
+            paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*kernelParams[1][0], kernelParams[1][1] , kernelParams[1][2])
         baselines[cols[i]] = params[cols[i]]
     datas = []
     timesLinspace = np.linspace(0, 23400, int(23400/delta))
@@ -49,6 +49,19 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         tracked_intensities = [list(baselines.values())]
         for t in timesLinspace:
             print(t)
+            mat = np.zeros((num_nodes, num_nodes))
+            s = t
+            hourIndex = np.min([12,int(np.floor(s/1800))])
+            for i in range(num_nodes):
+                for j in range(num_nodes):
+                    kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                    if kernelParams is None: continue
+                    todMult = tod[cols[j]][hourIndex]
+                    mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            specRad = np.max(np.linalg.eig(mat)[0])
+            print("spectral radius = ", specRad)
+            specRad = np.max(np.linalg.eig(mat)[0]).real
+            if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
             df = data.loc[(data.Time < t)&(data.Time >= t-10)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0: continue
@@ -64,8 +77,8 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                     if r.event + '->' + col in paramsDict.keys():
                         _params = paramsDict[r.event + '->' + col]
                         if np.isnan(_params[2]): continue
-                        intensity += _params[0]*(t - r.Time + _params[2])**_params[1]
-                tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity])]
+                        intensity += _params[0]/((1 + t*_params[2])**_params[1])
+                tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity*0.99/specRad])]
             tracked_intensities = tracked_intensities + [tracked_intensity]
         tracked_intensities = np.array(tracked_intensities)
 
