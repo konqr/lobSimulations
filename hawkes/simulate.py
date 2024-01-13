@@ -104,7 +104,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     specRad = np.max(np.linalg.eig(mat)[0])
     print("spectral radius = ", specRad)
     specRad = np.max(np.linalg.eig(mat)[0]).real
-    if specRad < 1 : specRad = 0.9 # dont change actual specRad if already good
+    if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
@@ -115,7 +115,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
 
         decays = baselines.copy()
         for i in range(len(Ts)):
-            todMult = tod[cols[i]][hourIndex]*0.9/specRad
+            todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
         if type(baselines[0]) == np.float64:
             lamb = sum(decays)
@@ -135,7 +135,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         hourIndex = np.min([12,int(np.floor(s/1800))])
 
         for i in range(len(Ts)):
-            todMult = tod[cols[i]][hourIndex]*0.9/specRad
+            todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
         for i in range(len(Ts)):
             taus = Ts[i]
@@ -144,7 +144,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params.get(cols[i] + "->" + cols[j], None)
-                    todMult = tod[cols[j]][hourIndex]*0.9/specRad
+                    todMult = tod[cols[j]][hourIndex]*0.99/specRad
                     if kernelParams is None: continue
                     if np.isnan(kernelParams[1][2]): continue
                     # decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
@@ -170,7 +170,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             newdecays = len(cols)*[0]
             for i in range(len(Ts)):
                 kernelParams = params.get(cols[k] + "->" + cols[i], None)
-                todMult = tod[cols[i]][hourIndex]*0.9/specRad
+                todMult = tod[cols[i]][hourIndex]*0.99/specRad
                 if kernelParams is None: continue
                 if np.isnan(kernelParams[1][2]): continue
                 # decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
