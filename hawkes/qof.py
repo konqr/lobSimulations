@@ -32,7 +32,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*kernelParams[1][0], kernelParams[1][1] , kernelParams[1][2])
         baselines[cols[i]] = params[cols[i]]
     datas = []
-    timesLinspace = np.linspace(0, 23400, int(23400/delta))
+    timesLinspace = np.linspace(0, 23, int(23/delta))
     rounder= -1*int(np.round(np.log(delta)/np.log(10)))
     for d in pd.date_range(sDate, eDate):
 
@@ -81,7 +81,6 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                 tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity*0.99/specRad])]
             tracked_intensities = tracked_intensities + [tracked_intensity]
         tracked_intensities = np.array(tracked_intensities)
-
         print(time.time() - logger_time)
         logger_time = time.time()
         def calc(r):
@@ -92,6 +91,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             i_start = np.argmax(timesLinspace > Tminus1) - 1
             # idx = np.argmax(cols == event)
             if Time - Tminus1 < delta:
+                print(i_start)
                 return tracked_intensities[i_start, idx]*np.max([0.5*1e-9,(Time-Tminus1)])
 
             integral = delta*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, rounder))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, rounder))*tracked_intensities[i_start, idx]
