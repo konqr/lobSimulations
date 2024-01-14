@@ -84,16 +84,16 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         print(time.time() - logger_time)
         logger_time = time.time()
         def calc(r):
-            idx =r.eventID
+            idx = int(r.eventID)
             Time = r.Time
             Tminus1 = r.Tminus1
             i_end = np.argmax(timesLinspace > Time) - 1
             i_start = np.argmax(timesLinspace > Tminus1) - 1
             # idx = np.argmax(cols == event)
             if Time - Tminus1 < delta:
-                print(i_start)
-                print(idx)
-                print(tracked_intensities[i_start:i_end, idx])
+                # print(i_start)
+                # print(idx)
+                # print(tracked_intensities[i_start:i_end, idx])
                 return tracked_intensities[i_start, idx]*np.max([0.5*1e-9,(Time-Tminus1)])
 
             integral = delta*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, rounder))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, rounder))*tracked_intensities[i_start, idx]
