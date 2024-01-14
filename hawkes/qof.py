@@ -32,7 +32,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*kernelParams[1][0], kernelParams[1][1] , kernelParams[1][2])
         baselines[cols[i]] = params[cols[i]]
     datas = []
-    timesLinspace = np.linspace(0, 23, int(23/delta))
+    timesLinspace = np.linspace(0, 23400, int(23400/delta))
     rounder= -1*int(np.round(np.log(delta)/np.log(10)))
     for d in pd.date_range(sDate, eDate):
 
