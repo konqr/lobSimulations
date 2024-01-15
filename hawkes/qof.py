@@ -176,7 +176,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
-    t = 1
+    t = .001
     for path in paths:
         with open(path, "rb") as f:
             results = pickle.load(f)
@@ -200,8 +200,8 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         data = l.load()
         if len(data): data = data[0]
         else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        data['Spread'] = 100*(data['Ask Price 1'] - data['Bid Price 1'])
+        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])/10000
+        data['Spread'] = (data['Ask Price 1'] - data['Bid Price 1'])/100
         mid = data.Mid.values
         times = data.Time.values - 34200
         sample_x = np.linspace(0, 23400, int(23400/t))
