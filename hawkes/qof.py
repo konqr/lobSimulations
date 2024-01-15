@@ -204,8 +204,9 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " returns distribution")
     plt.xlabel("Returns")
     plt.ylabel("Frequency")
-    plt.hist(np.hstack(empRets), bins = 1000, label = "Empirical", alpha = 0.5)
-    plt.hist(np.hstack(simRets), bins = 1000, label = "Simulated", alpha = 0.5)
+    plt.hist(np.hstack(empRets), bins = 100, label = "Empirical", alpha = 0.5, density = True)
+    plt.hist(np.hstack(simRets), bins = 100, label = "Simulated", alpha = 0.5, density = True)
+    plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
@@ -213,8 +214,9 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks (log)")
     plt.ylabel("Frequency")
-    plt.hist(np.log(100*np.hstack(empSpreads)), bins = 1000, label = "Empirical", alpha = 0.5)
-    plt.hist(np.log(100*np.hstack(simSpreads)), bins = 1000, label = "Simulated", alpha = 0.5)
+    plt.hist(100*np.hstack(empSpreads), bins = np.arange(20), label = "Empirical", alpha = 0.5, density = True)
+    plt.hist(100*np.hstack(simSpreads), bins = np.arange(20), label = "Simulated", alpha = 0.5, density = True)
+    plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_spreadDistribution.png")
 
