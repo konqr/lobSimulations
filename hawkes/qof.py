@@ -176,7 +176,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
-    t = 1
+    t = .001
     for path in paths:
         with open(path, "rb") as f:
             results = pickle.load(f)
