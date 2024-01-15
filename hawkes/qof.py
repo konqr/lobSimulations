@@ -201,8 +201,8 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         data = l.load()
         if len(data): data = data[0]
         else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])/10000
-        data['Spread'] = (data['Ask Price 1'] - data['Bid Price 1'])/10000
+        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+        data['Spread'] = (data['Ask Price 1'] - data['Bid Price 1'])
         mid = data.Mid.values
         times = data.Time.values - 34200
         # sample_x = np.linspace(0, 23400, int(23400/t))
@@ -211,6 +211,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         ret =  np.exp(np.diff(np.log(sample_y))) - 1
         empRets.append(ret)
         empSpreads.append(data.Spread.values)
+        # print(data.Spread.values)
 
     fig = plt.figure()
     plt.title(ric + " returns distribution")
