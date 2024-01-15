@@ -176,7 +176,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
-    t = .001
+    t = .01
     sample_x = np.linspace(0, 23400, int(23400/t))
     for path in paths:
         with open(path, "rb") as f:
