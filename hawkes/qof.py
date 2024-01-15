@@ -81,6 +81,8 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                 tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity*0.99/specRad])]
             tracked_intensities = tracked_intensities + [tracked_intensity]
         tracked_intensities = np.array(tracked_intensities + [12*[0]])
+        print(len(tracked_intensities))
+        print(len(timesLinspace))
         print(time.time() - logger_time)
         logger_time = time.time()
         def calc(r):
