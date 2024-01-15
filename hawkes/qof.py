@@ -64,7 +64,9 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
             df = data.loc[(data.Time < t)&(data.Time >= t-10)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
-            if len(df) == 0: continue
+            if len(df) == 0:
+                tracked_intensities = tracked_intensities + [12*[0]]
+                continue
             tracked_intensity = []
             for col in cols:
                 mult = 1
