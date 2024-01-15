@@ -244,7 +244,9 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         data['Spread'] = 100*(data['Ask Price 1'] - data['Bid Price 1'])
         data['Returns'] = data['Mid'].apply(np.log).diff().apply(np.exp) - 1
-        empRets.append(data.Returns.iloc[1:].values)
+        ret = data.Returns.iloc[1:].values
+        ret = ret[ret!=0]
+        empRets.append(ret)
         empSpreads.append(data.Spread.values)
 
     fig = plt.figure()
