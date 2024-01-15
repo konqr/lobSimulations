@@ -223,6 +223,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
+    t = 1
     for path in paths:
         with open(path, "rb") as f:
             results = pickle.load(f)
@@ -231,8 +232,14 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         simDf['Spread'] = simDf['Ask'] - simDf['Bid']
-        simDf['Returns'] = simDf['Mid'].apply(np.log).diff().apply(np.exp) - 1
-        simRets.append(simDf.Returns.iloc[1:].values)
+        # simDf['Returns'] = simDf['Mid'].apply(np.log).diff().apply(np.exp) - 1
+        mid = simDf.Mid.values
+        times = np.append([0], np.array(results[0][1:])[:,1])
+        sample_x = np.linspace(0, 23400, int(23400/t))
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
+        simRets.append(ret)
         simSpreads.append(simDf.Spread.values)
     empRets = []
     empSpreads = []
@@ -243,9 +250,12 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         else: continue
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         data['Spread'] = 100*(data['Ask Price 1'] - data['Bid Price 1'])
-        data['Returns'] = data['Mid'].apply(np.log).diff().apply(np.exp) - 1
-        ret = data.Returns.iloc[1:].values
-        ret = ret[ret!=0]
+        mid = data.Mid.values
+        times = data.Time.values - 34200
+        sample_x = np.linspace(0, 23400, int(23400/t))
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
         empRets.append(ret)
         empSpreads.append(data.Spread.values)
 
