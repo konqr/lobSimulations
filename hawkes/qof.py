@@ -176,6 +176,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
+    t = 1
     for path in paths:
         with open(path, "rb") as f:
             results = pickle.load(f)
@@ -184,8 +185,13 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         simDf['Spread'] = simDf['Ask'] - simDf['Bid']
-        simDf['Returns'] = simDf['Mid'].apply(np.log).diff().apply(np.exp) - 1
-        simRets.append(simDf.Returns.iloc[1:].values)
+        mid = simDf.Mid.values
+        times = np.append([0], np.array(results[0][1:])[:,1])
+        sample_x = np.linspace(0, 23400, int(23400/t))
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
+        simRets.append(ret)
         simSpreads.append(simDf.Spread.values)
     empRets = []
     empSpreads = []
@@ -196,26 +202,31 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         else: continue
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         data['Spread'] = 100*(data['Ask Price 1'] - data['Bid Price 1'])
-        data['Returns'] = data['Mid'].apply(np.log).diff().apply(np.exp) - 1
-        empRets.append(data.Returns.iloc[1:].values)
+        mid = data.Mid.values
+        times = data.Time.values - 34200
+        sample_x = np.linspace(0, 23400, int(23400/t))
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
+        empRets.append(ret)
         empSpreads.append(data.Spread.values)
 
     fig = plt.figure()
     plt.title(ric + " returns distribution")
     plt.xlabel("Returns")
     plt.ylabel("Frequency")
-    plt.hist(np.hstack(empRets), bins = 100, label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(np.hstack(simRets), bins = 100, label = "Simulated", alpha = 0.5, density = True)
+    plt.hist(np.hstack(empRets), bins = 100, label = "Empirical", alpha = 0.1, density = True)
+    plt.hist(np.hstack(simRets), bins = 100, label = "Simulated", alpha = 0.1, density = True)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
     fig = plt.figure()
     plt.title(ric + " spreads distribution")
-    plt.xlabel("Spread-in-ticks (log)")
+    plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
-    plt.hist(100*np.hstack(empSpreads), bins = np.arange(20), label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(100*np.hstack(simSpreads), bins = np.arange(20), label = "Simulated", alpha = 0.5, density = True)
+    plt.hist(100*np.hstack(empSpreads), bins = np.arange(20), label = "Empirical", alpha = 0.1, density = True)
+    plt.hist(100*np.hstack(simSpreads), bins = np.arange(20), label = "Simulated", alpha = 0.1, density = True)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_spreadDistribution.png")
