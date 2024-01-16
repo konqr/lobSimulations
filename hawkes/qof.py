@@ -271,17 +271,62 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
     # plt.yscale("log")
     plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_absReturnsACF.png")
+    return
 
+def runPricePaths(paths, resultsPath, sDate, eDate, ric):
 
+    simMids = []
+    simTimes = []
+    for path in paths:
+        with open(path, "rb") as f:
+            results = pickle.load(f)
+        simDf = pd.DataFrame(results[1])
+        simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
+        simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
+        simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
+        mid = simDf.Mid.values
+        simMids.append(mid)
+        simTimes.append(simDf.Time.values.astype(float) + 9.5*3600)
+    empMids = []
+    empTimes = []
+    for d in pd.date_range(sDate,eDate):
+        if d == dt.date(2019,1,9): continue
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+        data = l.load()
+        if len(data): data = data[0]
+        else: continue
+        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+        mid = data.Mid.values
+        empMids.append(mid)
+        empTimes.append(data.Time.values.astype(float) + 9.5*3600)
+
+    fig = plt.figure()
+    plt.title(ric + " Price Paths (Simulated)")
+    plt.xlabel("Price")
+    plt.ylabel("Time")
+    for r, t in zip(simMids, simTimes):
+        plt.plot(t, r, color = "orange", alpha=0.5)
+    count = 2340
+    plt.xticks(ticks = np.arange(0, count), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in np.arange(0, count)], rotation = 20)
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_simulatedMidPrices.png")
+    fig = plt.figure()
+    plt.title(ric + " Price Paths (Empirical)")
+    plt.xlabel("Price")
+    plt.ylabel("Time")
+    for r, t in zip(empMids, empTimes):
+        plt.plot(t, r, color = "blue", alpha=0.5)
+    count = 2340
+    plt.xticks(ticks = np.arange(0, count), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in np.arange(0, count)], rotation = 20)
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_empiricalMidPrices.png")
     return
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
-    # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
-    # runDistribution(paths, resultsPath , sDate, eDate, ric)
+    runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
+    runDistribution(paths, resultsPath , sDate, eDate, ric)
     runACF(paths, resultsPath, sDate, eDate, ric)
-    # runPricePaths(paths, resultsPath)
+    runPricePaths(paths, resultsPath, sDate, eDate, ric)
     # runTODCheck(paths, resultsPath, param = "orderflow")
     # runTODCheck(paths, resultsPath, param = "spread")
     return
