@@ -228,7 +228,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 def runACF(paths, resultsPath, sDate, eDate, ric):
 
     simRets = []
-    t = .01
+    t = 1
     sample_x = np.linspace(0, 23400, int(23400/t))
     for path in paths:
         with open(path, "rb") as f:
