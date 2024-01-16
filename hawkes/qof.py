@@ -297,7 +297,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         else: continue
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         mid = data.Mid.values
-        empMids.append(mid)
+        empMids.append(mid*260/mid[0])
         empTimes.append(data.Time.values.astype(float))
 
     fig = plt.figure()
