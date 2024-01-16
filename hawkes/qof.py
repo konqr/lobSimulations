@@ -48,6 +48,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
         tracked_intensity_integrals = [list(baselines.values())*0]
         for r_i in data.iterrows():
+            r_i = r_i[1]
             t = r_i.Time
             print(t)
             mat = np.zeros((num_nodes, num_nodes))
