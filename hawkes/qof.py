@@ -46,7 +46,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
         data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
-        tracked_intensity_integrals = [baselines.values()*0]
+        tracked_intensity_integrals = [list(baselines.values())*0]
         for r_i in data.iterrows():
             t = r_i.Time
             print(t)
@@ -66,7 +66,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             df = data.loc[(data.Time < t)&(data.Time >= t-500)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0:
-                tracked_intensity_integrals = tracked_intensity_integrals + [baselines.values()*t]
+                tracked_intensity_integrals = tracked_intensity_integrals + [list(baselines.values())*t]
                 continue
             tracked_intensity_integral = []
             for col in cols:
