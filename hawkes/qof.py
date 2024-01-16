@@ -8,6 +8,7 @@ from scipy import stats
 import statsmodels.api as sm
 from hawkes import dataLoader
 import matplotlib.pyplot as plt
+import statsmodels
 
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
@@ -224,12 +225,58 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 
     return
 
+def runACF(paths, resultsPath, sDate, eDate, ric):
+
+    simRets = []
+    t = .01
+    sample_x = np.linspace(0, 23400, int(23400/t))
+    for path in paths:
+        with open(path, "rb") as f:
+            results = pickle.load(f)
+        simDf = pd.DataFrame(results[1])
+        simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
+        simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
+        simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
+        mid = simDf.Mid.values
+        times = np.append([0], np.array(results[0][1:])[:,1])
+
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
+        simRets.append(ret)
+    empRets = []
+    for d in pd.date_range(sDate,eDate):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+        data = l.load()
+        if len(data): data = data[0]
+        else: continue
+        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+        mid = data.Mid.values
+        times = data.Time.values - 34200
+        # sample_x = np.linspace(0, 23400, int(23400/t))
+        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+        sample_y = mid[idxs]
+        ret =  np.exp(np.diff(np.log(sample_y))) - 1
+        empRets.append(ret)
+
+    fig = plt.figure()
+    plt.title(ric + " returns ACF")
+    plt.xlabel("Lags")
+    plt.ylabel("Autocorrelation")
+    plt.scatter(statsmodels.tsa.stattools.acf(empRets, lags = 10000), label = "Empirical")
+    plt.scatter(statsmodels.tsa.stattools.acf(simRets, lags = 10000), label = "Simulated")
+    # plt.yscale("log")
+    plt.legend()
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
+
+
+    return
+
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
     # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath , sDate, eDate, ric)
-    # runAverageShapeOfBook(paths, resultsPath)
     # runACF(paths, resultsPath, sDate, eDate, ric)
     # runPricePaths(paths, resultsPath)
     # runTODCheck(paths, resultsPath, param = "orderflow")
