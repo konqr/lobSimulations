@@ -79,6 +79,9 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                     if r.event + '->' + col in paramsDict.keys():
                         _params = paramsDict[r.event + '->' + col]
                         if np.isnan(_params[2]): continue
+                        print(intensity)
+                        print((t - r.Time))
+                        print(_params)
                         intensity += _params[0]/((1 + (t - r.Time)*_params[2])**_params[1])
                 print(intensity)
                 tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity*0.99/specRad])]
