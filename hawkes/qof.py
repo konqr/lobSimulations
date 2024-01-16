@@ -307,7 +307,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
     for r, t in zip(simMids, simTimes):
         plt.plot(t, r, color = "orange", alpha=0.5)
     count = 23400
-    plt.xticks(ticks = np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in np.arange(0, count, 2340)], rotation = 20)
+    plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_simulatedMidPrices.png")
     fig = plt.figure()
     plt.title(ric + " Price Paths (Empirical)")
