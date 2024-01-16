@@ -286,7 +286,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         mid = simDf.Mid.values
         simMids.append(mid)
-        simTimes.append(simDf.Time.values.astype(float) + 9.5*3600)
+        simTimes.append(np.append([0], np.array(results[0][1:])[:,1]) + 9.5*3600)
     empMids = []
     empTimes = []
     for d in pd.date_range(sDate,eDate):
@@ -298,7 +298,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         mid = data.Mid.values
         empMids.append(mid)
-        empTimes.append(data.Time.values.astype(float) + 9.5*3600)
+        empTimes.append(data.Time.values.astype(float))
 
     fig = plt.figure()
     plt.title(ric + " Price Paths (Simulated)")
@@ -323,9 +323,9 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
-    runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
-    runDistribution(paths, resultsPath , sDate, eDate, ric)
-    runACF(paths, resultsPath, sDate, eDate, ric)
+    # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
+    # runDistribution(paths, resultsPath , sDate, eDate, ric)
+    # runACF(paths, resultsPath, sDate, eDate, ric)
     runPricePaths(paths, resultsPath, sDate, eDate, ric)
     # runTODCheck(paths, resultsPath, param = "orderflow")
     # runTODCheck(paths, resultsPath, param = "spread")
