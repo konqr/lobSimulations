@@ -64,7 +64,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             print("spectral radius = ", specRad)
             specRad = np.max(np.linalg.eig(mat)[0]).real
             if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
-            df = data.loc[(data.Time < t)&(data.Time >= t-500)]
+            df = data.loc[(data.Time < t)&(data.Time >= t-10)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0:
                 tracked_intensity_integrals = tracked_intensity_integrals + [np.array(list(baselines.values()))*t]
