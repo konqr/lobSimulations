@@ -277,7 +277,7 @@ def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), 
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
     # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath , sDate, eDate, ric)
-    # runACF(paths, resultsPath, sDate, eDate, ric)
+    runACF(paths, resultsPath, sDate, eDate, ric)
     # runPricePaths(paths, resultsPath)
     # runTODCheck(paths, resultsPath, param = "orderflow")
     # runTODCheck(paths, resultsPath, param = "spread")
