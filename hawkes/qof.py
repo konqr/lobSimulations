@@ -286,7 +286,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         mid = simDf.Mid.values
         simMids.append(mid)
-        simTimes.append(simDf.Time.values.astype(float) + 9.5*3600)
+        simTimes.append(np.append([0], np.array(results[0][1:])[:,1]) + 9.5*3600)
     empMids = []
     empTimes = []
     for d in pd.date_range(sDate,eDate):
@@ -298,7 +298,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         mid = data.Mid.values
         empMids.append(mid)
-        empTimes.append(data.Time.values.astype(float) + 9.5*3600)
+        empTimes.append(data.Time.values.astype(float))
 
     fig = plt.figure()
     plt.title(ric + " Price Paths (Simulated)")
