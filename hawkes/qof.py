@@ -246,6 +246,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
         simRets.append(ret)
     empRets = []
     for d in pd.date_range(sDate,eDate):
+        if d == dt.date(2019,1,9): continue
         l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
         data = l.load()
         if len(data): data = data[0]
@@ -263,10 +264,12 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " returns ACF")
     plt.xlabel("Lags")
     plt.ylabel("Autocorrelation")
-    plt.plot(statsmodels.tsa.stattools.acf(np.array(empRets).flatten(), nlags = 1000)[1:], alpha=0.5, label = "Empirical")
-    plt.plot(statsmodels.tsa.stattools.acf(np.array(simRets).flatten(), nlags = 1000)[1:], alpha = 0.5, label = "Simulated")
+    for r in empRets:
+        emps = plt.plot(statsmodels.tsa.stattools.acf(r, nlags = 10000)[1:], color = "blue", alpha=0.5)
+    for r in simRets:
+        sims = plt.plot(statsmodels.tsa.stattools.acf(r, nlags = 10000)[1:], color = "orange", alpha=0.5)
     # plt.yscale("log")
-    plt.legend()
+    plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsACF.png")
 
 
