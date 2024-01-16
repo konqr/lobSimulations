@@ -313,7 +313,7 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
             spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
             lob0 = lobTmp[-1]
             lob0_l3 = lobL3Tmp[-1]
-            if len(TsTmp):
+            if len(list(dictTimestamps.keys())):
                 Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
                 lob.append(lob0)
                 lobL3.append(lob0_l3)
