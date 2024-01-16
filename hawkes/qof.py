@@ -267,7 +267,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
     plt.scatter(statsmodels.tsa.stattools.acf(simRets, lags = 10000), label = "Simulated")
     # plt.yscale("log")
     plt.legend()
-    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsACF.png")
 
 
     return
