@@ -228,7 +228,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 def runACF(paths, resultsPath, sDate, eDate, ric):
 
     simRets = []
-    t = 1
+    t = .01
     sample_x = np.linspace(0, 23400, int(23400/t))
     for path in paths:
         with open(path, "rb") as f:
@@ -263,8 +263,8 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " returns ACF")
     plt.xlabel("Lags")
     plt.ylabel("Autocorrelation")
-    plt.plot(statsmodels.tsa.stattools.acf(np.array(empRets).flatten(), nlags = 10000), alpha=0.5, label = "Empirical")
-    plt.plot(statsmodels.tsa.stattools.acf(np.array(simRets).flatten(), nlags = 10000), alpha = 0.5, label = "Simulated")
+    plt.plot(statsmodels.tsa.stattools.acf(np.array(empRets).flatten(), nlags = 1000)[1:], alpha=0.5, label = "Empirical")
+    plt.plot(statsmodels.tsa.stattools.acf(np.array(simRets).flatten(), nlags = 1000)[1:], alpha = 0.5, label = "Simulated")
     # plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsACF.png")
