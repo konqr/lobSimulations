@@ -261,13 +261,13 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
         empRets.append(ret)
 
     fig = plt.figure()
-    plt.title(ric + " returns ACF")
+    plt.title(ric + " absolute returns ACF")
     plt.xlabel("Lags")
     plt.ylabel("Autocorrelation")
     for r in empRets:
-        emps = plt.plot(statsmodels.tsa.stattools.acf(r, nlags = 10000)[1:], color = "blue", alpha=0.5)
+        emps = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "blue", alpha=0.5)
     for r in simRets:
-        sims = plt.plot(statsmodels.tsa.stattools.acf(r, nlags = 10000)[1:], color = "orange", alpha=0.5)
+        sims = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "orange", alpha=0.5)
     # plt.yscale("log")
     plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsACF.png")
