@@ -32,7 +32,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*kernelParams[1][0], kernelParams[1][1] , kernelParams[1][2])
         baselines[cols[i]] = params[cols[i]]
     datas = []
-    timesLinspace = np.linspace(0, 23400, int(23400/delta))
+    # timesLinspace = np.linspace(0, 23400, int(23400/delta))
     rounder= -1*int(np.round(np.log(delta)/np.log(10)))
     for d in pd.date_range(sDate, eDate):
 
@@ -46,8 +46,9 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
         data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
-        tracked_intensities = [list(baselines.values())]
-        for t in timesLinspace:
+        tracked_intensity_integrals = [baselines.values()*0]
+        for r_i in data.iterrows():
+            t = r_i.Time
             print(t)
             mat = np.zeros((num_nodes, num_nodes))
             s = t
@@ -62,59 +63,42 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             print("spectral radius = ", specRad)
             specRad = np.max(np.linalg.eig(mat)[0]).real
             if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
-            df = data.loc[(data.Time < t)&(data.Time >= t-10)]
+            df = data.loc[(data.Time < t)&(data.Time >= t-500)]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0:
-                tracked_intensities = tracked_intensities + [12*[0]]
+                tracked_intensity_integrals = tracked_intensity_integrals + [baselines.values()*t]
                 continue
-            tracked_intensity = []
+            tracked_intensity_integral = []
             for col in cols:
                 mult = 1
                 if "inspread" in col:
                     currSpread = df.iloc[-1].prevSpread
                     mult = (currSpread/avgSpread)**spreadBeta
-                intensity = baselines[col]
+                intensity_integral = baselines[col]*t
                 for r in df.iterrows():
                     r = r[1]
+                    t_j = r.Time
                     if r.event + '->' + col in paramsDict.keys():
                         _params = paramsDict[r.event + '->' + col]
                         if np.isnan(_params[2]): continue
                         # print(intensity)
-                        print((t - r.Time))
+                        # print((t - r.Time))
                         # print(_params)
-                        intensity += _params[0]/((1 + (t - r.Time)*_params[2])**_params[1])
-                print(intensity)
-                tracked_intensity = tracked_intensity + [np.max([0,mult*tod[col][hourIdx]*intensity*0.99/specRad])]
-            tracked_intensities = tracked_intensities + [tracked_intensity]
-        tracked_intensities = np.array(tracked_intensities + [12*[0]])
-        print(len(tracked_intensities))
-        print(len(timesLinspace))
+                        intensity_integral += _params[0]*(1 - (1 + _params[2]*(t - t_j)**(1 - _params[1])))/(_params[2]*(_params[1] -1))
+                # print(intensity)
+                tracked_intensity_integral = tracked_intensity_integral + [mult*tod[col][hourIdx]*intensity_integral*0.99/specRad]
+            tracked_intensity_integrals = tracked_intensity_integrals + [tracked_intensity_integral]
+        tracked_intensity_integrals = np.array(tracked_intensity_integrals)
+        print(len(tracked_intensity_integrals))
         print(time.time() - logger_time)
         logger_time = time.time()
-        def calc(r):
-            idx = int(r.eventID)
-            Time = r.Time
-            Tminus1 = r.Tminus1
-            i_end = np.argmax(timesLinspace > Time) - 1
-            i_start = np.argmax(timesLinspace > Tminus1) - 1
-            # idx = np.argmax(cols == event)
-            if Time - Tminus1 < delta:
-                # print(i_start)
-                # print(idx)
-                # print(tracked_intensities[i_start:i_end, idx])
-                return tracked_intensities[i_start, idx]*np.max([0.5*1e-9,(Time-Tminus1)])
-
-            integral = delta*np.sum(tracked_intensities[i_start:i_end, idx]) + (Time - np.round(Time, rounder))*tracked_intensities[i_end, idx]  - (Tminus1 - np.round(Tminus1, rounder))*tracked_intensities[i_start, idx]
-            return integral
-        data['eventID'] = data.event.apply(lambda x: np.argmax(np.array(cols) == x))
-        data["lambdaIntegral"] = data[['eventID','Time', 'Tminus1']].apply(calc, axis=1) #np.apply_along_axis(calc, 1, data[['eventID','Time', 'Tminus1']].values)
-        print(time.time() - logger_time)
-        data[["Time", "OrderID", "event", "lambdaIntegral"]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
+        data[[c + " integral" for c in cols]] = tracked_intensity_integrals
+        data[["Time", "OrderID", "event"] + [c + " integral" for c in cols]].to_csv(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") +"_QQdf.csv")
         # datas.append(data[["Time", "event", "lambdaIntegral"]])
-        dictLambdaIntegral = data[["event", "lambdaIntegral"]].groupby("event").apply(np.array).to_dict()
-        for k in dictLambdaIntegral.keys():
-            fig = sm.qqplot(dictLambdaIntegral[k], stats.expon, line='45', ylabel=  k)
-            fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_qq_" + k + ".png")
+        # dictLambdaIntegral = data[["event", "lambdaIntegral"]].groupby("event").apply(np.array).to_dict()
+        # for k in dictLambdaIntegral.keys():
+        #     fig = sm.qqplot(dictLambdaIntegral[k], stats.expon, line='45', ylabel=  k)
+        #     fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_qq_" + k + ".png")
     return
 
 def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted"):
