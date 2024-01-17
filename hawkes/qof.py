@@ -51,7 +51,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         for r_i in data.iterrows():
             r_i = r_i[1]
             t = r_i.Time
-            print(t)
+            # print(t)
             mat = np.zeros((num_nodes, num_nodes))
             s = t
             hourIndex = np.min([12,int(np.floor(s/1800))])
@@ -62,7 +62,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                     todMult = tod[cols[j]][hourIndex]
                     mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
             specRad = np.max(np.linalg.eig(mat)[0])
-            print("spectral radius = ", specRad)
+            # print("spectral radius = ", specRad)
             specRad = np.max(np.linalg.eig(mat)[0]).real
             if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
             df = data.loc[(data.Time < t)&(data.Time >= t-10)]
@@ -322,11 +322,11 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
-    # runQQInterArrival(ric, sDate, eDate, resultsPath)
+    runQQInterArrival(ric, sDate, eDate, resultsPath)
     # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath , sDate, eDate, ric)
     # runACF(paths, resultsPath, sDate, eDate, ric)
-    runPricePaths(paths, resultsPath, sDate, eDate, ric)
+    # runPricePaths(paths, resultsPath, sDate, eDate, ric)
     # runTODCheck(paths, resultsPath, param = "orderflow")
     # runTODCheck(paths, resultsPath, param = "spread")
     return
