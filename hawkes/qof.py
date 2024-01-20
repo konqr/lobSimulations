@@ -7,16 +7,16 @@ import datetime as dt
 from scipy import stats
 import statsmodels.api as sm
 from hawkes import dataLoader
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import statsmodels
 
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
 
-def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted", avgSpread = 0.169, spreadBeta =0.7479):
-    paramsPath = inputDataPath + "/"+ric+"_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10"
-    todPath = inputDataPath + "/"+ric+"_Params_2019-01-02_2019-03-29_dictTOD"
+def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/", avgSpread = 0.169, spreadBeta =0.7479):
+    paramsPath = inputDataPath +ric+"_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10"
+    todPath = inputDataPath +ric+"_Params_2019-01-02_2019-03-29_dictTOD"
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
     with open(todPath, "rb") as f:
@@ -86,7 +86,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                         # print(intensity)
                         # print((t - r.Time))
                         # print(_params)
-                        intensity_integral += _params[0]*(1 - (1 + _params[2]*(t - t_j)**(1 - _params[1])))/(_params[2]*(_params[1] -1))
+                        intensity_integral += _params[0]*(1 - (1 + _params[2]*(t - t_j))**(1 - _params[1]))/(_params[2]*(_params[1] -1))
                 # print(intensity)
                 tracked_intensity_integral = tracked_intensity_integral + [mult*tod[col][hourIdx]*intensity_integral*0.99/specRad]
             with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_qq", "ab") as f:
