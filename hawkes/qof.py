@@ -89,6 +89,8 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                         intensity_integral += _params[0]*(1 - (1 + _params[2]*(t - t_j)**(1 - _params[1])))/(_params[2]*(_params[1] -1))
                 # print(intensity)
                 tracked_intensity_integral = tracked_intensity_integral + [mult*tod[col][hourIdx]*intensity_integral*0.99/specRad]
+            with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_qq", "ab") as f:
+                pickle.dump([r_i, tracked_intensity_integral], f)
             tracked_intensity_integrals = tracked_intensity_integrals + [tracked_intensity_integral]
         tracked_intensity_integrals = np.array(tracked_intensity_integrals)
         print(len(tracked_intensity_integrals))
