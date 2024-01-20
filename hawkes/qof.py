@@ -82,7 +82,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                     t_j = r.Time
                     if r.event + '->' + col in paramsDict.keys():
                         _params = paramsDict[r.event + '->' + col]
-                        if np.isnan(_params[2]): continue
+                        if _params[0] < 0: continue
                         # print(intensity)
                         # print((t - r.Time))
                         # print(_params)
