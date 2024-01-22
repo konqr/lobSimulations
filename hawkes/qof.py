@@ -91,7 +91,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
                     t_j = r.Time
                     if r.event + '->' + col in paramsDict.keys():
                         _params = paramsDict[r.event + '->' + col]
-                        if _params[0] < 0: continue
+                        # if _params[0] < 0: continue
                         # print(intensity)
                         # print((t - r.Time))
                         # print(_params)
@@ -352,6 +352,95 @@ def runTODCheck(paths, resultsPath, sDate, eDate,ric):
         plt.xlabel("Half-Hour Index")
         plt.title(c + " TOD (Simulated)")
         fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_" +c +"tod.png")
+    return
+
+def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/", avgSpread = 0.0169, spreadBeta =0.7479):
+    paramsPath = inputDataPath +ric+"_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10"
+    todPath = inputDataPath +ric+"_Params_2019-01-02_2019-03-29_dictTOD"
+    with open(paramsPath, "rb") as f:
+        params = pickle.load(f)
+    with open(todPath, "rb") as f:
+        tod = pickle.load(f)
+    cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    num_nodes = len(cols)
+    baselines = {}
+    paramsDict = {}
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
+            if kernelParams is None: continue
+            paramsDict[cols[i] + "->" + cols[j]]  = (kernelParams[0]*kernelParams[1][0], kernelParams[1][1] , kernelParams[1][2])
+        baselines[cols[i]] = params[cols[i]]
+    datas = []
+    # timesLinspace = np.linspace(0, 23400, int(23400/delta))
+    rounder= -1*int(np.round(np.log(delta)/np.log(10)))
+    for d in pd.date_range(sDate, eDate):
+
+        inputCsvPath = ric + "_" + d.strftime("%Y-%m-%d") + "_12D.csv"
+        if inputCsvPath not in os.listdir(inputDataPath): continue
+        print(d)
+        logger_time=time.time()
+        print(logger_time)
+        data = pd.read_csv(inputDataPath + "/" + inputCsvPath)
+        data = cleanMOs(data)
+        data["Tminus1"] = 0
+        data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
+        data = data.sort_values(["Time", "OrderID"])
+        data['prevSpread'] = data['Ask Price 1'] - data['Bid Price 1'] + data['BidDiff'] - data['AskDiff']
+        bigResultArr = np.zeros((len(data), 26))
+        counter = 0
+        for r_i in data.iterrows():
+
+            r_i = r_i[1]
+            t = r_i.Time
+            # print(t)
+            mat = np.zeros((num_nodes, num_nodes))
+            s = t
+            hourIndex = np.min([12,int(np.floor(s/1800))])
+            for i in range(num_nodes):
+                for j in range(num_nodes):
+                    kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                    if kernelParams is None: continue
+                    todMult = tod[cols[j]][hourIndex]
+                    mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            specRad = np.max(np.linalg.eig(mat)[0])
+            # print("spectral radius = ", specRad)
+            specRad = np.max(np.linalg.eig(mat)[0]).real
+            if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
+            df = data.loc[data.Time < t]
+            hourIdx = np.min([12,int(np.floor(t/1800))])
+            bigResultArr[counter, 0] = np.argwhere(np.array(cols) == r_i.event)[0][0]
+            bigResultArr[counter, 1] = t
+            if len(df) == 0:
+                for col in cols:
+                    idx = np.argwhere(np.array(cols) == col)[0][0]
+                    bigResultArr[counter, 2*idx] = baselines[col]
+                    bigResultArr[counter, 2*idx + 1] = baselines[col]
+                continue
+            for col in cols:
+                idx = np.argwhere(np.array(cols) == col)[0][0]
+                mult = 1
+                if "inspread" in col:
+                    currSpread = df.iloc[-1].prevSpread
+                    mult = (currSpread/avgSpread)**spreadBeta
+                intensity = baselines[col]
+                for r in df.iterrows():
+                    r = r[1]
+                    t_j = r.Time
+                    if r.event + '->' + col in paramsDict.keys():
+                        _params = paramsDict[r.event + '->' + col]
+                        intensity += _params[0]*(1 + _params[2]*(t - t_j))**( -1*_params[1])
+                intensity = mult*tod[col][hourIdx]*intensity*(0.99/specRad)
+                bigResultArr[counter, 2*idx] = np.max([0,intensity])
+                if r_i.event + '->' + col in paramsDict.keys():
+                    _params = paramsDict[r_i.event + '->' + col]
+                    intensity += _params[0]
+                bigResultArr[counter, 2*idx+1] = np.max([0,intensity])
+            counter += 1
+            with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_qqTrapezoid", "wb") as f:
+                pickle.dump(bigResultArr[:counter+1,:], f)
+
     return
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
