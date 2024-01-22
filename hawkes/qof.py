@@ -415,8 +415,9 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
             if len(df) == 0:
                 for col in cols:
                     idx = np.argwhere(np.array(cols) == col)[0][0]
-                    bigResultArr[counter, 2*idx] = baselines[col]
-                    bigResultArr[counter, 2*idx + 1] = baselines[col]
+                    bigResultArr[counter, 2+2*idx] = baselines[col]
+                    bigResultArr[counter, 2+2*idx + 1] = baselines[col]
+                    counter += 1
                 continue
             for col in cols:
                 idx = np.argwhere(np.array(cols) == col)[0][0]
@@ -432,11 +433,11 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
                         _params = paramsDict[r.event + '->' + col]
                         intensity += _params[0]*(1 + _params[2]*(t - t_j))**( -1*_params[1])
                 intensity = mult*tod[col][hourIdx]*intensity*(0.99/specRad)
-                bigResultArr[counter, 2*idx] = np.max([0,intensity])
+                bigResultArr[counter, 2+2*idx] = np.max([0,intensity])
                 if r_i.event + '->' + col in paramsDict.keys():
                     _params = paramsDict[r_i.event + '->' + col]
                     intensity += _params[0]
-                bigResultArr[counter, 2*idx+1] = np.max([0,intensity])
+                bigResultArr[counter, 2+2*idx+1] = np.max([0,intensity])
             counter += 1
             with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_qqTrapezoid", "wb") as f:
                 pickle.dump(bigResultArr[:counter+1,:], f)
