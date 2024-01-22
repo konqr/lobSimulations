@@ -90,7 +90,7 @@ def main():
     # T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10", "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_Params_2019-01-02_2019-03-29_dictTOD")
     # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_"+str(i) , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump((T, lob, lobL3), f)
-    runQQInterArrival("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,2), "D:\Work\PhD\Data\\", delta = 1e-1, inputDataPath = "D:\Work\PhD\Data\\")
+    runQQInterArrivalTrapezoid("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,2), "D:\Work\PhD\Data\\", delta = 1e-1, inputDataPath = "D:\Work\PhD\Data\\")
     return
 
 
