@@ -13,8 +13,16 @@ import statsmodels
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
 # TOD check - flow, spread
+def cleanMOs(data):
+    # remove walking orders
+    dataNoMO = data.loc[(data.event!="mo_Ask")&(data.event != "mo_Bid")]
+    dataMOAsk = data.loc[data.event=="mo_Ask"]
+    dataMOAsk = dataMOAsk.loc[dataMOAsk.Time.diff() != 0]
+    dataMOBid = data.loc[data.event=="mo_Bid"]
+    dataMOBid = dataMOBid.loc[dataMOBid.Time.diff() != 0]
+    return pd.concat([dataNoMO, dataMOBid, dataMOAsk])
 
-def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/", avgSpread = 0.169, spreadBeta =0.7479):
+def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/", avgSpread = 0.0169, spreadBeta =0.7479):
     paramsPath = inputDataPath +ric+"_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10"
     todPath = inputDataPath +ric+"_Params_2019-01-02_2019-03-29_dictTOD"
     with open(paramsPath, "rb") as f:
@@ -43,6 +51,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         logger_time=time.time()
         print(logger_time)
         data = pd.read_csv(inputDataPath + "/" + inputCsvPath)
+        data = cleanMOs(data)
         data["Tminus1"] = 0
         data['Tminus1'].iloc[1:] = data['Time'].iloc[:-1] #floor T - Tminus1 to zero
         data = data.sort_values(["Time", "OrderID"])
@@ -65,7 +74,7 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
             # print("spectral radius = ", specRad)
             specRad = np.max(np.linalg.eig(mat)[0]).real
             if specRad < 1 : specRad = 0.99 # dont change actual specRad if already good
-            df = data.loc[(data.Time < t)&(data.Time >= t-10)]
+            df = data.loc[data.Time < t]
             hourIdx = np.min([12,int(np.floor(t/1800))])
             if len(df) == 0:
                 tracked_intensity_integrals = tracked_intensity_integrals + [np.array(list(baselines.values()))*t]
