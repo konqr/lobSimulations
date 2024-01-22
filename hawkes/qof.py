@@ -417,7 +417,7 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
                     idx = np.argwhere(np.array(cols) == col)[0][0]
                     bigResultArr[counter, 2+2*idx] = baselines[col]
                     bigResultArr[counter, 2+2*idx + 1] = baselines[col]
-                    counter += 1
+                counter += 1
                 continue
             for col in cols:
                 idx = np.argwhere(np.array(cols) == col)[0][0]
