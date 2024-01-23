@@ -7,7 +7,7 @@ import datetime as dt
 from scipy import stats
 import statsmodels.api as sm
 from hawkes import dataLoader
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import statsmodels
 
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
