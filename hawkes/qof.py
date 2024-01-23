@@ -308,15 +308,17 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         else: continue
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         mid = data.Mid.values
-        empMids.append(mid*260/mid[0])
+        empMids.append(mid*160/mid[0])
         empTimes.append(data.Time.values.astype(float))
 
     fig = plt.figure()
     plt.title(ric + " Price Paths (Simulated)")
     plt.xlabel("Price")
     plt.ylabel("Time")
+    alpha = 0.1
     for r, t in zip(simMids, simTimes):
-        plt.plot(t, r, color = "orange", alpha=0.5)
+        if np.random.uniform() < 0.05: alpha = 1.0
+        plt.plot(t, r, color = "orange", alpha=alpha)
     count = 23400
     plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_simulatedMidPrices.png")
@@ -324,8 +326,10 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " Price Paths (Empirical)")
     plt.xlabel("Price")
     plt.ylabel("Time")
+    alpha = 0.1
     for r, t in zip(empMids, empTimes):
-        plt.plot(t, r, color = "blue", alpha=0.5)
+        if np.random.uniform() < 0.05: alpha = 1.0
+        plt.plot(t, r, color = "blue", alpha=alpha)
     count = 23400
     plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_empiricalMidPrices.png")
@@ -488,7 +492,7 @@ def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), 
     # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
     # runDistribution(paths, resultsPath , sDate, eDate, ric)
     # runACF(paths, resultsPath, sDate, eDate, ric)
-    # runPricePaths(paths, resultsPath, sDate, eDate, ric)
+    runPricePaths(paths, resultsPath, sDate, eDate, ric)
     # runTODCheck(paths, resultsPath, sDate, eDate,ric)
-    runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric)
+    # runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric)
     return
