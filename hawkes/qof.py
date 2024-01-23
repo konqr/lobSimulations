@@ -468,7 +468,8 @@ def runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric):
         data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
         mid = data.Mid.values
         times = data.Time.values - 34200
-        empPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
+        ts = np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float))
+        empPriceChangeTimes += [np.log(ts[ts>0])/np.log(10)]
         # print(data.Spread.values)
 
     fig = plt.figure()
