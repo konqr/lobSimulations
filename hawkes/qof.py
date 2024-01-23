@@ -316,8 +316,11 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Price")
     plt.ylabel("Time")
     alpha = 0.1
+    count = 0
     for r, t in zip(simMids, simTimes):
-        if np.random.uniform() < 0.05: alpha = 1.0
+        if (count < 10)&(np.random.uniform() < 0.01):
+            alpha = 0.5
+            count +=1
         plt.plot(t, r, color = "orange", alpha=alpha)
     count = 23400
     plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
@@ -327,8 +330,11 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Price")
     plt.ylabel("Time")
     alpha = 0.1
+    count = 0
     for r, t in zip(empMids, empTimes):
-        if np.random.uniform() < 0.05: alpha = 1.0
+        if (count < 10)&(np.random.uniform() < 0.01):
+            alpha = 0.5
+            count += 1
         plt.plot(t, r, color = "blue", alpha=alpha)
     count = 23400
     plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
