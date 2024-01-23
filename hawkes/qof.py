@@ -437,6 +437,7 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
                 if r_i.event + '->' + col in paramsDict.keys():
                     _params = paramsDict[r_i.event + '->' + col]
                     intensity += _params[0]
+                intensity = mult*tod[col][hourIdx]*intensity*(0.99/specRad)
                 bigResultArr[counter, 2+2*idx+1] = np.max([0,intensity])
             counter += 1
             with open(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_qqTrapezoid", "wb") as f:
@@ -444,12 +445,49 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
 
     return
 
+def runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric):
+    simPriceChangeTimes = []
+
+    for path in paths:
+        with open(path, "rb") as f:
+            results = pickle.load(f)
+        simDf = pd.DataFrame(results[1])
+        simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
+        simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
+        simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
+        mid = simDf.Mid.values
+        times = np.append([0], np.array(results[0][1:])[:,1])
+        simPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
+
+    empPriceChangeTimes = []
+    for d in pd.date_range(sDate,eDate):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+        data = l.load()
+        if len(data): data = data[0]
+        else: continue
+        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+        mid = data.Mid.values
+        times = data.Time.values - 34200
+        empPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
+        # print(data.Spread.values)
+
+    fig = plt.figure()
+    plt.title(ric + " PriceChangeTime distribution")
+    plt.xlabel("Times (log10)")
+    plt.ylabel("Frequency")
+    plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
+    plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True)
+    plt.legend()
+    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
+    return
+
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
-    runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
-    runDistribution(paths, resultsPath , sDate, eDate, ric)
-    runACF(paths, resultsPath, sDate, eDate, ric)
-    runPricePaths(paths, resultsPath, sDate, eDate, ric)
-    runTODCheck(paths, resultsPath, sDate, eDate,ric)
+    # runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
+    # runDistribution(paths, resultsPath , sDate, eDate, ric)
+    # runACF(paths, resultsPath, sDate, eDate, ric)
+    # runPricePaths(paths, resultsPath, sDate, eDate, ric)
+    # runTODCheck(paths, resultsPath, sDate, eDate,ric)
+    runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric)
     return
