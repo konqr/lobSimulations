@@ -882,7 +882,7 @@ class ASLSD():
         mhp.fit(list_times, 23400, n_iter=1000, seed=1234, verbose=True, **kwargs)
         fit_log = mhp.fit_log
         print(fit_log)
-        fig = mhp.plot_solver_path( dpi=None, pad=None, figsize=(15,15), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_path_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
+        fig = mhp.plot_solver_path( dpi=None, figsize=(15,15), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_path_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
         fig = mhp.plot_kernels(dpi=None, figsize=(10,10), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_kernels_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
         mhp.save("/SAN/fca/Konark_PhD_Experiments/extracted/aslsd_params_fit_2exp_"+self.dates[0] + "_" + self.dates[-1])
         return
