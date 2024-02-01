@@ -4,7 +4,7 @@
 import pickle
 import numpy as np
 import pandas as pd
-
+import time
 import numpy as np
 
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
@@ -79,10 +79,17 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
 
 def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.41, lamb= None):
     if maxJumps is None: maxJumps = np.inf
-    with open(paramsPath, "rb") as f:
-        params = pickle.load(f)
-    with open(todPath, "rb") as f:
-        tod = pickle.load(f)
+    tryer = 0
+    while tryer < 5: # retry on pickle clashes
+        try:
+            with open(paramsPath, "rb") as f:
+                params = pickle.load(f)
+            with open(todPath, "rb") as f:
+                tod = pickle.load(f)
+        except:
+            time.sleep(1)
+            continue
+        tryer +=1
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     baselines = num_nodes*[0]
