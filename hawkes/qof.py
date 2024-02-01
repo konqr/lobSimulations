@@ -501,4 +501,7 @@ def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), 
     runPricePaths(paths, resultsPath, sDate, eDate, ric)
     # runTODCheck(paths, resultsPath, sDate, eDate,ric)
     # runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric)
+
+
+    # TODO: qq for interevent time, priceChangeTime - q reactive HP uses it
     return

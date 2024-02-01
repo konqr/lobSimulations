@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
-#from tick.hawkes import HawkesConditionalLaw
+# from tick.hawkes import HawkesConditionalLaw, HawkesExpKern
 import pickle
 import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
@@ -732,7 +732,7 @@ class ConditionalLeastSquaresLogLin():
                 for i in range(12): # i
                     r = I[:,i]
                     constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
-                    constrsY.append(0.999*np.ones(nDim)) # j
+                    constrsY.append(0.999*np.ones(nDim)) # TODO: constrain off diag to 0.5 rather than 1.0
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
                 boundsX, boundsY_u, boundsY_l = [] ,[],[]
@@ -817,8 +817,11 @@ class ConditionalLeastSquaresLogLin():
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         # print(q)
                         G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
-                        l = np.vstack([-1*constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
-                        u = np.vstack([constrsY[:,i].reshape(constrsY.shape[0], 1), boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
+                        # 2024.02.01 - off diagonal norm to be smaller than 0.5
+                        constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1)/2
+                        constrsY_alt[i, 0] = constrsY_alt[i, 0]*2
+                        l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
+                        u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
                         prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100)
                         res = prob.solve()
@@ -829,5 +832,32 @@ class ConditionalLeastSquaresLogLin():
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
+
+class MLE():
+    def __init__(self, data, **kwargs):
+        self.data = data
+        self.cfg = kwargs
+
+    def fit(self):
+
+        # LL = sum_i=1...d (sum_{t_i} ln(lambda_i (t)) - \int_0^T  lambda_i (s) ds)
+
+
+        cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+
+        thetas = {}
+
+        # TOD conditioning
+        dfs = []
+        for i in self.dates:
+            try:
+                df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+                dfs.append(df)
+            except:
+                continue
+        df = pd.concat(dfs)
+
+        return
 
 
