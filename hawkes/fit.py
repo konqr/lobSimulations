@@ -13,6 +13,13 @@ from scipy.optimize import lsq_linear
 import osqp
 import scipy as sp
 from scipy import sparse
+import sys
+sys.path.append("/home/konajain/code/aslsd")
+from aslsd.functionals.kernels.basis_kernels. \
+    basis_kernel_exponential import ExponentialKernel
+from aslsd.functionals.kernels.kernel import KernelModel
+from aslsd.models.hawkes.linear.mhp import MHP
+from aslsd.stats.events.process_path import ProcessPath
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -839,7 +846,7 @@ class ConditionalLeastSquaresLogLin():
                 pickle.dump(thetas[date], f)
         return thetas
 
-class MLE():
+class ASLSD():
     def __init__(self, data, **kwargs):
         self.data = data
         self.cfg = kwargs
@@ -863,7 +870,21 @@ class MLE():
             except:
                 continue
         df = pd.concat(dfs)
-
+        dictTimes = df.groupby("event").Time.apply(np.array).to_dict()
+        list_times = [dictTimes[c] for c in cols]
+        list_times = ProcessPath(list_times, 23400)
+        #Define a model
+        dims = len(cols)
+        kernel_matrix = [[KernelModel([ExponentialKernel(), ExponentialKernel()]) for j in range(dims)]
+                         for i in range(dims)]
+        mhp = MHP(kernel_matrix)
+        kwargs = {'is_log_param': True, 'is_log_grad': True}
+        mhp.fit(list_times, 23400, n_iter=1000, seed=1234, verbose=True, **kwargs)
+        fit_log = mhp.fit_log
+        print(fit_log)
+        fig = mhp.plot_solver_path( dpi=None, pad=None, figsize=(15,15), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_path_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
+        fig = mhp.plot_kernels(dpi=None, figsize=(10,10), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_kernels_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
+        mhp.save("/SAN/fca/Konark_PhD_Experiments/extracted/aslsd_params_fit_2exp_"+self.dates[0] + "_" + self.dates[-1])
         return
 
 
