@@ -63,7 +63,7 @@ def main():
     eDate = dt.date(2019,1,2)
     dictIp = {}
     for d in pd.date_range(sDate, eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+        l =  dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
         if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
             dictIp.update({ d.strftime("%Y-%m-%d") : []})
         else:
