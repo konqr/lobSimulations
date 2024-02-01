@@ -584,7 +584,7 @@ class ConditionalLeastSquaresLogLin():
     def fitConditionalInSpread(self, spreadBeta = 0.41, avgSpread = 0.028):
         cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                 "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + self.dates[0] + "_2019-03-31_graphDict", "rb") as f:
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_2019-01-02_2019-03-31_graphDict", "rb") as f:
             boundsDict = pickle.load(f)
         thetas = {}
 
