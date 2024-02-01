@@ -14,7 +14,7 @@ import osqp
 import scipy as sp
 from scipy import sparse
 import sys
-sys.path.append("/home/konajain/code/aslsd")
+sys.path.append("/home/konajain/code")
 from aslsd.functionals.kernels.basis_kernels. \
     basis_kernel_exponential import ExponentialKernel
 from aslsd.functionals.kernels.kernel import KernelModel
