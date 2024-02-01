@@ -832,7 +832,7 @@ class ConditionalLeastSquaresLogLin():
                         G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
                         # 2024.02.01 - off diagonal norm to be smaller than 0.5
                         constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1)/2
-                        constrsY_alt[i, 0] = constrsY_alt[i, 0]*2
+                        constrsY_alt[idxY, 0] = constrsY_alt[idxY, 0]*2
                         l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
                         u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
@@ -847,8 +847,8 @@ class ConditionalLeastSquaresLogLin():
         return thetas
 
 class ASLSD():
-    def __init__(self, data, **kwargs):
-        self.data = data
+    def __init__(self, dates, **kwargs):
+        self.dates = dates
         self.cfg = kwargs
 
     def fit(self):
