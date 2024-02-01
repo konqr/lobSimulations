@@ -6,7 +6,7 @@
 import datetime as dt
 import pickle
 from hawkes import dataLoader, fit, inference, simulate
-from hawkes.qof import *
+# from hawkes.qof import *
 import pandas as pd
 import numpy as np
 import os
@@ -58,24 +58,24 @@ def main():
     # cls.fitBoth()
     # return 0
     #
-    # ric = "AAPL.OQ"
-    # sDate = dt.date(2019,1,2)
-    # eDate = dt.date(2019,1,2)
-    # dictIp = {}
-    # for d in pd.date_range(sDate, eDate):
-    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
-    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
-    #         dictIp.update({ d.strftime("%Y-%m-%d") : []})
-    #     else:
-    #         continue
-    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-    #     #df = df.loc[df.Time < 100]
-    #
-    # cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="constrained") #, numDataPoints = 100, min_lag = 1e-2)
-    # thetas = cls.fitConditionalInSpread()
-    # # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
-    # #     pickle.dump(thetas, f)
-    # return 0
+    ric = "AAPL.OQ"
+    sDate = dt.date(2019,1,2)
+    eDate = dt.date(2019,1,2)
+    dictIp = {}
+    for d in pd.date_range(sDate, eDate):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/SAN/fca/DRL_HFT_Investigations/LOBSimulations/extracted/")
+        if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_" + d.strftime("%Y-%m-%d") + "_19_inputRes"):
+            dictIp.update({ d.strftime("%Y-%m-%d") : []})
+        else:
+            continue
+        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+        #df = df.loc[df.Time < 100]
+
+    cls = fit.ConditionalLeastSquaresLogLin(dictIp, loader = l, solver="osqp") #, numDataPoints = 100, min_lag = 1e-2)
+    thetas = cls.fitConditionalInSpread()
+    # with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_20" , "wb") as f: #"/home/konajain/params/"
+    #     pickle.dump(thetas, f)
+    return 0
 
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_cvx") #suffix = "_sgd"
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_tod_cvx")
@@ -90,7 +90,7 @@ def main():
     # T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_CLSLogLin_10", "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_Params_2019-01-02_2019-03-29_dictTOD")
     # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_"+str(i) , "wb") as f: #"/home/konajain/params/"
     #     pickle.dump((T, lob, lobL3), f)
-    runQQInterArrivalTrapezoid("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,2), "D:\Work\PhD\Data\\", delta = 1e-1, inputDataPath = "D:\Work\PhD\Data\\")
+    # runQQInterArrivalTrapezoid("AAPL.OQ", dt.date(2019,1,2), dt.date(2019,1,2), "D:\Work\PhD\Data\\", delta = 1e-1, inputDataPath = "D:\Work\PhD\Data\\")
     return
 
 
