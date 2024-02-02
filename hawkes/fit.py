@@ -739,7 +739,7 @@ class ConditionalLeastSquaresLogLin():
                 for i in range(12): # i
                     r = I[:,i]
                     constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
-                    constrsY.append(0.999*np.ones(nDim)) # TODO: constrain off diag to 0.5 rather than 1.0
+                    constrsY.append(0.999*np.ones(nDim))
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
                 boundsX, boundsY_u, boundsY_l = [] ,[],[]

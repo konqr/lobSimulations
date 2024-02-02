@@ -54,7 +54,7 @@ class ParametricFit():
             return funcEval
         def jac(time, beta, gamma):
             f = powerLawCutoff(time, beta, gamma)
-            return np.array([f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*time))]).T
+            return np.array([f*(-1*np.log(1+gamma*time)), f*(-1*beta)*gamma/(1+gamma*time)]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
         alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
