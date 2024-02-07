@@ -58,7 +58,7 @@ class ParametricFit():
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
         alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
-        print(Ys.reshape((len(Ys)//17, 17))[:,0])
+        # print(Ys.reshape((len(Ys)//17, 17))[:,0])
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, alphaInit/(norm*0.7)], bounds = ([0,0], [2, np.inf]), method="dogbox") #bounds=([0, 0], [1, 2]),
         # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
         # print(norm)
@@ -175,11 +175,14 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             for i in range(len(cols)):
                 for j in range(len(cols)):
                     mat[i][j] = norms[cols[j] + "->" + cols[i]][-1]
+            print("kernel norm ", d, mat)
             exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
+            print("exos ", d, exos)
             for i, col in zip(np.arange(12), cols):
                 res[col] = res.get(col, []) + [exos[i]]
         for k, v in res.items():
             if "->" not in k:
+                print("exo ", k, v)
                 params[k] = np.mean(v)
                 if "inspread" in k:
                     params[k] = params[k]/((avgSpread)**spreadBeta)
