@@ -825,7 +825,7 @@ class ConditionalLeastSquaresLogLin():
                             if "Ask" in col: idxY = i
                             else: idxY = i + 2
                             mult = mult/max(list(dictTOD[col].values()))
-                        R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs)))
+                        R = sparse.csc_matrix(np.dot(Xs.transpose(), Xs))
                         # print(R)
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         # print(q)
