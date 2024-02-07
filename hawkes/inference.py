@@ -175,6 +175,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             for i in range(len(cols)):
                 for j in range(len(cols)):
                     mat[i][j] = norms[cols[j] + "->" + cols[i]][-1]
+                    if "inspread" in cols[i]:
+                        mat[i][j] = mat[i][j]/((avgSpread)**spreadBeta)
             print("kernel norm ", d, mat)
             exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
             print("exos ", d, exos)
