@@ -110,6 +110,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             theta1, theta2, theta3 = v
             # thetas[k] = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
             thetas[k] = np.hstack([theta2.transpose()[:,:5], theta1.transpose()*(avgSpread)**spreadBeta, theta3.transpose()*(avgSpread)**spreadBeta, theta2.transpose()[:,5:]])
+    with open(l.dataPath + ric + "_Params_2019-01-02_2019-03-29_dictTOD", "rb") as f:
+        tod = pickle.load(f)
     # each theta in kernel = \delta * h(midpoint)
     # Special Date:
     specDate = {
@@ -136,6 +138,17 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
         for d, theta in thetas.items():
             if d=="2019-01-09": continue
             if d in specDates: continue
+            data = pd.read_csv(l.dataPath +ric+"_"+ d +"_12D.csv")
+            data["Q"] = (data.Time//1800).astype(int)
+            avgEventsByTOD = (data.groupby(["event", "Q"])["Time"].count()/1800).to_dict()
+            avgEvents = {}
+            for k, v in avgEventsByTOD.items():
+                avgEvents[k[0]] = avgEvents.get(k[0], []) + [v/tod[k[0]][k[1]]]
+            avgEventsArr = []
+            for c in cols:
+                avgEventsArr.append(np.average(avgEvents[c]))
+            avgEventsArr = np.array(avgEventsArr)
+
             for i, col in zip(np.arange(12), cols):
                 exo = theta[0,i]
                 phi = theta[1:,i]
@@ -157,9 +170,17 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                     points = points / timegrid_len
 
                     res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points[1:])]
+
+            mat = np.zeros((len(cols), len(cols)))
+            for i in range(len(cols)):
+                for j in range(len(cols)):
+                    mat[i][j] = norms[cols[j] + "->" + cols[i]][-1]
+            exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
+            for i, col in zip(np.arange(12), cols):
+                res[col] = res.get(col, []) + [exos[i]]
         for k, v in res.items():
             if "->" not in k:
-                params[k] = np.mean(v)/timegrid_len[0]
+                params[k] = np.mean(v)
             else:
                 numDays = len(v)//17
                 points = np.array(v).reshape((numDays,17,2))
