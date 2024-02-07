@@ -181,6 +181,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
         for k, v in res.items():
             if "->" not in k:
                 params[k] = np.mean(v)
+                if "inspread" in k:
+                    params[k] = params[k]/((avgSpread)**spreadBeta)
             else:
                 numDays = len(v)//17
                 points = np.array(v).reshape((numDays,17,2))
