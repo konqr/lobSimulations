@@ -77,7 +77,7 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
                 return n,Ts
     return n, Ts
 
-def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.41, lamb= None):
+def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     if maxJumps is None: maxJumps = np.inf
     tryer = 0
     while tryer < 5: # retry on pickle clashes
@@ -106,12 +106,12 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             todMult = tod[cols[j]][hourIndex]
             mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
         baselines[i] = params[cols[i]]
-    baselines[5] = ((spread/0.0169)**beta)*baselines[5]
-    baselines[6] = ((spread/0.0169)**beta)*baselines[6]
-    # specRad = np.max(np.linalg.eig(mat)[0])
-    # print("spectral radius = ", specRad)
-    # specRad = np.max(np.linalg.eig(mat)[0]).real
-    specRad = 0.99 # if specRad < 1 :  # dont change actual specRad if already good
+    baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
+    baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
+    specRad = np.max(np.linalg.eig(mat)[0])
+    print("spectral radius = ", specRad)
+    specRad = np.max(np.linalg.eig(mat)[0]).real
+    if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
@@ -159,8 +159,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                     decay = todMult*powerLawCutoff(s - tau, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
-        decays[5] = ((spread/0.0169)**beta)*decays[5]
-        decays[6] = ((spread/0.0169)**beta)*decays[6]
+        decays[5] = ((spread/avgSpread)**beta)*decays[5]
+        decays[6] = ((spread/avgSpread)**beta)*decays[6]
         if 100*np.round(spread, 2) < 2 : decays[5] = decays[6] = 0
         print(decays)
         lamb = sum(decays)
@@ -185,8 +185,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 # print(decay)
                 newdecays[i] += decay
             newdecays = [np.max([0, d]) for d in newdecays]
-            newdecays[5] = ((spread/0.0169)**beta)*newdecays[5]
-            newdecays[6] = ((spread/0.0169)**beta)*newdecays[6]
+            newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]
+            newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
             if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
             lamb += sum(newdecays)
             print(lamb)
@@ -197,8 +197,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 T_Minus1 = 0
             decays = np.array(baselines.copy())
             hourIndex = np.min([12,int(np.floor(s/1800))])
-            decays[5] = ((spread/0.0169)**beta)*decays[5]
-            decays[6] = ((spread/0.0169)**beta)*decays[6]
+            decays[5] = ((spread/avgSpread)**beta)*decays[5]
+            decays[6] = ((spread/avgSpread)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
             # for i in range(len(Ts)):
             #     taus = Ts[i]
@@ -219,7 +219,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
 
-def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, spread0 = 3, price0 = 260):
+def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -289,7 +289,7 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
         lob0_l3 = lob0_l3[0]
         lamb = None
         while s <= T:
-            s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, lamb = lamb)
+            s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
             sizes = {}
             dictTimestamps = {}
             for t, col in zip(timestamps_this, cols):
