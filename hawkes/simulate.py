@@ -108,10 +108,10 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         baselines[i] = params[cols[i]]
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
-    # specRad = np.max(np.linalg.eig(mat)[0])
-    # print("spectral radius = ", specRad)
-    # specRad = np.max(np.linalg.eig(mat)[0]).real
-    specRad = 0.99 # if specRad < 1 :  # dont change actual specRad if already good
+    specRad = np.max(np.linalg.eig(mat)[0])
+    print("spectral radius = ", specRad)
+    specRad = np.max(np.linalg.eig(mat)[0]).real
+    if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
