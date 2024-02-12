@@ -640,7 +640,7 @@ class ConditionalLeastSquaresLogLin():
         for i in self.dates:
             date = i
             res_d = []
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputRes" , "rb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputResNano" , "rb") as f: #"/home/konajain/params/"
                 while True:
                     try:
                         r_d = pickle.load(f)
