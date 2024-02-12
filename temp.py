@@ -12,25 +12,25 @@ import numpy as np
 import os
 
 def main():
-    # ric = "AAPL.OQ"
-    # sDate = dt.date(2019,1,2)
-    # eDate = dt.date(2019,1,2)
-    # for d in pd.date_range(sDate, eDate):
-    #     l = dataLoader.Loader(ric, d, d, nlevels = 2) #, dataPath = "/home/konajain/data/")
-    #     if os.path.exists(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv"):
-    #         df = pd.read_csv(l.dataPath+"AAPL.OQ_"+ d.strftime("%Y-%m-%d") + "_12D.csv")
-    #         eventOrder = np.append(df.event.unique()[6:], df.event.unique()[-7:-13:-1])
-    #         data = { d.strftime("%Y-%m-%d") : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
-    #     else:
-    #         data = l.load12DTimestamps()
-    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-    #     #df = df.loc[df.Time < 100]
-    #
-    #     cls = fit.ConditionalLeastSquaresLogLin(data, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
-    #     cls.runTransformDate()
-    #     # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
-    #     #     pickle.dump(thetas, f)
-    # return 0
+    ric = "fake"
+    sDate = dt.date(2019,1,2)
+    eDate = dt.date(2019,1,2)
+    for d in range(1,101):
+        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated/fakeData/")
+        if os.path.exists(l.dataPath+ric +"_"+str(d)+ "_12D.csv"):
+            df = pd.read_csv(l.dataPath+ric +"_"+str(d)+ "_12D.csv")
+            eventOrder = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" , "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+            data = { str(d) : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
+        else:
+            data = l.load12DTimestamps()
+        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+        #df = df.loc[df.Time < 100]
+
+        cls = fit.ConditionalLeastSquaresLogLin(data, loader = l) #, numDataPoints = 100, min_lag = 1e-2)
+        cls.runTransformDate()
+        # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
+        #     pickle.dump(thetas, f)
+    return 0
     # ric = "AAPL.OQ"
     # d = dt.date(2020,9,14)
     # l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/home/konajain/data/")
