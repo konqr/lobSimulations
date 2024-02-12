@@ -244,7 +244,7 @@ class ConditionalLeastSquaresLogLin():
 
     def runTransformDate(self):
         num_datapoints = self.cfg.get("num_datapoints", 10)
-        min_lag = self.cfg.get("min_lag", 9e-9)
+        min_lag = self.cfg.get("min_lag", 1e-3)
         max_lag = self.cfg.get("max_lag" , 500)
 
         timegridLin =np.append(np.linspace(0,1e-9, num_datapoints//2)[:-1], np.linspace(1e-9,min_lag, 1+(num_datapoints//2)))
