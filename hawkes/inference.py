@@ -90,20 +90,6 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
 
     l = dataLoader.Loader(ric, sDate, eDate, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-    # thetas = {}
-    # for d in pd.date_range(sDate,eDate):
-    #     if d.strftime("%Y-%m-%d") == "2019-01-09": continue
-    #     if os.path.exists(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix):
-    #         with open(l.dataPath + ric + "_Params_" + str(d.strftime("%Y-%m-%d")) + "_" + str(d.strftime("%Y-%m-%d")) + "_CLSLogLin_20" + suffix , "rb") as f: #"/home/konajain/params/"
-    #             theta = list(pickle.load(f).values())[0]
-    #             if len(theta) == 3:
-    #                 theta1, theta2, theta3 = theta
-    #                 theta = np.hstack([theta1[:,:5], theta2, theta3, theta1[:,5:]])
-    #             if theta.shape[0] == 217:
-    #                 theta = (theta[0,:], theta[1:,:].transpose())
-    #             if theta.shape[0] == 229:
-    #                 theta = (theta[:13,:].transpose(), theta[13:,:].transpose())
-    #             thetas.update({d.strftime("%Y-%m-%d") : theta })
     with open(l.dataPath + ric + "_Params_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + suffix , "rb") as f: #"/home/konajain/params/"
         thetas = pickle.load(f)
         for k, v in thetas.items():
@@ -139,6 +125,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             if d=="2019-01-09": continue
             if d in specDates: continue
             data = pd.read_csv(l.dataPath +ric+"_"+ d +"_12D.csv")
+            data = data.loc[data.Time < 23400]
             data["Q"] = (data.Time//1800).astype(int)
             avgEventsByTOD = (data.groupby(["event", "Q"])["Time"].count()/1800).to_dict()
             avgEvents = {}
