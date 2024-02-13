@@ -209,7 +209,9 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
                 # params[k] = pars
-
+        for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
+            params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
+            params[k+"Bid"] = params[k+"Ask"]
         with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
             pickle.dump(params, f)
         return params, res
