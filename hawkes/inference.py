@@ -120,7 +120,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     res = {}
     params = {}
     norms = {}
-    if len(thetas[sDate.strftime('%Y-%m-%d')][0].shape) == 1:
+    k = list(thetas.keys())[0]
+    if len(thetas[k][0].shape) == 1:
         for d, theta in thetas.items():
             if d=="2019-01-09": continue
             if d in specDates: continue
