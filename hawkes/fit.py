@@ -640,7 +640,7 @@ class ConditionalLeastSquaresLogLin():
         for i in self.dates:
             date = i
             res_d = []
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputResNano" , "rb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+ "_" + i + "_19_inputRes" , "rb") as f: #"/home/konajain/params/"
                 while True:
                     try:
                         r_d = pickle.load(f)
@@ -829,12 +829,12 @@ class ConditionalLeastSquaresLogLin():
                         # print(R)
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         # print(q)
-                        G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
+                        G = sparse.csc_matrix(np.eye(Xs.shape[1])) #sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
                         # 2024.02.01 - off diagonal norm to be smaller than 0.5
                         constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1) #/2
                         # constrsY_alt[idxY, 0] = constrsY_alt[idxY, 0]*2
-                        l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
-                        u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
+                        l = boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)*mult #np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
+                        u = boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)*mult # np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
                         prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100)
                         res = prob.solve()
@@ -842,7 +842,7 @@ class ConditionalLeastSquaresLogLin():
                     params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_bounds_new" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_nobounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
