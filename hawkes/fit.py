@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
-# from tick.hawkes import HawkesConditionalLaw, HawkesExpKern
+from tick.hawkes import HawkesConditionalLaw, HawkesExpKern
 import pickle
 import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
