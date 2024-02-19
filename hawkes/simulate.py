@@ -419,7 +419,7 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
     else:
         s = 0
         Ts,lob,lobL3 = [],[],[]
-        _, lob0, lob0_l3 = createLOB({}, {}, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
         Ts.append(0)
         lob.append(lob0[-1])
         lobL3.append(lob0_l3[-1])
