@@ -145,13 +145,13 @@ class ConditionalLaw():
 
         hawkes_learner = HawkesConditionalLaw(
             claw_method=self.cfg.get("claw_method","log"),
-            delta_lag=self.cfg.get("delta_lag",1e-2),
-            min_lag=self.cfg.get("min_lag",1e-1),
+            delta_lag=self.cfg.get("delta_lag",1e-1),
+            min_lag=self.cfg.get("min_lag",1),
             max_lag=self.cfg.get("max_lag",500),
             quad_method=self.cfg.get("quad_method","log"),
-            n_quad=self.cfg.get("n_quad",20),
-            min_support=self.cfg.get("min_support",1e-3),
-            max_support=self.cfg.get("max_support",500),
+            n_quad=self.cfg.get("n_quad",200),
+            min_support=self.cfg.get("min_support",1),
+            max_support=self.cfg.get("max_support",10),
             n_threads=self.cfg.get("n_threads",4)
         )
         hawkes_learner.fit(self.data)
