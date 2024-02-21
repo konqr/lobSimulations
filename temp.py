@@ -5,32 +5,33 @@
 #     z.extractall()
 import datetime as dt
 import pickle
-from hawkes import dataLoader, fit, inference, simulate
+# from hawkes import dataLoader, fit, inference, \
+from hawkes import simulate
 # from hawkes.qof import *
 import pandas as pd
 import numpy as np
 import os
 
 def main():
-    ric = "fake"
-    sDate = dt.date(2019,1,2)
-    eDate = dt.date(2019,1,2)
-    for d in range(1,101):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2)#, dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated/fakeData/")
-        if os.path.exists(l.dataPath+ric +"_"+str(d)+ "_12D.csv"):
-            df = pd.read_csv(l.dataPath+ric +"_"+str(d)+ "_12D.csv")
-            eventOrder = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" , "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-            data = { str(d) : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
-        else:
-            data = l.load12DTimestamps()
-        #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
-        #df = df.loc[df.Time < 100]
-
-        cls = fit.ConditionalLeastSquaresLogLin(data, loader = l, solver = "osqp") #, numDataPoints = 100, min_lag = 1e-2)
-        cls.fitConditionalInSpread()
-        # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
-        #     pickle.dump(thetas, f)
-    return 0
+    # ric = "fake"
+    # sDate = dt.date(2019,1,2)
+    # eDate = dt.date(2019,1,2)
+    # for d in range(1,101):
+    #     l = dataLoader.Loader(ric, d, d, nlevels = 2)#, dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated/fakeData/")
+    #     if os.path.exists(l.dataPath+ric +"_"+str(d)+ "_12D.csv"):
+    #         df = pd.read_csv(l.dataPath+ric +"_"+str(d)+ "_12D.csv")
+    #         eventOrder = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" , "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    #         data = { str(d) : list(df.groupby('event')['Time'].apply(np.array)[eventOrder].values)}
+    #     else:
+    #         data = l.load12DTimestamps()
+    #     #df = pd.read_csv(l.dataPath+"AAPL.OQ_2020-09-14_12D.csv")
+    #     #df = df.loc[df.Time < 100]
+    #
+    #     cls = fit.ConditionalLeastSquaresLogLin(data, loader = l, solver = "osqp") #, numDataPoints = 100, min_lag = 1e-2)
+    #     cls.fitConditionalInSpread()
+    #     # with open(l.dataPath + ric + "_" + str(sDate) + "_" + str(eDate) + "_CLSLogLin" , "wb") as f: #"/home/konajain/params/"
+    #     #     pickle.dump(thetas, f)
+    # return 0
     # ric = "AAPL.OQ"
     # d = dt.date(2020,9,14)
     # l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/home/konajain/data/")
@@ -81,7 +82,7 @@ def main():
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,14), suffix = "_tod_cvx")
     # inference.run(dt.date(2019,1,2),dt.date(2019,1,31), suffix = "_todIS_cvx3")
     # return 0
-    # T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10")
+    T, lob, lobL3=simulate.simulate(6.5*3600, "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson", "D:\\Work\\PhD\\Expt 1\\params\\AAPL.OQ_Params_2019-01-02_2019-03-29_dictTOD")
     # for l in lob:
     #     print(l)
     # with open("D:\\Work\\PhD\\Expt 1\\results\\AAPL.OQ_ResultsWCutoff_2019-01-02_2019-01-31_CLSLogLin__todIS_cvx3_10" , "wb") as f: #"/home/konajain/params/"

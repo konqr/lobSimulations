@@ -124,7 +124,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
-        if type(baselines[0]) == np.float64:
+        if (type(baselines[0]) == np.float64)or(type(baselines[0]) == float):
             lamb = sum(decays)
         else:
             lamb = sum(np.array(baselines)[:,0])
