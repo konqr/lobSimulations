@@ -386,12 +386,24 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
         Pi_Q0["Bid_touch"] = Pi_Q0["Ask_touch"]
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
 
-    if "CLSLogLin" not in paramsPath:
-        n, timestamps = thinningOgata(T, paramsPath)
 
+    s = 0
+    Ts,lob,lobL3 = [],[],[]
+    _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+    Ts.append(0)
+    lob.append(lob0[-1])
+    lobL3.append(lob0_l3[-1])
+    spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
+    n = None
+    timestamps = None
+    lob0 = lob0[0]
+    lob0_l3 = lob0_l3[0]
+    lamb = None
+    while s <= T:
+        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         sizes = {}
         dictTimestamps = {}
-        for t, col in zip(timestamps, cols):
+        for t, col in zip(timestamps_this, cols):
             if len(t) == 0: continue
             if "co" in col: # handle size of cancel order in createLOB
                 size = 0
@@ -415,58 +427,16 @@ def simulate(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, 
             sizes[col]  = size
             dictTimestamps[col] = t
 
-        Ts, lob, lobL3 = createLOB(dictTimestamps, sizes, Pi_Q0)
-    else:
-        s = 0
-        Ts,lob,lobL3 = [],[],[]
-        _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
-        Ts.append(0)
-        lob.append(lob0[-1])
-        lobL3.append(lob0_l3[-1])
-        spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
-        n = None
-        timestamps = None
-        lob0 = lob0[0]
-        lob0_l3 = lob0_l3[0]
-        lamb = None
-        while s <= T:
-            s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
-            sizes = {}
-            dictTimestamps = {}
-            for t, col in zip(timestamps_this, cols):
-                if len(t) == 0: continue
-                if "co" in col: # handle size of cancel order in createLOB
-                    size = 0
-                else:
-                    pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-                    p = pi[0]
-                    dd = pi[1]
-                    pi = np.array([p*(1-p)**k for k in range(1,10000)])
-                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-                    for i, p_i in dd:
-                        pi[i-1] = p_i + pi[i-1]
-                    pi = pi/sum(pi)
-                    cdf = np.cumsum(pi)
-                    a = np.random.uniform(0, 1, size = len(t))
-                    if type(a) != float:
-                        size =[]
-                        for i in a:
-                            size.append(np.argmax(cdf>=i)+1)
-                    else:
-                        size = np.argmax(cdf>=a)+1
-                sizes[col]  = size
-                dictTimestamps[col] = t
-
-            TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
-            spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
-            lob0 = lobTmp[-1]
-            lob0_l3 = lobL3Tmp[-1]
-            if len(list(dictTimestamps.keys())):
-                Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
-                lob.append(lob0)
-                lobL3.append(lob0_l3)
-            # with open("/SAN/fca/Konark_PhD_Experiments/simulated/AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_tmp" , "ab") as f: #"/home/konajain/params/"
-            #     pickle.dump(([list(dictTimestamps.keys())[0], TsTmp[-1], tau], lob0, lob0_l3), f)
+        TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
+        spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
+        lob0 = lobTmp[-1]
+        lob0_l3 = lobL3Tmp[-1]
+        if len(list(dictTimestamps.keys())):
+            Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
+            lob.append(lob0)
+            lobL3.append(lob0_l3)
+        # with open("/SAN/fca/Konark_PhD_Experiments/simulated/AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_tmp" , "ab") as f: #"/home/konajain/params/"
+        #     pickle.dump(([list(dictTimestamps.keys())[0], TsTmp[-1], tau], lob0, lob0_l3), f)
     return Ts, lob, lobL3
 
 
