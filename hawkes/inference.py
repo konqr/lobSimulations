@@ -210,6 +210,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
         avgLambdaArr = []
         for c in cols:
             avgLambdaArr.append(np.average(avgLambda[c]))
+        print(avgLambdaArr)
         exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
         print(exos)
         for i, col in zip(np.arange(12), cols):
