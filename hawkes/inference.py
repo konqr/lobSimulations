@@ -122,11 +122,15 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     norms = {}
     k = list(thetas.keys())[0]
     if len(thetas[k][0].shape) == 1:
+        avgLambda = {}
         for d, theta in thetas.items():
             if d=="2019-01-09": continue
             if d in specDates: continue
             data = pd.read_csv(l.dataPath +ric+"_"+ d +"_12D.csv")
             data = data.loc[data.Time < 23400]
+            avgLambda_l = (data.groupby(["event"])["Time"].count()/23400).to_dict()
+            for k, v in avgLambda_l.items():
+                avgLambda[k] = avgLambda.get(k, []) + [v]
             data["Q"] = (data.Time//1800).astype(int)
             avgEventsByTOD = (data.groupby(["event", "Q"])["Time"].count()/1800).to_dict()
             avgEvents = {}
@@ -197,6 +201,19 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 print(k, params[k])
                 # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
                 # params[k] = pars
+        mat = np.zeros((12,12))
+        for i in range(12):
+            for j in range(12):
+                kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                if kernelParams is None: continue
+                mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+        avgLambdaArr = []
+        for c in cols:
+            avgLambdaArr.append(np.average(avgLambda[c]))
+        exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
+        print(exos)
+        for i, col in zip(np.arange(12), cols):
+            params[col] = exos[i]
         for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
             params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
             params[k+"Bid"] = params[k+"Ask"]
