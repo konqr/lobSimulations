@@ -730,7 +730,7 @@ class ConditionalLeastSquaresLogLin():
             # Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
             # Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
             params = ()
-            scaler = (timegrid_len/timegrid_len[0])
+            scaler = (timegrid_len[1:]/timegrid_len[0])
             for Xs, Ys, id in zip([Xs_oth, XsIS, XsIS], [Ys_oth, np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk)], ["oth","inspreadBid", "inspreadAsk"]):
                 if len(Ys.shape) == 1: nDim = 1
                 else: nDim = Ys[0].shape[0]
