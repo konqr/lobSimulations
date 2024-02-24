@@ -179,7 +179,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
 
 
-                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid[1:], np.cumsum(points[1:]))]
+                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid[2:], np.cumsum(points[1:]))]
 
         mat = np.zeros((len(cols), len(cols)))
         for i in range(len(cols)):
