@@ -209,13 +209,13 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 t[np.abs(med/t) < 1e-6] = med
                 points[:,j,1] = t
             v = points.reshape((numDays*17, 2))
-            # print(v)
+            print(np.cumsum(v, axis = 0))
             norm = np.average(norms[k])
             if np.abs(norm) < 1e-3:
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
-            pars, resTemp = ParametricFit(np.abs(np.cumsum(v))).fitPowerLawCutoffIntegralNormConstrained(norm= np.abs(norm))
+            pars, resTemp = ParametricFit(np.abs(np.cumsum(v, axis = 0))).fitPowerLawCutoffIntegralNormConstrained(norm= np.abs(norm))
             params[k] = (side, pars)
             print(k, params[k])
             # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
