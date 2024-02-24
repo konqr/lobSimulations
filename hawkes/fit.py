@@ -841,7 +841,7 @@ class ConditionalLeastSquaresLogLin():
                         l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
                         u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
-                        prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100)
+                        prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100, max_iter = 100000)
                         res = prob.solve()
                         p += [res.x]
                     params += (np.vstack(p),)
