@@ -65,6 +65,24 @@ class ParametricFit():
         thetas = np.append([norm*(params[1]*(params[0] - 1))], params)
         return thetas, cov
 
+    def fitPowerLawCutoffIntegralNormConstrained(self, norm): # a not the same as norm in calibration
+        def powerLawCutoffIntegral(time, beta, gamma):
+            funcEval = norm - (norm/((1 + gamma*time)**(beta-1)))
+            # funcEval[time < t0] = 0
+            return funcEval
+        def jac(time, beta, gamma):
+            f = powerLawCutoffIntegral(time, beta, gamma)
+            return np.array([norm*(np.log(1+gamma*time)/((1+ gamma*time)**beta)), norm*(-1*beta)*time/((1+gamma*time)**beta)]).T
+        Xs = np.hstack( [d[0] for d in self.data] )
+        Ys = np.hstack([d[1] for d in self.data])
+        alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
+        # print(Ys.reshape((len(Ys)//17, 17))[:,0])
+        params, cov = curve_fit(powerLawCutoffIntegral, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, alphaInit/(norm*0.7)], bounds = ([0,0], [3, np.inf]), method="dogbox") #bounds=([0, 0], [1, 2]),
+        # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
+        # print(norm)
+        thetas = np.append([norm*(params[1]*(params[0] - 1))], params)
+        return thetas, cov
+
     def fitExponential(self):
         Xs = sm.add_constant(np.hstack( [d[0] for d in self.data]))
         Ys = np.hstack([np.log(d[1]) for d in self.data])
@@ -121,119 +139,29 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     params = {}
     norms = {}
     k = list(thetas.keys())[0]
-    if len(thetas[k][0].shape) == 1:
-        avgLambda = {}
-        for d, theta in thetas.items():
-            if d=="2019-01-09": continue
-            if d in specDates: continue
-            data = pd.read_csv(l.dataPath +ric+"_"+ d +"_12D.csv")
-            data = data.loc[data.Time < 23400]
-            avgLambda_l = (data.groupby(["event"])["Time"].count()/23400).to_dict()
-            for k, v in avgLambda_l.items():
-                avgLambda[k] = avgLambda.get(k, []) + [v]
-            data["Q"] = (data.Time//1800).astype(int)
-            avgEventsByTOD = (data.groupby(["event", "Q"])["Time"].count()/1800).to_dict()
-            avgEvents = {}
-            for k, v in avgEventsByTOD.items():
-                avgEvents[k[0]] = avgEvents.get(k[0], []) + [v/tod[k[0]][k[1]]]
-            avgEventsArr = []
-            for c in cols:
-                avgEventsArr.append(np.average(avgEvents[c]))
-            avgEventsArr = np.array(avgEventsArr)
 
-            for i, col in zip(np.arange(12), cols):
-                exo = theta[0,i]
-                phi = theta[1:,i]
-                res[col] = res.get(col, []) + [exo]
-                phi = phi.reshape((len(phi)//12,12))
-                num_datapoints = (phi.shape[0] + 2)//2
-                min_lag =  1e-3
-                max_lag = 500
-                timegridLin = np.linspace(0,min_lag, num_datapoints)
-                timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
-                timegrid = np.append(timegridLin[:-1], timegridLog)
-                for j in range(len(cols)):
-                    col2 = cols[j]
-                    points = phi[:,j]
-
-                    timegrid_len = np.diff(timegrid)
-                    timegrid_mid = timegrid[:-1] + timegrid_len/2
-                    norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
-                    points = points / timegrid_len
-
-                    res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points[1:])]
-
-            mat = np.zeros((len(cols), len(cols)))
-            for i in range(len(cols)):
-                for j in range(len(cols)):
-                    mat[i][j] = norms[cols[j] + "->" + cols[i]][-1]
-                    if "inspread" in cols[i]:
-                        mat[i][j] = mat[i][j]*((avgSpread)**spreadBeta)
-            print("kernel norm ", d, mat)
-            exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
-            print("exos ", d, exos)
-            for i, col in zip(np.arange(12), cols):
-                res[col] = res.get(col, []) + [exos[i]]
-        for k, v in res.items():
-            if "->" not in k:
-                print("exo ", k, v)
-                params[k] = np.median(v)
-            else:
-                numDays = len(v)//17
-                points = np.array(v).reshape((numDays,17,2))
-                # print(points)
-                for j in range(17):
-                    t = points[:,j,1]
-                    med = np.median(t)
-                    if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
-                    t[np.abs(med/t) > 1e6] = med
-                    t[np.abs(med/t) < 1e-6] = med
-                    points[:,j,1] = t
-                v = points.reshape((numDays*17, 2))
-                # print(v)
-                norm = np.average(norms[k])
-                if np.abs(norm) < 1e-3:
-                    continue
-                side = np.sign(norm)
-                # if np.abs(norm) > 1: norm = 0.99
-                pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm))
-                params[k] = (side, pars)
-                print(k, params[k])
-                # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
-                # params[k] = pars
-        mat = np.zeros((12,12))
-        for i in range(12):
-            for j in range(12):
-                kernelParams = params.get(cols[i] + "->" + cols[j], None)
-                if kernelParams is None: continue
-                mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
-        avgLambdaArr = []
-        for c in cols:
-            avgLambdaArr.append(np.average(avgLambda[c]))
-        print(avgLambdaArr)
-        exos = np.dot(np.eye(len(cols)) - mat, np.array(avgLambdaArr).transpose())
-        print(exos)
-        for i, col in zip(np.arange(12), cols):
-            params[col] = exos[i]
-        for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
-            params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
-            params[k+"Bid"] = params[k+"Ask"]
-        with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
-            pickle.dump(params, f)
-        return params, res
-    # 3. spread + TOD
-
-    # 2. TOD
+    avgLambda = {}
     for d, theta in thetas.items():
         if d=="2019-01-09": continue
+        if d in specDates: continue
+        data = pd.read_csv(l.dataPath +ric+"_"+ d +"_12D.csv")
+        data = data.loc[data.Time < 23400]
+        avgLambda_l = (data.groupby(["event"])["Time"].count()/23400).to_dict()
+        for k, v in avgLambda_l.items():
+            avgLambda[k] = avgLambda.get(k, []) + [v]
+        data["Q"] = (data.Time//1800).astype(int)
+        avgEventsByTOD = (data.groupby(["event", "Q"])["Time"].count()/1800).to_dict()
+        avgEvents = {}
+        for k, v in avgEventsByTOD.items():
+            avgEvents[k[0]] = avgEvents.get(k[0], []) + [v/tod[k[0]][k[1]]]
+        avgEventsArr = []
+        for c in cols:
+            avgEventsArr.append(np.average(avgEvents[c]))
+        avgEventsArr = np.array(avgEventsArr)
+
         for i, col in zip(np.arange(12), cols):
-            if suffix == "_IS_scs":
-                exo = theta[i,0]
-                phi = theta[i,1:]
-            else:
-                theta_i = theta[0][i,:]
-                exo = theta_i
-                phi = theta[1][i,:]
+            exo = theta[0,i]
+            phi = theta[1:,i]
             res[col] = res.get(col, []) + [exo]
             phi = phi.reshape((len(phi)//12,12))
             num_datapoints = (phi.shape[0] + 2)//2
@@ -244,25 +172,72 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             timegrid = np.append(timegridLin[:-1], timegridLog)
             for j in range(len(cols)):
                 col2 = cols[j]
-                points = phi[:,j][1:]
-                timegrid_len = np.diff(timegrid)/2
-                timegrid_mid = timegrid[:-1] + timegrid_len
-                points = points / timegrid_len[1:]
+                points = phi[:,j]
 
-                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_mid[1:], points)]
+                timegrid_len = np.diff(timegrid)
+                timegrid_mid = timegrid[:-1] + timegrid_len/2
+                points = points*timegrid_len/timegrid_len[0]
+                norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
+
+
+                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid[1:], points[1:])]
+
+        mat = np.zeros((len(cols), len(cols)))
+        for i in range(len(cols)):
+            for j in range(len(cols)):
+                mat[i][j] = norms[cols[j] + "->" + cols[i]][-1]
+                if "inspread" in cols[i]:
+                    mat[i][j] = mat[i][j]*((avgSpread)**spreadBeta)
+        print("kernel norm ", d, mat)
+        exos = np.dot(np.eye(len(cols)) - mat, avgEventsArr.transpose())
+        print("exos ", d, exos)
+        for i, col in zip(np.arange(12), cols):
+            res[col] = res.get(col, []) + [exos[i]]
     for k, v in res.items():
         if "->" not in k:
-            params[k] = np.array(v).mean(axis=0)
+            print("exo ", k, v)
+            params[k] = np.median(v)
         else:
-            numDays = len(v)//len(timegrid_len[1:])
-            norm = np.sum(np.multiply(np.array(v)[:,1], np.array(list(timegrid_len[1:])*numDays)))/numDays
-            print(k, norm)
+            numDays = len(v)//17
+            points = np.array(v).reshape((numDays,17,2))
+            # print(points)
+            for j in range(17):
+                t = points[:,j,1]
+                med = np.median(t)
+                if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
+                t[np.abs(med/t) > 1e6] = med
+                t[np.abs(med/t) < 1e-6] = med
+                points[:,j,1] = t
+            v = points.reshape((numDays*17, 2))
+            # print(v)
+            norm = np.average(norms[k])
+            if np.abs(norm) < 1e-3:
+                continue
             side = np.sign(norm)
-            #if np.abs(norm) > 1: norm = side*0.95
-            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLaw(norm= np.abs(norm))
+            # if np.abs(norm) > 1: norm = 0.99
+            pars, resTemp = ParametricFit(np.abs(np.cumsum(v))).fitPowerLawCutoffIntegralNormConstrained(norm= np.abs(norm))
             params[k] = (side, pars)
-
-    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" +suffix + "_"+ str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+            print(k, params[k])
+            # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
+            # params[k] = pars
+    mat = np.zeros((12,12))
+    for i in range(12):
+        for j in range(12):
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
+            if kernelParams is None: continue
+            mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+    avgLambdaArr = []
+    for c in cols:
+        avgLambdaArr.append(np.average(avgLambda[c]))
+    print(avgLambdaArr)
+    exos = np.dot(np.eye(len(cols)) - mat, np.array(avgLambdaArr).transpose())
+    print(exos)
+    for i, col in zip(np.arange(12), cols):
+        params[col] = exos[i]
+    for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
+        params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
+        params[k+"Bid"] = params[k+"Ask"]
+    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLinInt_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 
