@@ -71,7 +71,6 @@ class ParametricFit():
             # funcEval[time < t0] = 0
             return funcEval
         def jac(time, beta, gamma):
-            f = powerLawCutoffIntegral(time, beta, gamma)
             return np.array([norm*(np.log(1+gamma*time)/((1+ gamma*time)**beta)), norm*(-1*beta)*time/((1+gamma*time)**beta)]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
@@ -180,7 +179,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 norms[col2 + '->' + col] = norms.get(col2 + '->' + col, []) + [points.sum()]
 
 
-                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid_len, points[1:])]
+                res[col2 + '->' + col] =  res.get(col2 + '->' + col, []) + [(t,p) for t,p in zip(timegrid[1:], np.cumsum(points[1:]))]
 
         mat = np.zeros((len(cols), len(cols)))
         for i in range(len(cols)):
@@ -209,13 +208,13 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 t[np.abs(med/t) < 1e-6] = med
                 points[:,j,1] = t
             v = points.reshape((numDays*17, 2))
-            print(np.cumsum(v, axis = 0))
+            print(v)
             norm = np.average(norms[k])
             if np.abs(norm) < 1e-3:
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
-            pars, resTemp = ParametricFit(np.abs(np.cumsum(v, axis = 0))).fitPowerLawCutoffIntegralNormConstrained(norm= np.abs(norm))
+            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffIntegralNormConstrained(norm= np.abs(norm))
             params[k] = (side, pars)
             print(k, params[k])
             # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
