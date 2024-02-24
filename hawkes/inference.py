@@ -71,7 +71,7 @@ class ParametricFit():
             # funcEval[time < t0] = 0
             return funcEval
         def jac(time, beta, gamma):
-            return np.array([norm*(np.log(1+gamma*time)/((1+ gamma*time)**beta)), norm*(-1*beta)*time/((1+gamma*time)**beta)]).T
+            return np.array([norm*(np.log(1+gamma*time)/((1+ gamma*time)**(beta-1))), norm*(-1+beta)*time/((1+gamma*time)**beta)]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
         alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
