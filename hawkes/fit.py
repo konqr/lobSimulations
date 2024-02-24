@@ -668,6 +668,7 @@ class ConditionalLeastSquaresLogLin():
             timegridLin = np.linspace(0,min_lag, num_datapoints)
             timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
             timegrid = np.append(timegridLin[:-1], timegridLog)
+            timegrid_len = np.diff(timegrid)
             ser = []
             bins = np.arange(0, np.max([np.max(arr) for arr in arrs]) + 1e-9, (timegrid[1] - timegrid[0]))
             cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -729,6 +730,7 @@ class ConditionalLeastSquaresLogLin():
             # Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
             # Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
             params = ()
+            scaler = (timegrid_len/timegrid_len[0])
             for Xs, Ys, id in zip([Xs_oth, XsIS, XsIS], [Ys_oth, np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk)], ["oth","inspreadBid", "inspreadAsk"]):
                 if len(Ys.shape) == 1: nDim = 1
                 else: nDim = Ys[0].shape[0]
@@ -738,7 +740,10 @@ class ConditionalLeastSquaresLogLin():
                 constrsY = []
                 for i in range(12): # i
                     r = I[:,i]
-                    constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
+                    arr = []
+                    for s in scaler:
+                        arr += list(s*r)
+                    constrsX.append(np.array([0] + 12*[0] + arr))
                     constrsY.append(0.999*np.ones(nDim))
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
@@ -829,12 +834,12 @@ class ConditionalLeastSquaresLogLin():
                         # print(R)
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         # print(q)
-                        G = sparse.csc_matrix(np.eye(Xs.shape[1])) #sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
+                        G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
                         # 2024.02.01 - off diagonal norm to be smaller than 0.5
                         constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1) #/2
                         # constrsY_alt[idxY, 0] = constrsY_alt[idxY, 0]*2
-                        l = boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)*mult #np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
-                        u = boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)*mult # np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
+                        l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
+                        u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
                         prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100)
                         res = prob.solve()
@@ -842,7 +847,7 @@ class ConditionalLeastSquaresLogLin():
                     params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_nobounds" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_boundsInt" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
