@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
-from tick.hawkes import HawkesConditionalLaw, HawkesExpKern
+from tick.hawkes import HawkesConditionalLaw, HawkesExpKern, HawkesEM
 import pickle
 import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
@@ -158,6 +158,21 @@ class ConditionalLaw():
         baseline = hawkes_learner.baseline
         kernels = hawkes_learner.kernels
         kernel_norms = hawkes_learner.kernels_norms
+        return (baseline, kernels, kernel_norms)
+
+    def fitEM(self):
+        num_datapoints = self.cfg.get("num_datapoints", 10)
+        min_lag = self.cfg.get("min_lag", 1e-3)
+        max_lag = self.cfg.get("max_lag" , 500)
+
+        timegridLin =np.linspace(0,min_lag, num_datapoints)
+        timegridLog = np.exp(np.linspace(np.log(min_lag), np.log(max_lag), num_datapoints))
+        timegrid = np.append(timegridLin[:-1], timegridLog)
+        em = HawkesEM(kernel_discretization = timegrid, verbose=True, tol=1e-6, max_iter = 100000)
+        em.fit(self.data)
+        baseline = em.baseline
+        kernels = em.kernels
+        kernel_norms = em.kernels_norms
         return (baseline, kernels, kernel_norms)
 
 class ConditionalLeastSquaresLogLin():
