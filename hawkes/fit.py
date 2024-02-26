@@ -171,9 +171,10 @@ class ConditionalLaw():
         em = HawkesEM(kernel_discretization = timegrid, verbose=True, tol=1e-6, max_iter = 100000)
         em.fit(self.data)
         baseline = em.baseline
-        kernels = em.kernels
+        kernel_support = em.kernel_support
+        kernel = em.kernel
         kernel_norms = em.kernels_norms
-        return (baseline, kernels, kernel_norms)
+        return (baseline, kernel_support, kernel, kernel_norms)
 
 class ConditionalLeastSquaresLogLin():
 
