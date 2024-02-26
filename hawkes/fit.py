@@ -845,7 +845,7 @@ class ConditionalLeastSquaresLogLin():
                         res = prob.solve()
                         k  =1
                         print(res.info)
-                        while res.info["status_val"] in [3, 4]:
+                        while res.info.status_val in [3, 4]:
                             print("retrying with bigger tolerance")
                             mult = 10**k
                             prob.setup(R, q, G, l, u, eps_abs = 1e-4, eps_rel = 1e-4, eps_prim_inf=mult*1e-6, eps_dual_inf=mult*1e-6, polish=True, polish_refine_iter = 100, max_iter = 1000000)
