@@ -161,6 +161,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
         for i, col in zip(np.arange(12), cols):
             exo = theta[0,i]
             phi = theta[1:,i]
+            phi[phi == None] = np.inf
             res[col] = res.get(col, []) + [exo]
             phi = phi.reshape((len(phi)//12,12))
             num_datapoints = (phi.shape[0] + 2)//2
@@ -202,6 +203,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             # print(points)
             for j in range(17):
                 t = points[:,j,1]
+                t[t == np.inf] = 1e6
                 med = np.median(t)
                 if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
                 t[np.abs(med/t) > 1e6] = med
