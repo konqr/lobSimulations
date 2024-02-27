@@ -203,8 +203,10 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             # print(points)
             for j in range(17):
                 t = points[:,j,1]
-                t[t == np.inf] = 1e6
                 med = np.median(t)
+                if med == np.inf:
+                    t = t[t != np.inf]
+                t[t == np.inf] = 1e6
                 if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
                 t[np.abs(med/t) > 1e6] = med
                 t[np.abs(med/t) < 1e-6] = med
