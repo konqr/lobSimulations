@@ -173,7 +173,7 @@ class ConditionalLaw():
         baseline = em.baseline
         kernel_support = em.kernel_support
         kernel = em.kernel
-        kernel_norms = em.kernels_norms
+        kernel_norms = em.get_kernel_norms()
         return (baseline, kernel_support, kernel, kernel_norms)
 
 class ConditionalLeastSquaresLogLin():
