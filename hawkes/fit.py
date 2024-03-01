@@ -756,10 +756,13 @@ class ConditionalLeastSquaresLogLin():
                 constrsY = []
                 for i in range(12): # i
                     r = I[:,i]
-                    arr = []
-                    for s in scaler:
-                        arr += list(s*r)
-                    constrsX.append(np.array([0] + 12*[0] + arr))
+                    # INTEGRAL FIT CODE BELOW - stability issues, above approx is much better
+                    # arr = []
+                    # for s in scaler:
+                    #     arr += list(s*r)
+                    # constrsX.append(np.array([0] + 12*[0] + arr))
+                    #
+                    constrsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                     constrsY.append(0.999*np.ones(nDim))
                     # Xs.append(np.array(nTimesteps*list(r)))
                     # Ys.append(-1*r)
@@ -803,15 +806,6 @@ class ConditionalLeastSquaresLogLin():
                     p = []
                     for i in range(nDim):
                         x = cp.Variable((Xs.shape[1], 1))
-                        # with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + "2019-01-03" + "_" + "2019-01-03" + "_IS_SCS_bounds" , "rb") as f: #"/home/konajain/params/"
-                        #     thetas_old = pickle.load(f)
-                        # if id == "oth":
-                        #     thetas_old0 = thetas_old[1]
-                        # elif id == "inspreadBid":
-                        #     thetas_old0 = thetas_old[2]
-                        # elif id == "inspreadAsk":
-                        #     thetas_old0 = thetas_old[0]
-                        # print(thetas_old0.shape)
                         constraints = [constrsX@x <= constrsY[:,i].reshape(constrsY.shape[0], 1), constrsX@x >= -1*constrsY[:,i].reshape(constrsY.shape[0], 1), x >= boundsY_l[:,i].reshape(boundsY_l.shape[0], 1), x <= boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)]
                         objective = cp.Minimize(0.5 * cp.sum_squares(Xs@x-Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1)))
                         prob = cp.Problem(objective, constraints)
@@ -851,9 +845,8 @@ class ConditionalLeastSquaresLogLin():
                         q = -1*np.dot(Xs.transpose(), Ys.reshape(len(Ys), nDim)[:,i].reshape(len(Ys), 1))
                         # print(q)
                         G = sparse.csc_matrix(np.vstack([constrsX, np.eye(Xs.shape[1])]))
-                        # 2024.02.01 - off diagonal norm to be smaller than 0.5
-                        constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1) #/2
-                        # constrsY_alt[idxY, 0] = constrsY_alt[idxY, 0]*2
+
+                        constrsY_alt = constrsY[:,i].reshape(constrsY.shape[0], 1)
                         l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
                         u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
@@ -871,7 +864,7 @@ class ConditionalLeastSquaresLogLin():
                     params += (np.vstack(p),)
             params2, params3, params1 = params
             thetas[date] = (params1, params2, params3) #, paramsUncertainty)
-            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_boundsInt" , "wb") as f: #"/home/konajain/params/"
+            with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
 
