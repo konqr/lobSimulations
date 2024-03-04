@@ -633,7 +633,7 @@ def simBacry(paramsPath = "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_Par
             else:
                 t.append(HawkesKernelPowerLaw(np.exp(par[0]), cutoff, -1*par[1], support))
         kernels.append(t)
-        baselines.append(par[cols[i]])
+        baselines.append(params[cols[i]])
     hawkes = SimuHawkes(kernels=kernels, baseline=baselines,verbose=True)
     hawkes.end_time = 23400
     hawkes.simulate()
