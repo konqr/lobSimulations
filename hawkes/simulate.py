@@ -616,7 +616,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
     return T, lob, lob_l3
 
 def simBacry(paramsPath = "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_ParamsInferred_2019-01-02_2019-03-31_EMBacry"):
-    with open("/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_ParamsInferred_2019-01-02_2019-03-31_EMBacry", "rb") as f:
+    with open(paramsPath, "rb") as f:
         params = pickle.load(f)
     from tick.hawkes import SimuHawkes, HawkesKernelPowerLaw
     cols = ['co_top_Ask', 'co_top_Bid', 'lo_top_Ask', 'lo_top_Bid', 'mo_Ask',  'mo_Bid', 'pc_Ask', 'pc_Bid']
