@@ -37,7 +37,7 @@ class ParametricFit():
             return funcEval
         def jac(time, alpha, beta, gamma):
             f = powerLawCutoff(time, alpha, beta, gamma)
-            return np.array([f/alpha, f*(-1*beta)*gamma/(1+gamma*time), f*(-1*np.log(1+gamma*time))]).T
+            return np.array([f/alpha, f*(-1*np.log(1+gamma*time)), f*(-1*beta)*gamma/(1+gamma*time)]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [1000*norm*0.7, 1.7, 1000], bounds = ([0,0,0], [np.inf, 2, np.inf])) #bounds=([0, 0], [1, 2]),

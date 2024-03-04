@@ -615,3 +615,23 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
             lob_l3.append(lob_l3New.copy())
     return T, lob, lob_l3
 
+def simBacry(paramsPath = "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_ParamsInferred_2019-01-02_2019-03-31_EMBacry"):
+    with open("/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_ParamsInferred_2019-01-02_2019-03-31_EMBacry", "rb") as f:
+        params = pickle.load(f)
+    from tick.hawkes import SimuHawkes, HawkesKernelPowerLaw
+    cols = ['co_top_Ask', 'co_top_Bid', 'lo_top_Ask', 'lo_top_Bid', 'mo_Ask',  'mo_Bid', 'pc_Ask', 'pc_Bid']
+    support = 500
+    cutoff = 1e-3
+    kernels = []
+    baselines = []
+    for i in range(len(cols)):
+        t = []
+        for j in range(len(cols)):
+            par = params[cols[i]+"->"+cols[j]]
+            t.append(HawkesKernelPowerLaw(np.exp(par[0]), cutoff, par[1], support))
+        kernels.append(t)
+        baselines.append(par[cols[i]])
+    hawkes = SimuHawkes(kernels=kernels, baseline=baselines,verbose=True)
+    hawkes.end_time = 23400
+    hawkes.simulate()
+    return hawkes.timestamps
