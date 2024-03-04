@@ -218,20 +218,20 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             print(k, params[k])
             # pars = np.average(np.array(v)[:,1].reshape((9,18)), axis=0)
             # params[k] = pars
-    mat = np.zeros((12,12))
-    for i in range(12):
-        for j in range(12):
-            kernelParams = params.get(cols[i] + "->" + cols[j], None)
-            if kernelParams is None: continue
-            mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
-    avgLambdaArr = []
-    for c in cols:
-        avgLambdaArr.append(np.average(avgLambda[c]))
-    print(avgLambdaArr)
-    exos = np.dot(np.eye(len(cols)) - mat.transpose(), np.array(avgLambdaArr).transpose())
-    print(exos)
-    for i, col in zip(np.arange(12), cols):
-        params[col] = exos[i]
+    # mat = np.zeros((12,12))
+    # for i in range(12):
+    #     for j in range(12):
+    #         kernelParams = params.get(cols[i] + "->" + cols[j], None)
+    #         if kernelParams is None: continue
+    #         mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+    # avgLambdaArr = []
+    # for c in cols:
+    #     avgLambdaArr.append(np.average(avgLambda[c]))
+    # print(avgLambdaArr)
+    # exos = np.dot(np.eye(len(cols)) - mat.transpose(), np.array(avgLambdaArr).transpose())
+    # print(exos)
+    # for i, col in zip(np.arange(12), cols):
+    #     params[col] = exos[i]
     for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
         params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
         params[k+"Bid"] = params[k+"Ask"]
