@@ -880,7 +880,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
             if "co" in col: # handle size of cancel order in createLOB
                 size = 0
             elif metaOrder:
-                size = childQ[counter-1]
+                size = childQ
             else:
                 pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
                 p = pi[0]
