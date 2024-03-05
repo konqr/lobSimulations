@@ -796,6 +796,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
 
     orderInitTime = np.random.randint(0, T - metaTime, 1)[0]
+    print(orderInitTime)
     newEndTime = orderInitTime + metaTime + 3600 # measure impact till until after 1 hr
     if metaStrategy[0] == "TWAP":
         childQ = int(metaQ*chilOrderFreq/metaTime)
@@ -833,6 +834,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         prev_s, prev_n, prev_timestamps, prev_lamb = s, n, timestamps, lamb
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         if (s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
+            print("execing meta order")
             metaOrder = True
             s = currentMetaOrderTime
             counter += 1
