@@ -804,6 +804,10 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         side = "Bid" if metaSide == "Sell" else "Ask"
         childEvent = "mo_" + side
         child_k = np.where(np.array(cols) == childEvent)[0][0]
+    elif "lo" in metaStrategy[1]:
+        side = "Ask" if metaSide == "Sell" else "Bid"
+        childEvent = metaStrategy[1] + side
+        child_k = np.where(np.array(cols) == childEvent)[0][0]
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
     with open(todPath, "rb") as f:
@@ -833,7 +837,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
             s = currentMetaOrderTime
             counter += 1
             currentMetaOrderTime = childTimes[counter]
-            n[childEvent] += 1
+            n[child_k] += 1
             timestamps[child_k] += (s,)
             timestamps_this = len(cols)*[()]
             timestamps_this[child_k] += (s,)
