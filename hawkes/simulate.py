@@ -856,7 +856,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
                     # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
                     todMult = tod[cols[j]][hourIndex]
                     mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
-            specRad = np.max(np.linalg.eig(mat)[0])
+            specRad = np.max(np.linalg.eig(mat)[0]).real
             newdecays = len(cols)*[0]
             for i in range(len(timestamps)):
                 kernelParams = params.get(cols[child_k] + "->" + cols[i], None)
