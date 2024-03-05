@@ -796,6 +796,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
 
     orderInitTime = np.random.randint(0, T - metaTime, 1)[0]
+    print(orderInitTime)
     newEndTime = orderInitTime + metaTime + 3600 # measure impact till until after 1 hr
     if metaStrategy[0] == "TWAP":
         childQ = int(metaQ*chilOrderFreq/metaTime)
@@ -803,6 +804,10 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
     if metaStrategy[1] == "MO":
         side = "Bid" if metaSide == "Sell" else "Ask"
         childEvent = "mo_" + side
+        child_k = np.where(np.array(cols) == childEvent)[0][0]
+    elif "lo" in metaStrategy[1]:
+        side = "Ask" if metaSide == "Sell" else "Bid"
+        childEvent = metaStrategy[1] + side
         child_k = np.where(np.array(cols) == childEvent)[0][0]
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
@@ -829,11 +834,12 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         prev_s, prev_n, prev_timestamps, prev_lamb = s, n, timestamps, lamb
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         if (s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
+            print("execing meta order")
             metaOrder = True
             s = currentMetaOrderTime
             counter += 1
             currentMetaOrderTime = childTimes[counter]
-            n[childEvent] += 1
+            n[child_k] += 1
             timestamps[child_k] += (s,)
             timestamps_this = len(cols)*[()]
             timestamps_this[child_k] += (s,)
