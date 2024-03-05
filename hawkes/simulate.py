@@ -200,17 +200,6 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             decays[5] = ((spread/avgSpread)**beta)*decays[5]
             decays[6] = ((spread/avgSpread)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
-            # for i in range(len(Ts)):
-            #     taus = Ts[i]
-            #     for tau in taus:
-            #         if s - tau >= 1000: continue
-            #         #if s - tau < 1e-4: continue
-            #         kernelParams = params.get(cols[i] + "->" + cols[k], None)
-            #         if kernelParams is None: continue
-            #         if np.isnan(kernelParams[1][2]): continue
-            #         todMult = tod[cols[k]][hourIndex]
-            #         decay = todMult*powerLawKernelIntegral(T_Minus1 - tau, s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
-            #         decays[k] += decay
             tau = decays[k]
             Ts[k] += (s,)
             Ts_new[k] += (s,)
@@ -638,3 +627,282 @@ def simBacry(paramsPath = "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_Par
     hawkes.end_time = 23400
     hawkes.simulate()
     return hawkes.timestamps
+
+def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260, metaQ = 2000, metaSide = "Buy", metaTime = 1800, metaStrategy = ("TWAP", "MO"), chilOrderFreq = 150):
+    """
+    :param T: time limit of simulations
+    :param paramsPath: path of fitted params
+    :param Pis: distribution of order sizes
+    :param Pi_Q0: depleted queue size distribution
+    """
+    cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    if Pis == None:
+        ## AAPL
+        Pis = {
+            'mo_Bid' : [8.16e-3, [(1, 0.072), (10, 0.04), (50, 0.028), (100, 0.427), (200, 0.051), (500, 0.07)]],
+            'lo_top_Bid' : [2.09e-3, [(1, 0.02), (10, 0.069), (50, 0.005), (100, 0.6), (200, 0.036), (500, 0.054)]],
+            'lo_deep_Bid' : [2.33e-3, [(1, 0.021), (10, 0.112), (50, 0.015), (100, 0.276), (200, 0.097), (500, 0.172)]]
+        }
+        Pis["lo_inspread_Bid"] = Pis["lo_top_Bid"]
+        if "AMZN.OQ" in paramsPath:
+            Pis = {'lo_top_Bid': [0.05365508940934027,
+                                  [(1, 0.0432323548960116),
+                                   (10, 0.013435798495166417),
+                                   (50, 0.0005709704503910774),
+                                   (100, 6.663879261160762e-05),
+                                   (200, 1.5747668929585514e-05),
+                                   (500, 6.09046480638754e-07)]],
+                   'lo_deep_Bid': [0.06060130535300165,
+                                   [(1, 0.05639948122151968),
+                                    (10, 0.05518191451020626),
+                                    (50, 0.0003330187521711186),
+                                    (100, 4.9983396108122606e-05),
+                                    (200, 7.903710504897672e-06),
+                                    (500, 1.6657318546374149e-06)]],
+                   'lo_inspread_Bid': [0.040813664165380875,
+                                       [(1, 0.020322265459336963),
+                                        (10, 0.005277804876103806),
+                                        (50, 0.0005669113835675268),
+                                        (100, 5.090044812498355e-05),
+                                        (200, 6.6587761856594516e-06),
+                                        (500, 6.606025886842982e-07)]],
+                   'mo_Bid': [0.030074069098223778,
+                              [(1, 0.05510488974651141),
+                               (10, 0.008831314046535154),
+                               (50, 0.0019306968599348715),
+                               (100, 0.0001651778474078509),
+                               (200, 3.460981489505782e-05),
+                               (500, 3.7078651677298155e-06)]]}
+        elif "TSLA.OQ" in paramsPath:
+            Pis = {'lo_top_Bid': [0.01906341526374109,
+                                  [(1, 0.013336873454420098),
+                                   (10, 0.002499960585631139),
+                                   (50, 0.00258837727124698),
+                                   (100, 9.016197290658499e-05),
+                                   (200, 2.1484763827487066e-05),
+                                   (500, 1.4176290754765072e-06)]],
+                   'lo_deep_Bid': [0.01834598886408305,
+                                   [(1, 0.006567760273974217),
+                                    (10, 0.008358970313982568),
+                                    (50, 0.0026727677268739785),
+                                    (100, 5.1652220786639296e-05),
+                                    (200, 1.4287611741998702e-05),
+                                    (500, 1.7712494515096627e-06)]],
+                   'lo_inspread_Bid': [0.013924826336477625,
+                                       [(1, 0.007544542317155571),
+                                        (10, 0.005196331116912839),
+                                        (50, 0.0010228895870503783),
+                                        (100, 8.177891598970127e-05),
+                                        (200, 2.1061506356115122e-05),
+                                        (500, 3.808005108713909e-06)]],
+                   'mo_Bid': [0.015972671818734865,
+                              [(1, 0.021494545426040023),
+                               (10, 0.006376156312818793),
+                               (50, 0.0023541898985074998),
+                               (100, 0.00031172774984016764),
+                               (200, 8.539722286633611e-05),
+                               (500, 1.0538996186294693e-05)]]}
+        elif "INTC.OQ" in paramsPath:
+            Pis = {'lo_top_Bid': [0.0012032594626957276,
+                                  [(1, 0.0004058911201508531),
+                                   (10, 0.004937100775363866),
+                                   (50, 0.011839578897579354),
+                                   (100, 4.2540607105295814e-05),
+                                   (200, 1.3215923263800984e-05),
+                                   (500, 4.946493652744191e-06)]],
+                   'lo_deep_Bid': [0.001446173610413779,
+                                   [(1, 0.0009504555025436379),
+                                    (10, 0.005970974450434397),
+                                    (50, 0.011838812712121737),
+                                    (100, 7.747866832159131e-05),
+                                    (200, 4.951687702705543e-06),
+                                    (500, 1.4416468076059402e-06)]],
+                   'lo_inspread_Bid': [0.0005940490977412251,
+                                       [(1, 0.0028645165426634195),
+                                        (10, 0.0007559432806511614),
+                                        (50, 0.0007559432806511614),
+                                        (100, 0.0007559432806511614),
+                                        (200, 0.0006377821948293843),
+                                        (500, 0.00011229632687737945)]],
+                   'mo_Bid': [0.0038746648120546903,
+                              [(1, 0.005292089328158008),
+                               (10, 0.0007267533052621235),
+                               (50, 0.0007267533052621235),
+                               (100, 0.0007267533052621235),
+                               (200, 0.0003865080466058066),
+                               (500, 6.402501409270695e-05)]]}
+        Pis["mo_Ask"] = Pis["mo_Bid"]
+        Pis["lo_top_Ask"] = Pis["lo_top_Bid"]
+        Pis["lo_inspread_Ask"] = Pis["lo_inspread_Bid"]
+        Pis["lo_deep_Ask"] = Pis["lo_deep_Bid"]
+    if Pi_Q0 == None:
+        Pi_Q0 = {
+            "Ask_touch" : [0.0015, [(1, 0.013), (10, 0.016), (50, 0.004), (100, 0.166), (200, 0.133), (500, 0.04)]],
+            "Ask_deep" : [0.0012, [(1, 0.002), (10, 0.004), (50, 0.001), (100, 0.042), (200, 0.046), (500, 0.057), (1000,0.031 )]]
+        }
+        if "AMZN.OQ" in paramsPath:
+            Pi_Q0 = {'Ask_touch': [0.010140090684645622,
+                                   [(1, 0.03884704158300229),
+                                    (10, 0.009296778366251864),
+                                    (50, 0.001379651264534182),
+                                    (100, 0.0024608509274181133),
+                                    (200, 0.0006879249113755069),
+                                    (500, 3.2288238302197284e-05),
+                                    (1000, 1.305272362958619e-05)]],
+                     'Ask_deep': [0.01497727301958245,
+                                  [(1, 0.0487474866024748),
+                                   (10, 0.013947978218672049),
+                                   (50, 0.0009005062923042582),
+                                   (100, 0.0021614857143755863),
+                                   (200, 0.0006018244607243744),
+                                   (500, 3.349174663545714e-05),
+                                   (1000, 1.2020554944921454e-05)]]}
+        elif "TSLA.OQ" in paramsPath:
+            Pi_Q0 = {'Ask_touch': [0.0034673497896682984,
+                                   [(1, 0.009820667253646062),
+                                    (10, 0.0032147821340202986),
+                                    (50, 0.0015155315888310396),
+                                    (100, 0.0016285648957023635),
+                                    (200, 0.0007759488694235814),
+                                    (500, 6.953740217580516e-05),
+                                    (1000, 2.1420795641788244e-05)]],
+                     'Ask_deep': [0.0043116989714031065,
+                                  [(1, 0.010456320220449275),
+                                   (10, 0.0027367429710106975),
+                                   (50, 0.0018515085129190948),
+                                   (100, 0.0016343241590795659),
+                                   (200, 0.0006310486072334213),
+                                   (500, 6.689678826479514e-05),
+                                   (1000, 2.4596571677673654e-05)]]}
+        elif "INTC.OQ" in paramsPath:
+            Pi_Q0 ={'Ask_touch': [0.00033136559119983304,
+                                  [(1, 5.5538455639021544e-05),
+                                   (10, 3.411738751405578e-05),
+                                   (50, 0.0004079465189684229),
+                                   (100, 3.910578960810687e-05),
+                                   (200, 5.05693218396739e-05),
+                                   (500, 6.784776064336188e-05),
+                                   (1000, 0.00010653405107868813)]],
+                    'Ask_deep': [0.00023264066631313243,
+                                 [(1, 2.225694124202009e-06),
+                                  (10, 6.82101843855456e-06),
+                                  (50, 1.4531995189359232e-05),
+                                  (100, 1.4422351707753386e-06),
+                                  (200, 2.006026241383471e-06),
+                                  (500, 3.5387085979501684e-06),
+                                  (1000, 1.0407294782729011e-05)]]}
+        Pi_Q0["Bid_touch"] = Pi_Q0["Ask_touch"]
+        Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
+
+    orderInitTime = np.random.randint(0, T - metaTime, 1)[0]
+    newEndTime = orderInitTime + metaTime + 3600 # measure impact till until after 1 hr
+    if metaStrategy[0] == "TWAP":
+        childQ = int(metaQ*chilOrderFreq/metaTime)
+        childTimes = orderInitTime + np.arange(int(metaTime/chilOrderFreq))*chilOrderFreq
+    if metaStrategy[1] == "MO":
+        side = "Bid" if metaSide == "Sell" else "Ask"
+        childEvent = "mo_" + side
+        child_k = np.where(np.array(cols) == childEvent)[0][0]
+    with open(paramsPath, "rb") as f:
+        params = pickle.load(f)
+    with open(todPath, "rb") as f:
+        tod = pickle.load(f)
+    num_nodes = len(cols)
+
+    s = 0
+    Ts,lob,lobL3 = [],[],[]
+    _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+    Ts.append(0)
+    lob.append(lob0[-1])
+    lobL3.append(lob0_l3[-1])
+    spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
+    n = None
+    timestamps = None
+    lob0 = lob0[0]
+    lob0_l3 = lob0_l3[0]
+    lamb = None
+    counter = 0
+    currentMetaOrderTime = childTimes[counter]
+    metaOrder = False
+    while s <= newEndTime:
+        prev_s, prev_n, prev_timestamps, prev_lamb = s, n, timestamps, lamb
+        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
+        if (s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
+            metaOrder = True
+            s = currentMetaOrderTime
+            counter += 1
+            currentMetaOrderTime = childTimes[counter]
+            n[childEvent] += 1
+            timestamps[child_k] += (s,)
+            timestamps_this = len(cols)*[()]
+            timestamps_this[child_k] += (s,)
+            tau = tau
+
+            mat = np.zeros((num_nodes, num_nodes))
+            hourIndex = np.min([12,int(np.floor(s/1800))])
+            for i in range(num_nodes):
+                for j in range(num_nodes):
+                    kernelParams = params.get(cols[i] + "->" + cols[j], None)
+                    if kernelParams is None: continue
+                    if np.isnan(kernelParams[1][2]): continue
+                    # print(cols[i] + "->" + cols[j])
+                    # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
+                    todMult = tod[cols[j]][hourIndex]
+                    mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            specRad = np.max(np.linalg.eig(mat)[0])
+            newdecays = len(cols)*[0]
+            for i in range(len(timestamps)):
+                kernelParams = params.get(cols[child_k] + "->" + cols[i], None)
+                todMult = tod[cols[i]][hourIndex]*0.99/specRad
+                if kernelParams is None: continue
+                if np.isnan(kernelParams[1][2]): continue
+                # decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
+                decay = todMult*powerLawCutoff(0, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
+                # print(decay)
+                newdecays[i] += decay
+            newdecays = [np.max([0, d]) for d in newdecays]
+            newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]
+            newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
+            if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
+            lamb += sum(newdecays)
+
+        sizes = {}
+        dictTimestamps = {}
+        for t, col in zip(timestamps_this, cols):
+            if len(t) == 0: continue
+            if "co" in col: # handle size of cancel order in createLOB
+                size = 0
+            elif metaOrder:
+                size = childQ[counter-1]
+            else:
+                pi = Pis[col] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+                p = pi[0]
+                dd = pi[1]
+                pi = np.array([p*(1-p)**k for k in range(1,10000)])
+                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                for i, p_i in dd:
+                    pi[i-1] = p_i + pi[i-1]
+                pi = pi/sum(pi)
+                cdf = np.cumsum(pi)
+                a = np.random.uniform(0, 1, size = len(t))
+                if type(a) != float:
+                    size =[]
+                    for i in a:
+                        size.append(np.argmax(cdf>=i)+1)
+                else:
+                    size = np.argmax(cdf>=a)+1
+            sizes[col]  = size
+            dictTimestamps[col] = t
+
+        TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
+        spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
+        lob0 = lobTmp[-1]
+        lob0_l3 = lobL3Tmp[-1]
+        if len(list(dictTimestamps.keys())):
+            Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
+            lob.append(lob0)
+            lobL3.append(lob0_l3)
+        # with open("/SAN/fca/Konark_PhD_Experiments/simulated/AAPL.OQ_ResultsWCutoff_2019-01-02_2019-03-31_CLSLogLin_10_tmp" , "ab") as f: #"/home/konajain/params/"
+        #     pickle.dump(([list(dictTimestamps.keys())[0], TsTmp[-1], tau], lob0, lob0_l3), f)
+    return orderInitTime, Ts, lob, lobL3
