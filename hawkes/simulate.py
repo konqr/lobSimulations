@@ -831,15 +831,17 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
     currentMetaOrderTime = childTimes[counter]
     metaOrder = False
     while s <= newEndTime:
-        prev_s, prev_n, prev_timestamps, prev_lamb = s, n, timestamps, lamb
+        if (n is not None )and (timestamps is not None): prev_s, prev_n, prev_timestamps, prev_lamb = s, n.copy(), timestamps.copy(), lamb
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
-        if (s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
+        if (n is not None)&(s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
             print("execing meta order")
             metaOrder = True
             s = currentMetaOrderTime
             counter += 1
             currentMetaOrderTime = childTimes[counter]
+            n = prev_n
             n[child_k] += 1
+            timestamps = prev_timestamps
             timestamps[child_k] += (s,)
             timestamps_this = len(cols)*[()]
             timestamps_this[child_k] += (s,)
@@ -871,7 +873,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
             newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]
             newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
             if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
-            lamb += sum(newdecays)
+            lamb = prev_lamb + sum(newdecays)
 
         sizes = {}
         dictTimestamps = {}
