@@ -828,15 +828,16 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
     lob0_l3 = lob0_l3[0]
     lamb = None
     counter = 0
-    currentMetaOrderTime = childTimes[counter]
-    metaOrder = False
+    # currentMetaOrderTime = childTimes[counter]
+
     while s <= newEndTime:
         if (n is not None )and (timestamps is not None): prev_s, prev_n, prev_timestamps, prev_lamb = s, n.copy(), timestamps.copy(), lamb
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
-        currentMetaOrderTime = childTimes[counter]
+        metaOrder = False
         if (n is not None)&(s >= currentMetaOrderTime)&(counter < len(childTimes)): # reject background and add metaorder
             print("execing meta order")
             metaOrder = True
+            currentMetaOrderTime = childTimes[counter]
             s = currentMetaOrderTime
             counter += 1
             n = prev_n
