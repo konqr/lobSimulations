@@ -815,7 +815,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
         tod = pickle.load(f)
     num_nodes = len(cols)
 
-    s = 0
+    s = orderInitTime - 100 # memory of more than 100 sec is not going to impact
     Ts,lob,lobL3 = [],[],[]
     _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
     Ts.append(0)
