@@ -797,7 +797,7 @@ def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None
 
     orderInitTime = orderInitTime or np.random.randint(0, T - metaTime, 1)[0]
     print(orderInitTime)
-    newEndTime = orderInitTime + metaTime + 3600 # measure impact till until after 1 hr
+    newEndTime = orderInitTime + metaTime + 120 # measure impact till until after 2 mins
     if metaStrategy[0] == "TWAP":
         childQ = int(metaQ*chilOrderFreq/metaTime)
         childTimes = orderInitTime + np.arange(int(metaTime/chilOrderFreq))*chilOrderFreq
