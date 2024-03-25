@@ -13,6 +13,8 @@ from scipy.optimize import lsq_linear
 import osqp
 import scipy as sp
 from scipy import sparse
+from nphc.main import NPHC, starting_point
+from scipy.linalg import inv
 import sys
 # sys.path.append("/home/konajain/code")
 # from aslsd.functionals.kernels.basis_kernels. \
@@ -20,6 +22,7 @@ import sys
 # from aslsd.functionals.kernels.kernel import KernelModel
 # from aslsd.models.hawkes.linear.mhp import MHP
 # from aslsd.stats.events.process_path import ProcessPath
+
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -867,6 +870,151 @@ class ConditionalLeastSquaresLogLin():
             with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + date + "_" + date + "_IS_"+self.cfg.get("solver", "sgd")+"Sparse_bounds" , "wb") as f: #"/home/konajain/params/"
                 pickle.dump(thetas[date], f)
         return thetas
+
+    def fitTODParams(self):
+        # TOD conditioning
+        dfs = []
+        for i in self.dates:
+            try:
+                df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+                dfs.append(df)
+            except:
+                continue
+        df = pd.concat(dfs)
+        # Special Date:
+        specDate = {
+            "MEXP" : [dt.date(2019,1,18), dt.date(2019,2,15), dt.date(2019,4,18), dt.date(2019,5,17), dt.date(2019,7,19), dt.date(2019,8,16), dt.date(2019,10,18), dt.date(2019,11,15), dt.date(2020,1,17), dt.date(2020,2,21), dt.date(2020,4,17), dt.date(2020,5,15)],
+            "FOMC3" : [dt.date(2019,1,30), dt.date(2019,3,20), dt.date(2019,5,1), dt.date(2019,6,19), dt.date(2019,7,31), dt.date(2019,9,18), dt.date(2019,10,30), dt.date(2019,12,11), dt.date(2020,1,29), dt.date(2020,3,18), dt.date(2020,4,29), dt.date(2020,6,10)],
+            "MEND" : [dt.date(2019,1,31), dt.date(2019,4,30), dt.date(2019,5,31), dt.date(2019,10,31), dt.date(2020,1,31), dt.date(2020,4, 30)],
+            "MSCIQ" : [dt.date(2019,2,28), dt.date(2019,8,27), dt.date(2020,2,28)],
+            "QEXP" : [dt.date(2019,3,15), dt.date(2019,6,21), dt.date(2019,9,20), dt.date(2019,12,20), dt.date(2020,3,20), dt.date(2020,6,19) ],
+            "QEND" : [dt.date(2019,3,29), dt.date(2019,6,28), dt.date(2019,9,30), dt.date(2019,12,31), dt.date(2020,3,31), dt.date(2020,6,30)],
+            "MSCIS" : [dt.date(2019,5,28), dt.date(2019,11,26), dt.date(2020,5,29)],
+            "HALF" : [dt.date(2019,7,3), dt.date(2019,11,29), dt.date(2019,12,24)],
+            "DISRUPTION" : [dt.date(2019,1,9),dt.date(2020,3,9), dt.date(2020,3,12), dt.date(2020,3,16)],
+            "RSL" : [dt.date(2020,6,26)]
+        }
+        specDates = []
+        for ds in specDate.values():
+            specDates += [i.strftime("%Y-%m-%d") for i in ds]
+        df['halfHourId'] = df['Time'].apply(lambda x: int(np.floor(x/1800)))
+        df = df.loc[df.Date.apply(lambda x : x not in specDate.values())]
+        dictTOD = {}
+        for e in df.event.unique():
+            df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
+            df_e = df_e/df_e.mean()
+            dictTOD[e] = df_e.to_dict()
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
+            pickle.dump(dictTOD, f)
+        return
+
+    def fitHawkesGraph(self):
+        big_data = []
+        cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        for i in self.dates:
+
+            try:
+                df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+            except:
+                continue
+            timestamps = list(df.groupby('event')['Time'].apply(np.array)[cols].values)
+            big_data.append(timestamps)
+
+        nphc = NPHC()
+        nphc.fit(big_data,half_width=1.,filtr="rectangular",method="parallel_by_day")
+        cumulants_list = [nphc.L, nphc.C, nphc.K_c]
+        start_point = starting_point(cumulants_list, random=True)
+        R_pred = nphc.solve(training_epochs=50000,display_step=500,learning_rate=1e-2,optimizer='adam')
+        d = len(nphc.L[0])
+        G_pred = np.eye(d) - inv(R_pred)
+
+        boundsDict = {}
+        for i in range(12):
+            for j in range(12):
+                boundsDict[cols[i]+"->"+cols[j]] = np.sign(G_pred[i][j])
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_graphDict", "wb") as f:
+            pickle.dump(boundsDict, f)
+        return
+
+    def fitOrderSizeDistris(self):
+        sizes = {}
+        queues = {}
+        for i in self.dates:
+
+            try:
+                data = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+            except:
+                continue
+            df = data.groupby("event").Size.apply(list).to_dict()
+            for k, v in df.items():
+                sizes[k] = sizes.get(k, []) + v
+
+            queues["Ask Size 1"] = np.append(queues.get("Ask Size 1", []) , data["Ask Size 1"].values)
+            queues["Ask Size 2"] = np.append(queues.get("Ask Size 2", []) , data["Ask Size 2"].values)
+            queues["Bid Size 1"] = np.append(queues.get("Bid Size 1", []) , data["Bid Size 1"].values)
+            queues["Bid Size 2"] = np.append(queues.get("Bid Size 2", []) , data["Bid Size 2"].values)
+        params = {}
+        roundNums = [1,10,50,100,200,500]
+        hists = {}
+        for k, v in sizes.items():
+            n, bins, _ = plt.hist(v, bins = "sqrt", density = True)
+            hists[k] = (n, bins)
+        for k,v in hists.items():
+            print(k)
+            edges = v[1]
+
+            params_rN = {}
+            for r in roundNums:
+                idx = np.searchsorted(edges, r)
+                params_rN[r] = v[0][idx]
+            params[k] = params_rN
+        for k, v in sizes.items():
+            v = np.array(v)
+            d = params[k]
+            i = [x not in roundNums for x in v]
+            d[0] = 1./np.average(v[i])
+            params[k] = d
+        paramsFinal = {}
+        for c in ["lo_top", "lo_deep", "lo_inspread", "mo"]:
+            b = params[c+"_Bid"]
+            a = params[c+"_Ask"]
+            paramsFinal[c+"_Bid"] = [(a[0]+b[0])/2, [(i, (a[i]+b[i])/2) for i in roundNums]]
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_orderSizesDict", "wb") as f:
+            pickle.dump(paramsFinal, f)
+
+        hists = {}
+        for k, v in queues.items():
+            n, bins, _ = plt.hist(v, bins = "sqrt", density = True)
+            hists[k] = (n, bins)
+        params = {}
+        roundNums = [1,10,50,100,200,500,1000]
+        for k,v in hists.items():
+            print(k)
+            edges = v[1]
+
+            params_rN = {}
+            for r in roundNums:
+                idx = np.searchsorted(edges, r)
+                params_rN[r] = v[0][idx]
+            params[k] = params_rN
+        for k, v in queues.items():
+            v = np.array(v)
+            d = params[k]
+            i = [x not in roundNums for x in v]
+            d[0] = 1./np.average(v[i])
+            params[k] = d
+        paramsFinal = {}
+        for c in [" Size 1", " Size 2"]:
+            b = params["Bid"+c]
+            a = params["Ask" + c]
+            id = "deep"
+            if c == " Size 1": id = "touch"
+            paramsFinal["Ask_" + id] = [(a[0]+b[0])/2, [(i, (a[i]+b[i])/2) for i in roundNums]]
+        with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_queueSizesDict", "wb") as f:
+            pickle.dump(paramsFinal, f)
+
+        return
 
 class ASLSD():
     def __init__(self, dates, **kwargs):
