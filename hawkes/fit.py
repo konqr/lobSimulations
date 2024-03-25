@@ -13,6 +13,8 @@ from scipy.optimize import lsq_linear
 import osqp
 import scipy as sp
 from scipy import sparse
+import sys
+sys.path.append("/home/konajain/code/nphc2")
 from nphc.main import NPHC, starting_point
 from scipy.linalg import inv
 import sys
