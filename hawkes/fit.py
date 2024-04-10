@@ -878,15 +878,7 @@ class ConditionalLeastSquaresLogLin():
         return thetas
 
     def fitTODParams(self):
-        # TOD conditioning
-        dfs = []
-        for i in self.dates:
-            try:
-                df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
-                dfs.append(df)
-            except:
-                continue
-        df = pd.concat(dfs)
+
         # Special Date:
         specDate = {
             "MEXP" : [dt.date(2019,1,18), dt.date(2019,2,15), dt.date(2019,4,18), dt.date(2019,5,17), dt.date(2019,7,19), dt.date(2019,8,16), dt.date(2019,10,18), dt.date(2019,11,15), dt.date(2020,1,17), dt.date(2020,2,21), dt.date(2020,4,17), dt.date(2020,5,15)],
@@ -903,8 +895,18 @@ class ConditionalLeastSquaresLogLin():
         specDates = []
         for ds in specDate.values():
             specDates += [i.strftime("%Y-%m-%d") for i in ds]
+        # TOD conditioning
+        dfs = []
+        for i in self.dates:
+            if i not in specDates:
+                try:
+                    df = pd.read_csv(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_" + i+"_12D.csv")
+                    dfs.append(df)
+                except:
+                    continue
+        df = pd.concat(dfs)
         df['halfHourId'] = df['Time'].apply(lambda x: int(np.floor(x/1800)))
-        df = df.loc[df.Date.apply(lambda x : x not in specDate.values())]
+        # df = df.loc[df.Date.apply(lambda x : x not in specDate.values())]
         dictTOD = {}
         for e in df.event.unique():
             df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
