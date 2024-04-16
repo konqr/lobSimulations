@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
-from tick.hawkes import HawkesConditionalLaw, HawkesExpKern, HawkesEM
+# from tick.hawkes import HawkesConditionalLaw, HawkesExpKern, HawkesEM
 import pickle
 import gc
 from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
@@ -13,9 +13,9 @@ from scipy.optimize import lsq_linear
 import osqp
 import scipy as sp
 from scipy import sparse
-import sys
-sys.path.append("/home/konajain/code/nphc2")
-from nphc.main import NPHC, starting_point
+# import sys
+# sys.path.append("/home/konajain/code/nphc2")
+# from nphc.main import NPHC, starting_point
 from scipy.linalg import inv
 import sys
 # sys.path.append("/home/konajain/code")
@@ -704,7 +704,7 @@ class ConditionalLeastSquaresLogLin():
                 sp[sp==0] = 1e-6
                 assignedBins = np.searchsorted(bins, arr, side="right")
                 binDf = np.unique(assignedBins, return_counts = True)
-                avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
+                avgSp = np.bincount(assignedBins, weights=sp**spreadBeta, minlength=len(binDf[1]))
                 #print(avgSp.shape)
                 avgSp = avgSp[avgSp > 0]
                 print(avgSp.shape)
@@ -727,7 +727,7 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.array([r.flatten() for r in Xs])
             Xs = sm.add_constant(Xs)
 
-            spr = (df['spread'].apply(lambda x: np.mean(x[x>0]), axis = 1))**spreadBeta
+            spr = df['spread'].apply(lambda x: np.mean(x[x>0]), axis = 1)
             spr = spr.values.reshape((len(spr),1))
             XsIS = Xs*spr
             Xs_oth = Xs
@@ -735,25 +735,16 @@ class ConditionalLeastSquaresLogLin():
             Ys_inspreadBid = np.array([res_d[i][6] for i in range(0,len(res_d),2)])
             todMultiplier = np.array([dictTOD['lo_inspread_Bid'][x] for x in timestamps])
             Ys_inspreadBid = Ys_inspreadBid/todMultiplier
+
             Ys_oth = np.array([np.append(res_d[i][:5],res_d[i][7:]) for i in range(0,len(res_d),2)])
             todMultiplier = np.array([[dictTOD[k][x] for k in ['lo_deep_Ask', 'co_deep_Ask', 'lo_top_Ask', 'co_top_Ask', 'mo_Ask', 'mo_Bid', 'co_top_Bid',
                                                                'lo_top_Bid', 'co_deep_Bid', 'lo_deep_Bid']] for x in timestamps])
             Ys_oth = Ys_oth / todMultiplier
+
             Ys_inspreadAsk = np.array([res_d[i][5] for i in range(0,len(res_d),2)])
             todMultiplier = np.array([dictTOD['lo_inspread_Ask'][x] for x in timestamps])
             Ys_inspreadAsk = Ys_inspreadAsk/todMultiplier
-            #Ys_oth = np.array(Ys_oth)
-            # XsIS_list.append(XsIS)
-            # Xs_oth_list.append(Xs_oth)
-            # Ys_oth_list.append(Ys_oth)
-            # Ys_inspreadAsk_list.append(Ys_inspreadAsk)
-            # Ys_inspreadBid_list.append(Ys_inspreadBid)
-            #
-            # XsIS = np.vstack(XsIS_list)
-            # Xs_oth = np.vstack(Xs_oth_list)
-            # Ys_oth = np.vstack(Ys_oth_list)
-            # Ys_inspreadBid = np.vstack(Ys_inspreadBid_list)
-            # Ys_inspreadAsk = np.vstack(Ys_inspreadAsk_list)
+
             params = ()
             scaler = (timegrid_len[1:]/timegrid_len[0])
             for Xs, Ys, id in zip([Xs_oth, XsIS, XsIS], [Ys_oth, np.array(Ys_inspreadBid), np.array(Ys_inspreadAsk)], ["oth","inspreadBid", "inspreadAsk"]):
