@@ -230,6 +230,9 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 print("AlphaInit is nan, moving to next time index")
                 alphaInit = np.abs(np.nanmedian(points[:,i,1]))
                 i +=1
+                if i == 17:
+                    print("skipping "+ k + " norm " + str(np.average(norms[k])))
+                    continue
             v = points.reshape((numDays*17, 2))
             v = v[~np.isnan(v[:,1]),:]
             # denoising complete #
