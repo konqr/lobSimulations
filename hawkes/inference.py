@@ -226,7 +226,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 points[j,nanidxs,1] = np.nan
             alphaInit = np.abs(np.nanmedian(points[:,0,1]))
             i = 1
-            while alphaInit == np.nan:
+            while np.isnan(alphaInit):
                 print("AlphaInit is nan, moving to next time index")
                 alphaInit = np.abs(np.nanmedian(points[:,i,1]))
                 i +=1
