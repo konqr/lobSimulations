@@ -224,8 +224,11 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 points[j,np.where(arrTmp < 1e-10),1]= np.nan
                 # finally
                 points[j,nanidxs,1] = np.nan
-            alphaInit = np.nanmedian(points[:,0,1])
-            if alphaInit == np.nan: alphaInit = 0
+            alphaInit = np.abs(np.nanmedian(points[:,0,1]))
+            i = 1
+            while alphaInit == np.nan:
+                alphaInit = np.abs(np.nanmedian(points[:,i,1]))
+                i +=1
             v = points.reshape((numDays*17, 2))
             v = v[~np.isnan(v[:,1]),:]
             # denoising complete #
