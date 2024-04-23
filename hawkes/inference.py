@@ -6,6 +6,8 @@ import os
 import datetime as dt
 from hawkes import dataLoader
 from scipy.optimize import curve_fit
+import copy
+import matplotlib.pyplot as plt
 
 class ParametricFit():
 
@@ -198,16 +200,33 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
         else:
             numDays = len(v)//17
             points = np.array(v).reshape((numDays,17,2))
-            # print(points)
-            for j in range(17):
-                t = points[:,j,1]
-                med = np.median(t)
-                if np.abs(med) < 1e-18: med = np.mean(t[np.abs(t)>1e-18])
-                t[np.abs(med/t) > 1e6] = med
-                t[np.abs(med/t) < 1e-6] = med
-                points[:,j,1] = t
+            pointsOrig = copy.deepcopy(points)
+            # denoising tricks #
+            for j in range(numDays):
+                arr = points[j,:,1]
+                # 1 to len -1
+                arrTmp = copy.deepcopy(arr)
+                nanidxs = []
+                exit= False
+                while exit is False:
+                    exit = True
+                    for i in range(1, len(arrTmp) - 1):
+                        if (arrTmp[i-1]/arrTmp[i])/(arrTmp[i]/arrTmp[i-1]) > 1e6:
+                            nanidxs.append(i)
+                            arrTmp[i] = (arrTmp[i-1]+arrTmp[i+1])/2
+                            exit = False
+                # edges : 1 and len:
+                if arrTmp[0]/arrTmp[1] < 1e-3:
+                    nanidxs.append(0)
+                if arrTmp[-1]/arrTmp[-2] < 1e-3:
+                    nanidxs.append(len(arrTmp)-1)
+                # anything near zero to nan
+                points[j,np.where(arrTmp < 1e-10),1]= np.nan
+                # finally
+                points[j,nanidxs,1] = np.nan
             v = points.reshape((numDays*17, 2))
-            # print(v)
+            v = v[~np.isnan(v[:,1]),:]
+            # denoising complete #
             norm = np.average(norms[k])
             if np.abs(norm) < 1e-3:
                 continue
@@ -215,6 +234,31 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             # if np.abs(norm) > 1: norm = 0.99
             pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm))
             params[k] = (side, pars)
+
+            plt.figure()
+            plt.title(k + " (no denoising) Signum:" + str(int(side)))
+            for p in pointsOrig:
+                plt.plot(p[:,0], np.abs(p[:,1]), alpha = 0.1, color='b')
+            plt.xscale("log")
+            plt.yscale("log")
+            plt.xlabel("Lags (seconds, log scale)")
+            plt.ylabel("Kernel Value (Abs, log scale)")
+            plt.savefig("/SAN/fca/Konark_PhD_Experiments/results/"+ ric + "_PlotOrig_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_" + k + ".png")
+
+            plt.figure()
+            plt.title(k + " Signum:" + str(int(side)))
+            for p in points:
+                plt.plot(p[:,0], np.abs(p[:,1]), alpha = 0.1, color='b')
+            alpha = pars[0]
+            beta = pars[1]
+            gamma = pars[2]
+            plt.plot(p[:,0], np.abs(alpha/((1 + gamma*p[:,0])**beta)), color = "r")
+            plt.xscale("log")
+            plt.yscale("log")
+            plt.xlabel("Lags (seconds, log scale)")
+            plt.ylabel("Kernel Value (Abs, log scale)")
+            plt.savefig("/SAN/fca/Konark_PhD_Experiments/results/"+ ric + "_PlotDenoised_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_" + k + ".png")
+
             print(k, params[k])
     for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
         params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
