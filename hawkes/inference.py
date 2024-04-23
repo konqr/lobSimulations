@@ -211,7 +211,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 while exit is False:
                     exit = True
                     for i in range(1, len(arrTmp) - 1):
-                        if (arrTmp[i-1]/arrTmp[i])/(arrTmp[i]/arrTmp[i-1]) > 1e6:
+                        if (arrTmp[i-1]/arrTmp[i])/(arrTmp[i]/arrTmp[i+1]) > 1e6:
                             nanidxs.append(i)
                             arrTmp[i] = (arrTmp[i-1]+arrTmp[i+1])/2
                             exit = False
