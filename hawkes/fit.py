@@ -704,7 +704,7 @@ class ConditionalLeastSquaresLogLin():
                 sp[sp==0] = 1e-6
                 assignedBins = np.searchsorted(bins, arr, side="right")
                 binDf = np.unique(assignedBins, return_counts = True)
-                avgSp = np.bincount(assignedBins, weights=sp**spreadBeta, minlength=len(binDf[1]))
+                avgSp = np.bincount(assignedBins, weights=sp, minlength=len(binDf[1]))
                 #print(avgSp.shape)
                 avgSp = avgSp[avgSp > 0]
                 print(avgSp.shape)
@@ -727,7 +727,7 @@ class ConditionalLeastSquaresLogLin():
             Xs = np.array([r.flatten() for r in Xs])
             Xs = sm.add_constant(Xs)
 
-            spr = df['spread'].apply(lambda x: np.mean(x[x>0]), axis = 1)
+            spr = df['spread'].apply(lambda x: np.mean(x[x>0]), axis = 1)**spreadBeta
             spr = spr.values.reshape((len(spr),1))
             XsIS = Xs*spr
             Xs_oth = Xs
