@@ -774,13 +774,13 @@ class ConditionalLeastSquaresLogLin():
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                         ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
                         lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Bid"]])
-                        boundsY_u.append(np.append([1/12], ub*np.array(12*[1] + (nTimesteps-1)*list(r))))
+                        boundsY_u.append(np.append([1.], ub*np.array(12*[1] + (nTimesteps-1)*list(r))))
                         boundsY_l.append(np.append([0], lb*np.array( 12*[0] + (nTimesteps-1)*list(r))))
                     if id == "inspreadAsk":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
                         ub = np.max([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
                         lb = np.min([0,boundsDict[cols[i] +"->" + "lo_inspread_Ask"]])
-                        boundsY_u.append(np.append([1/12], ub*np.array(12*[1] + (nTimesteps-1)*list(r))))
+                        boundsY_u.append(np.append([1.], ub*np.array(12*[1] + (nTimesteps-1)*list(r))))
                         boundsY_l.append(np.append([0], lb*np.array( 12*[0] + (nTimesteps-1)*list(r))))
                     if id == "oth":
                         boundsX.append(np.array([0] + 12*[0] + (nTimesteps-1)*list(r)))
@@ -789,7 +789,7 @@ class ConditionalLeastSquaresLogLin():
 
                             ub = np.max([0,boundsDict[cols[i] +"->" + col]])
                             lb = np.min([0,boundsDict[cols[i] +"->" + col]])
-                            ubL[j] = np.append([1/12], ub*np.array(12*[1] + (nTimesteps-1)*list(r)))
+                            ubL[j] = np.append([1.], ub*np.array(12*[1] + (nTimesteps-1)*list(r)))
                             lbL[j] = np.append([0], lb*np.array( 12*[0] + (nTimesteps-1)*list(r)))
                         # print(ubL, lbL)
                         boundsY_u.append(ubL)
@@ -850,14 +850,14 @@ class ConditionalLeastSquaresLogLin():
                         l = np.vstack([-1*constrsY_alt, boundsY_l[:,i].reshape(boundsY_l.shape[0], 1)])*mult
                         u = np.vstack([constrsY_alt, boundsY_u[:,i].reshape(boundsY_u.shape[0], 1)])*mult
                         prob = osqp.OSQP()
-                        prob.setup(R, q, G, l, u, eps_abs = 1e-4, eps_rel = 1e-4, eps_prim_inf=1e-6, eps_dual_inf=1e-6, polish=True, polish_refine_iter = 100, max_iter = 1000000)
+                        prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=1e-7, eps_dual_inf=1e-7, polish=True, polish_refine_iter = 100, max_iter = 1000000)
                         res = prob.solve()
                         k  =1
                         while res.info.status_val in [3, 4]:
                             print("retrying with bigger tolerance")
                             mult = 10**k
                             prob = osqp.OSQP()
-                            prob.setup(R, q, G, l, u, eps_abs = 1e-4, eps_rel = 1e-4, eps_prim_inf=mult*1e-6, eps_dual_inf=mult*1e-6, polish=True, polish_refine_iter = 100, max_iter = 1000000)
+                            prob.setup(R, q, G, l, u, eps_abs = 1e-6, eps_rel = 1e-6, eps_prim_inf=mult*1e-7, eps_dual_inf=mult*1e-7, polish=True, polish_refine_iter = 100, max_iter = 1000000)
                             res = prob.solve()
                             k+=1
                         p += [res.x]
