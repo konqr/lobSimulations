@@ -224,6 +224,8 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 points[j,np.where(arrTmp < 1e-10),1]= np.nan
                 # finally
                 points[j,nanidxs,1] = np.nan
+            alphaInit = np.nanmedian(points[:,0,1])
+            if alphaInit == np.nan: alphaInit = 0
             v = points.reshape((numDays*17, 2))
             v = v[~np.isnan(v[:,1]),:]
             # denoising complete #
@@ -232,7 +234,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
-            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm))
+            pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm), alphaInit = alphaInit )
             params[k] = (side, pars)
 
             plt.figure()
