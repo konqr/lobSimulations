@@ -48,7 +48,7 @@ class ParametricFit():
         thetas = params
         return thetas, cov
 
-    def fitPowerLawCutoffNormConstrained(self, norm): # a not the same as norm in calibration
+    def fitPowerLawCutoffNormConstrained(self, norm, alphaInit): # a not the same as norm in calibration
         def powerLawCutoff(time, beta, gamma):
             alpha = norm*(gamma*(beta - 1))
             funcEval = alpha/((1 + gamma*time)**beta)
@@ -59,7 +59,7 @@ class ParametricFit():
             return np.array([f*(-1*np.log(1+gamma*time)), f*(-1*beta)*gamma/(1+gamma*time)]).T
         Xs = np.hstack( [d[0] for d in self.data] )
         Ys = np.hstack([d[1] for d in self.data])
-        alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
+        # alphaInit = np.median(Ys.reshape((len(Ys)//17, 17))[:,0])
         # print(Ys.reshape((len(Ys)//17, 17))[:,0])
         params, cov = curve_fit(powerLawCutoff, Xs, Ys, maxfev = int(1e6), jac = jac, p0 = [ 1.7, alphaInit/(norm*0.7)], bounds = ([0,0], [3, np.inf]), method="dogbox") #bounds=([0, 0], [1, 2]),
         # print(norm*(gamma*(beta - 1)/(params[]*(params[0] - 1)))
