@@ -227,6 +227,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             alphaInit = np.abs(np.nanmedian(points[:,0,1]))
             i = 1
             while alphaInit == np.nan:
+                print("AlphaInit is nan, moving to next time index")
                 alphaInit = np.abs(np.nanmedian(points[:,i,1]))
                 i +=1
             v = points.reshape((numDays*17, 2))
@@ -237,6 +238,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
+            print(alphaInit)
             pars, resTemp = ParametricFit(np.abs(v)).fitPowerLawCutoffNormConstrained(norm= np.abs(norm), alphaInit = alphaInit )
             params[k] = (side, pars)
 
