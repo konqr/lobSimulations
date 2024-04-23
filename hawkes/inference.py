@@ -226,18 +226,20 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
                 points[j,nanidxs,1] = np.nan
             alphaInit = np.abs(np.nanmedian(points[:,0,1]))
             i = 1
+            skip =False
             while np.isnan(alphaInit):
                 print("AlphaInit is nan, moving to next time index")
                 alphaInit = np.abs(np.nanmedian(points[:,i,1]))
                 i +=1
                 if i == 17:
                     print("skipping "+ k + " norm " + str(np.average(norms[k])))
-                    continue
+                    skip = True
+                    break
             v = points.reshape((numDays*17, 2))
             v = v[~np.isnan(v[:,1]),:]
             # denoising complete #
             norm = np.average(norms[k])
-            if np.abs(norm) < 1e-3:
+            if skip or (np.abs(norm) < 1e-3):
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
