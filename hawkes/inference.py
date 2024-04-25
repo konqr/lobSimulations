@@ -205,7 +205,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             for j in range(numDays):
                 arr = points[j,:,1]
                 # 1 to len -1
-                arrTmp = copy.deepcopy(arr)
+                arrTmp = copy.deepcopy(np.abs(arr))
                 nanidxs = []
                 exit= False
                 while exit is False:
@@ -272,10 +272,28 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             plt.savefig("/SAN/fca/Konark_PhD_Experiments/results/"+ ric + "_PlotDenoised_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_" + k + ".png")
 
             print(k, params[k])
+    mat = np.zeros((12,12))
+    for i in range(12):
+        for j in range(12):
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
+            if kernelParams is None: continue
+            mat[i][j]  = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+    avgLambdaArr = []
+    for c in cols:
+        avgLambdaArr.append(np.average(avgLambda[c]))
+    print(avgLambdaArr)
+    todMult = []
+    for c in cols:
+        todMult.append(np.mean([1/i for i in list(tod[c].values())]))
+    todMult = np.diag(todMult)
+    exos = np.dot(todMult - mat, np.array(avgLambdaArr).transpose())
+    print(exos)
+    for i, col in zip(np.arange(12), cols):
+        params[col] = exos[i]
     for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
         params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
         params[k+"Bid"] = params[k+"Ask"]
-    with open(l.dataPath + ric + "_ParamsInferredWCutoff_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_ParamsInferredWCutoffDiagMu_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 
