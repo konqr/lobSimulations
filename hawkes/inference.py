@@ -288,7 +288,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     print(todMult)
     todMult = np.diag(todMult)
     print(todMult-mat)
-    exos = np.dot(np.eye(len(cols)) - mat, np.array(avgLambdaArr).transpose())
+    exos = np.dot(np.eye(len(cols)) - mat.transpose(), np.array(avgLambdaArr).transpose())
     print(exos)
     for i, col in zip(np.arange(12), cols):
         params[col] = exos[i]
