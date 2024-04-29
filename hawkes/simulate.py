@@ -147,7 +147,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
-                if s - tau >= 500: continue
+                if s - tau >= 10: continue
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
                     kernelParams = params.get(cols[i] + "->" + cols[j], None)
