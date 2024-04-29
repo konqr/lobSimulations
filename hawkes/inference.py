@@ -239,7 +239,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
             v = v[~np.isnan(v[:,1]),:]
             # denoising complete #
             norm = np.average(norms[k])
-            if skip or (np.abs(norm) < 1e-3):
+            if skip or (np.abs(norm) < 5e-2):
                 continue
             side = np.sign(norm)
             # if np.abs(norm) > 1: norm = 0.99
