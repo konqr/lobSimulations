@@ -146,7 +146,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             decays[i] = todMult*decays[i]
         for i in range(len(Ts)):
             taus = Ts[i]
-            for tau in taus:
+            idx = np.searchsorted(taus, s - 10)
+            for tau in taus[idx:]:
                 if s - tau >= 10: continue
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
