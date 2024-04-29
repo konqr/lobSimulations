@@ -104,7 +104,7 @@ class ParametricFit():
             thetas = thetasPowerLaw
         return thetas
 
-def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169, spreadBeta = 0.7479):
+def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169, spreadBeta = 0.7479, resID = ""):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
 
@@ -295,7 +295,7 @@ def run(sDate, eDate, ric = "AAPL.OQ" , suffix  = "_IS_scs", avgSpread = 0.0169,
     for k in ["lo_top_", "lo_deep_", "co_top_", "co_deep_", "mo_", "lo_inspread_"]:
         params[k+"Ask"] = 0.5*(params[k+"Ask"]+params[k+"Bid"])
         params[k+"Bid"] = params[k+"Ask"]
-    with open(l.dataPath + ric + "_ParamsInferredWCutoffEyeMu_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
+    with open(l.dataPath + ric + "_ParamsInferredWCutoffEyeMu_" + resID + "_" + str(sDate.strftime("%Y-%m-%d")) + "_" + str(eDate.strftime("%Y-%m-%d")) + "_CLSLogLin_" + str(len(timegridLin)) , "wb") as f: #"/home/konajain/params/"
         pickle.dump(params, f)
     return params, res
 
