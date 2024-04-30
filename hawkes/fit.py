@@ -2,22 +2,19 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.api import VAR
 import statsmodels.api as sm
-# from tick.hawkes import HawkesConditionalLaw, HawkesExpKern, HawkesEM
+from tick.hawkes import HawkesConditionalLaw, HawkesExpKern, HawkesEM,  HawkesSumExpKern
 import pickle
 import gc
-from sklearn.linear_model import LinearRegression, ElasticNet, SGDRegressor, Ridge
-import time
+from sklearn.linear_model import LinearRegression, SGDRegressor, Ridge
 import cvxpy as cp
 import datetime as dt
 from scipy.optimize import lsq_linear
 import osqp
-import scipy as sp
 from scipy import sparse
 # import sys
 # sys.path.append("/home/konajain/code/nphc2")
 # from nphc.main import NPHC, starting_point
 from scipy.linalg import inv
-import sys
 # sys.path.append("/home/konajain/code")
 # from aslsd.functionals.kernels.basis_kernels. \
 #     basis_kernel_exponential import ExponentialKernel
@@ -1055,5 +1052,19 @@ class ASLSD():
         fig = mhp.plot_kernels(dpi=None, figsize=(100,100), save = True,  filename = "/SAN/fca/Konark_PhD_Experiments/results/aslsd_fit_kernels_2exp_"+self.dates[0] + "_" + self.dates[-1]+".png")
         mhp.save("/SAN/fca/Konark_PhD_Experiments/extracted/aslsd_params_fit_2exp_"+self.dates[0] + "_" + self.dates[-1])
         return
+
+class MLE():
+
+    def __init__(self, data, **kwargs):
+        self.data = data
+        self.cfg = kwargs
+
+    def fit(self):
+
+        hawkes_learner = HawkesSumExpKern(decays = [1.7e3, 0.9*1.7e3, 0.99*1.7e3, 0.999*1.7e3], verbose = True)
+        hawkes_learner.fit(self.data)
+        baseline = hawkes_learner.baseline
+        kernels = hawkes_learner.coeffs
+        return (baseline, kernels)
 
 
