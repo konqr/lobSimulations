@@ -455,7 +455,9 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
 
     return
 
-def runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric):
+def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
+    cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     simPriceChangeTimes = []
 
     for path in paths:
@@ -490,6 +492,36 @@ def runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric):
     plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True)
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
+
+    times = {}
+    for d in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+        try:
+            data = pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/"+ric+"_"+ d.strftime("%Y-%m-%d") +"_12D.csv")
+        except:
+            continue
+        # data = data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
+        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
+        for k in data_times:
+            tmp = times.get(k, [])
+            times[k]=np.append(tmp, np.diff(data_times[k]) )
+    times_Sim = {}
+    for l in paths:
+        with open(l, "rb") as f:
+            results = pickle.load(f)
+        data = pd.DataFrame(results[0][1:], columns = ["event", "Time", "tmp"])
+        # data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
+        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
+        for k in data_times:
+            tmp = times_Sim.get(k, [])
+            times_Sim[k]=np.append(tmp, np.diff(data_times[k]) )
+    for c in cols:
+        plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
+        plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated")
+        plt.legend()
+        plt.title(c + " : Inter-arrival time")
+        plt.xlabel("$log_{10}(Time)$")
+        plt.ylabel("Probability Density")
+        fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_"+c+"Distribution.png")
     return
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
@@ -500,7 +532,7 @@ def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), 
     runACF(paths, resultsPath, sDate, eDate, ric)
     runPricePaths(paths, resultsPath, sDate, eDate, ric)
     runTODCheck(paths, resultsPath, sDate, eDate,ric)
-    runPriceChangeTimes(paths, resultsPath, sDate, eDate, ric)
+    runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric)
     # runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath)
 
     # TODO: qq for interevent time, priceChangeTime - q reactive HP uses it
