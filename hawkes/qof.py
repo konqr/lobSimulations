@@ -159,7 +159,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
+
         countSim += 1
         times = np.append([0], np.array(data[0][1:])[:,1])
         lob = data[1]
@@ -197,7 +197,6 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
 
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
@@ -268,7 +267,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
+
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
@@ -323,7 +322,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
+
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
@@ -387,7 +386,7 @@ def runTODCheck(paths, resultsPath, sDate, eDate,ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
+
         df = pd.DataFrame(np.array(results[0][1:]), columns = ["event", "time", "x"])
         df['tod'] = df.time.astype(float).apply(lambda x: np.min([12,int(np.floor(x/1800))]))
         n = df.groupby(["event","tod"]).count()
@@ -511,7 +510,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
+
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
@@ -564,7 +563,6 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-                continue
         data = pd.DataFrame(results[0][1:], columns = ["event", "Time", "tmp"])
         # data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
         data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
