@@ -1059,11 +1059,456 @@ class MLE():
         self.data = data
         self.cfg = kwargs
 
-    def fit(self, tol=1e-6, max_iter=100000, elastic_net_ratio = 0, penalty = "none"):
-        hawkes_learner = HawkesSumExpKern(decays = [1.7e3, 0.9*1.7e3, 0.99*1.7e3, 0.999*1.7e3], verbose = True, penalty = penalty, tol=tol, max_iter=max_iter, elastic_net_ratio =elastic_net_ratio)
+    def fit(self, tol=1e-6, max_iter=100000, elastic_net_ratio = 0, penalty = "none", solver = "bfgs"):
+        hawkes_learner = HawkesSumExpKern(decays = [1.7e3, 0.9*1.7e3, 0.99*1.7e3, 0.999*1.7e3],solver=solver, verbose = True, penalty = penalty, tol=tol, max_iter=max_iter, elastic_net_ratio =elastic_net_ratio)
         hawkes_learner.fit(self.data)
         baseline = hawkes_learner.baseline
         kernels = hawkes_learner.coeffs
         return (baseline, kernels)
+
+class Optimizer:
+    def projectBounds(self, params, LB, UB):
+        params[params < LB] = LB
+        params[params > UB] = UB
+
+    def ComputeWorkingSet(self, params, grad, LB, UB):
+        mask = np.ones_like(grad, dtype=int)
+        mask[(params < LB + self.optTol * 2) & (grad >= 0)] = 0
+        mask[(params > UB - self.optTol * 2) & (grad <= 0)] = 0
+        working = np.where(mask == 1)[0]
+        return working
+
+    def isLegal(self, x):
+        return not np.isnan(x).any()
+
+    def lbfgsUpdate(self, y, s, corrections, old_dirs, old_stps, Hdiag):
+        ys = np.dot(y, s)
+        if ys > 1e-10:
+            numCorrections = old_dirs.shape[1]
+
+            if numCorrections < corrections:
+                old_dirs = np.hstack([old_dirs, np.expand_dims(s, axis=1)])
+                old_stps = np.hstack([old_stps, np.expand_dims(y, axis=1)])
+            else:
+                old_dirs[:, :-1] = old_dirs[:, 1:]
+                old_stps[:, :-1] = old_stps[:, 1:]
+                old_dirs[:, -1] = s
+                old_stps[:, -1] = y
+
+            Hdiag = ys / np.dot(y, y)
+
+    def lbfgs(self, g, s, y, Hdiag):
+        k = s.shape[1]
+
+        ro = np.zeros(k)
+        for i in range(k):
+            ro[i] = 1 / np.dot(y[:, i], s[:, i])
+
+        q = np.zeros((len(g), k + 1))
+        r = np.zeros((len(g), k + 1))
+        al = np.zeros(k)
+        be = np.zeros(k)
+
+        q[:, -1] = g
+
+        for i in range(k - 1, -1, -1):
+            al[i] = ro[i] * np.dot(s[:, i], q[:, i + 1])
+            q[:, i] = q[:, i + 1] - al[i] * y[:, i]
+
+        r[:, 0] = Hdiag * q[:, 0]
+
+        for i in range(k):
+            be[i] = ro[i] * np.dot(y[:, i], r[:, i])
+            r[:, i + 1] = r[:, i] + s[:, i] * (al[i] - be[i])
+
+        return r[:, -1]
+
+    def PLBFGS(self, LB, UB):
+        self.maxIter_ = 10000
+
+        print("{:10} {:10} {:10} {:10} {:10}".format("Iteration", "FunEvals", "Step Length", "Function Val", "Opt Cond"))
+        nVars = len(self.process_.GetParameters())
+
+        x = (np.random.randn(nVars) + 1) * 0.5
+        self.projectBounds(x, LB, UB)
+
+        f = 0
+        g = np.zeros_like(x)
+        self.process_.SetParameters(x)
+        self.process_.NegLoglikelihood(f, g)
+
+        working = self.ComputeWorkingSet(x, g, LB, UB)
+
+        if len(working) == 0:
+            print("All variables are at their bound and no further progress is possible at initial point")
+            return
+        elif np.linalg.norm(g[working]) <= self.optTol:
+            print("All working variables satisfy optimality condition at initial point")
+            return
+
+        i = 1
+        funEvals = 1
+        maxIter = self.maxIter_
+
+        corrections = 100
+        old_dirs = np.zeros((nVars, 0))
+        old_stps = np.zeros((nVars, 0))
+        Hdiag = 0
+        suffDec = 1e-4
+
+        g_old = g.copy()
+        x_old = x.copy()
+
+        while funEvals < maxIter:
+            d = np.zeros_like(x)
+
+            if i == 1:
+                d[working] = -g[working]
+                Hdiag = 1
+            else:
+                self.lbfgsUpdate(g - g_old, x - x_old, corrections, old_dirs, old_stps, Hdiag)
+                d[working] = self.lbfgs(-g[working], old_dirs[:, working], old_stps[:, working], Hdiag)
+
+            g_old = g.copy()
+            x_old = x.copy()
+
+            f_old = f
+            gtd = np.dot(g, d)
+            if gtd > -self.optTol:
+                print("Directional Derivative below optTol")
+                break
+
+            if i == 1:
+                t = min(1 / np.sum(np.abs(g[working])), 1.0)
+            else:
+                t = 1.0
+
+            x_new = x + t * d
+            self.projectBounds(x_new, LB, UB)
+            self.process_.SetParameters(x_new)
+            self.process_.NegLoglikelihood(f_new, g_new)
+            funEvals += 1
+
+            lineSearchIters = 1
+            while f_new > f + suffDec * np.dot(g, x_new - x) or np.isnan(f_new):
+                temp = t
+                t = 0.1 * t
+
+                if t < temp * 1e-3:
+                    t = temp * 1e-3
+                elif t > temp * 0.6:
+                    t = temp * 0.6
+
+                if np.sum(np.abs(t * d)) < self.optTol:
+                    print("Line Search failed")
+                    t = 0
+                    f_new = f
+                    g_new = g
+                    break
+
+                x_new = x + t * d
+                self.projectBounds(x_new, LB, UB)
+                self.process_.SetParameters(x_new)
+                self.process_.NegLoglikelihood(f_new, g_new)
+                funEvals += 1
+                lineSearchIters += 1
+
+            x = x_new
+            f = f_new
+            g = g_new
+
+            working = self.ComputeWorkingSet(x, g, LB, UB)
+
+            if len(working) == 0:
+                print("{:10} {:10} {:10.2f} {:10.2f} {:10}".format(i, funEvals, t, f, 0))
+                print("All variables are at their bound and no further progress is possible")
+                break
+            else:
+                print("{:10} {:10} {:10.2f} {:10.2f} {:10.2f}".format(i, funEvals, t, f, np.sum(np.abs(g[working]))))
+
+                if np.linalg.norm(g[working]) <= self.optTol:
+                    print("All working variables satisfy optimality condition")
+                    break
+
+            if np.sum(np.abs(t * d)) < self.optTol:
+                print("Step size below optTol")
+                break
+
+            if np.abs(f - f_old) < self.optTol:
+                print("Function value changing by less than optTol")
+                break
+
+            if funEvals > maxIter:
+                print("Function Evaluations exceed maxIter")
+                break
+
+            i += 1
+
+        print()
+
+class PlainHawkes:
+
+    def __init__(self):
+        self.num_sequences_ = 0
+        self.num_dims_ = 0
+        self.all_exp_kernel_recursive_sum_ = []
+        self.all_timestamp_per_dimension_ = []
+        self.observation_window_T_ = np.array([])
+        self.intensity_itegral_features_ = []
+        self.parameters_ = np.array([])
+        self.Beta_ = np.array([])
+        self.options_ = None
+
+    def InitializeDimension(self, data):
+        num_sequences_ = len(data)
+        self.all_timestamp_per_dimension_ = [[[[] for _ in range(self.num_dims_)] for _ in range(num_sequences_)]]
+
+        for c in range(num_sequences_):
+            seq = data[c].GetEvents()
+
+            for event in seq:
+                self.all_timestamp_per_dimension_[c][event.DimentionID].append(event.time)
+
+    def Initialize(self, data):
+        self.num_sequences_ = len(data)
+        self.num_dims_ = data[0].num_dims()
+        self.all_exp_kernel_recursive_sum_ = np.empty((self.num_sequences_, self.num_dims_, self.num_dims_), dtype=object)
+        self.all_timestamp_per_dimension_ = []  # will be initialized in InitializeDimension function
+        self.observation_window_T_ = np.zeros(self.num_sequences_)
+        self.intensity_integral_features_ = np.zeros((self.num_sequences_, self.num_dims_, self.num_dims_))
+
+        self.InitializeDimension(data)
+
+        for k in range(self.num_sequences_):
+            for m in range(self.num_dims_):
+                for n in range(self.num_dims_):
+                    if len(self.all_timestamp_per_dimension_[k][n]) > 0:
+                        self.all_exp_kernel_recursive_sum_[k][m][n] = np.zeros(len(self.all_timestamp_per_dimension_[k][n]))
+
+                        if m != n:
+                            for j in range(len(self.all_timestamp_per_dimension_[k][m])):
+                                if self.all_timestamp_per_dimension_[k][m][j] < self.all_timestamp_per_dimension_[k][n][0]:
+                                    self.all_exp_kernel_recursive_sum_[k][m][n][0] += np.exp(-self.Beta_[m, n] * (self.all_timestamp_per_dimension_[k][n][0] - self.all_timestamp_per_dimension_[k][m][j]))
+
+                            for i in range(1, len(self.all_timestamp_per_dimension_[k][n])):
+                                value = np.exp(-self.Beta_[m, n] * (self.all_timestamp_per_dimension_[k][n][i] - self.all_timestamp_per_dimension_[k][n][i - 1])) * self.all_exp_kernel_recursive_sum_[k][m][n][i - 1]
+
+                                for j in range(len(self.all_timestamp_per_dimension_[k][m])):
+                                    if (self.all_timestamp_per_dimension_[k][n][i - 1] <= self.all_timestamp_per_dimension_[k][m][j] < self.all_timestamp_per_dimension_[k][n][i]):
+                                        value += np.exp(-self.Beta_[m, n] * (self.all_timestamp_per_dimension_[k][n][i] - self.all_timestamp_per_dimension_[k][m][j]))
+
+                                self.all_exp_kernel_recursive_sum_[k][m][n][i] = value
+                        else:
+                            for i in range(1, len(self.all_timestamp_per_dimension_[k][n])):
+                                self.all_exp_kernel_recursive_sum_[k][m][n][i] = np.exp(-self.Beta_[m, n] * (self.all_timestamp_per_dimension_[k][n][i] - self.all_timestamp_per_dimension_[k][n][i - 1])) * (1 + self.all_exp_kernel_recursive_sum_[k][m][n][i - 1])
+
+        for c in range(self.num_sequences_):
+            self.observation_window_T_[c] = data[c].GetTimeWindow()
+
+            for m in range(self.num_dims_):
+                for n in range(self.num_dims_):
+                    event_dim_m = np.array(self.all_timestamp_per_dimension_[c][m])
+                    self.intensity_integral_features_[c, m, n] = (1 - np.exp(-self.Beta_[m, n] * (self.observation_window_T_[c] - event_dim_m))).sum()
+
+    def Intensity(self, t, data):
+        intensity_dim = np.zeros(self.num_dims_)
+
+        Lambda0_ = self.parameters_[:self.num_dims_]
+        Alpha_ = self.parameters_[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        intensity_dim = Lambda0_
+
+        seq = data.GetEvents()
+
+        for event in seq:
+            if event.time < t:
+                for d in range(self.num_dims_):
+                    intensity_dim[d] += Alpha_[event.DimensionID, d] * np.exp(-self.Beta_[event.DimensionID, d] * (t - event.time))
+            else:
+                break
+
+        return np.sum(intensity_dim)
+
+    def IntensityUpperBound(self, t, L, data):
+        intensity_upper_dim = np.zeros(self.num_dims_)
+
+        Lambda0_ = self.parameters_[:self.num_dims_]
+        Alpha_ = self.parameters_[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        intensity_upper_dim = Lambda0_
+
+        seq = data.GetEvents()
+
+        for event in seq:
+            if event.time <= t:
+                for d in range(self.num_dims_):
+                    intensity_upper_dim[d] += Alpha_[event.DimensionID, d] * np.exp(-self.Beta_[event.DimensionID, d] * (t - event.time))
+            else:
+                break
+
+        return np.sum(intensity_upper_dim)
+
+    def NegLoglikelihood(self, objvalue, gradient):
+        if not self.all_timestamp_per_dimension_:
+            print("Process is uninitialized with any data.")
+            return
+
+        gradient[:] = np.zeros(self.num_dims_ * (1 + self.num_dims_))
+
+        grad_lambda0_vector = gradient[:self.num_dims_].reshape(-1, 1)
+        grad_alpha_matrix = gradient[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        Lambda0_ = self.parameters_[:self.num_dims_].reshape(-1, 1)
+        Alpha_ = self.parameters_[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        objvalue[0] = 0
+
+        for k in range(self.num_sequences_):
+            timestamp_per_dimension = self.all_timestamp_per_dimension_[k]
+            exp_kernel_recursive_sum = self.all_exp_kernel_recursive_sum_[k]
+
+            for n in range(self.num_dims_):
+                obj_n = 0
+
+                for i in range(len(timestamp_per_dimension[n])):
+                    local_sum = Lambda0_[n] + 1e-4
+
+                    for m in range(self.num_dims_):
+                        local_sum += Alpha_[m, n] * exp_kernel_recursive_sum[m][n][i]
+
+                    obj_n += np.log(local_sum)
+
+                    grad_lambda0_vector[n] += 1 / local_sum
+
+                    for m in range(self.num_dims_):
+                        grad_alpha_matrix[m, n] += exp_kernel_recursive_sum[m][n][i] / local_sum
+
+                obj_n -= ((Alpha_[:, n] / self.Beta_[:, n]) * self.intensity_integral_features_[k][:, n]).sum()
+
+                grad_alpha_matrix[:, n] -= self.intensity_integral_features_[k][:, n] / self.Beta_[:, n]
+
+                obj_n -= self.observation_window_T_[k] * Lambda0_[n]
+
+                grad_lambda0_vector[n] -= self.observation_window_T_[k]
+
+                objvalue[0] += obj_n
+
+        gradient /= -self.num_sequences_
+        objvalue /= -self.num_sequences_
+
+        # Regularization for base intensity
+        if self.options_.base_intensity_regularizer == 'L22':
+            grad_lambda0_vector += self.options_.coefficients["LAMBDA"] * Lambda0_
+            objvalue += 0.5 * self.options_.coefficients["LAMBDA"] * np.sum(Lambda0_ ** 2)
+
+        elif self.options_.base_intensity_regularizer == 'L1':
+            grad_lambda0_vector += self.options_.coefficients["LAMBDA"]
+            objvalue += self.options_.coefficients["LAMBDA"] * np.sum(np.abs(Lambda0_))
+
+        # Regularization for excitation matrix
+        grad_alpha_vector = gradient[self.num_dims_:].reshape(-1, 1)
+        alpha_vector = self.parameters_[self.num_dims_:].reshape(-1, 1)
+
+        if self.options_.excitation_regularizer == 'L22':
+            grad_alpha_vector += self.options_.coefficients["BETA"] * alpha_vector
+            objvalue += 0.5 * self.options_.coefficients["BETA"] * np.sum(alpha_vector ** 2)
+
+        elif self.options_.excitation_regularizer == 'L1':
+            grad_alpha_vector += self.options_.coefficients["BETA"]
+            objvalue += self.options_.coefficients["BETA"] * np.sum(np.abs(alpha_vector))
+
+        return
+
+    def Gradient(self, k, gradient):
+        if not self.all_timestamp_per_dimension_:
+            print("Process is uninitialized with any data.")
+            return
+
+        gradient[:] = np.zeros(self.num_dims_ * (1 + self.num_dims_))
+
+        grad_lambda0_vector = gradient[:self.num_dims_].reshape(-1, 1)
+        grad_alpha_matrix = gradient[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        Lambda0_ = self.parameters_[:self.num_dims_].reshape(-1, 1)
+        Alpha_ = self.parameters_[self.num_dims_:].reshape(self.num_dims_, self.num_dims_)
+
+        timestamp_per_dimension = self.all_timestamp_per_dimension_[k]
+        exp_kernel_recursive_sum = self.all_exp_kernel_recursive_sum_[k]
+
+        for n in range(self.num_dims_):
+            for i in range(len(timestamp_per_dimension[n])):
+                local_sum = Lambda0_[n]
+
+                for m in range(self.num_dims_):
+                    local_sum += Alpha_[m, n] * exp_kernel_recursive_sum[m][n][i]
+
+                grad_lambda0_vector[n] += 1 / local_sum
+
+                for m in range(self.num_dims_):
+                    grad_alpha_matrix[m, n] += exp_kernel_recursive_sum[m][n][i] / local_sum
+
+            grad_alpha_matrix[:, n] -= self.intensity_integral_features_[k][:, n] / self.Beta_[:, n]
+
+            grad_lambda0_vector[n] -= self.observation_window_T_[k]
+
+        gradient /= -self.num_sequences_
+
+
+    def fit(self, data, options):
+        self.Initialize(data)
+
+        self.options_ = options
+
+        opt = Optimizer(self)
+
+        opt.PLBFGS(0, 1e10)
+
+        self.RestoreOptionToDefault()
+
+
+    def PredictNextEventTime(self, data, num_simulations):
+        pass  # Implementation not provided
+
+    def IntensityIntegral(self, lower, upper, data):
+        sequences = [data]
+        self.InitializeDimension(sequences)
+
+        Lambda0_ = np.array(self.parameters_[:self.num_dims_])
+        Alpha_ = np.array(self.parameters_[self.num_dims_:].reshape(self.num_dims_, self.num_dims_))
+
+        timestamp_per_dimension = self.all_timestamp_per_dimension_[0]
+
+        integral_value = 0
+
+        for n in range(self.num_dims_):
+            integral_value += Lambda0_[n] * (upper - lower)
+
+            for m in range(self.num_dims_):
+                event_dim_m = np.array(timestamp_per_dimension[m])
+
+                mask = (event_dim_m < lower).astype(float)
+                a = (mask * (((-self.Beta_[m, n] * (lower - event_dim_m)) * mask).exp() - ((-self.Beta_[m, n] * (upper - event_dim_m)) * mask).exp())).sum()
+
+                mask = ((event_dim_m >= lower) & (event_dim_m < upper)).astype(float)
+                b = (mask * (1 - ((-self.Beta_[m, n] * (upper - event_dim_m)) * mask).exp())).sum()
+
+                integral_value += (Alpha_[m, n] / self.Beta_[m, n]) * (a + b)
+
+        return integral_value
+
+    def RestoreOptionToDefault(self):
+        pass  # Implementation not provided
+
+    def AssignDim(self, intensity_dim):
+        pass  # Implementation not provided
+
+    def UpdateExpSum(self, t, last_event_per_dim, expsum):
+        pass  # Implementation not provided
+
+    def Simulate(self, vec_T, sequences):
+        pass  # Implementation not provided
+
+    def Simulate(self, n, num_sequences, sequences):
+        pass  # Implementation not provided
 
 
