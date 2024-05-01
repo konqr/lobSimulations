@@ -429,9 +429,9 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
             lob.append(lob0)
             print(lob0)
             lobL3.append(lob0_l3)
-        if (filePathName is not None)&(len(T)%100 == 0):
+        if (filePathName is not None)&(len(Ts)%100 == 0):
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
-                pickle.dump((T, lob, lobL3), f)
+                pickle.dump((Ts, lob, lobL3), f)
     return Ts, lob, lobL3
 
 
