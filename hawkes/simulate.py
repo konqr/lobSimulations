@@ -86,6 +86,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 params = pickle.load(f)
             with open(todPath, "rb") as f:
                 tod = pickle.load(f)
+            tryer =  6
         except:
             time.sleep(1)
             tryer +=1

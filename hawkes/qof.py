@@ -156,6 +156,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
             try:
                 with open(path, "rb") as f:
                     data = pickle.load(f)
+                tryer = 6
             except:
                 time.sleep(1)
                 tryer +=1
@@ -194,6 +195,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer = 6
             except:
                 time.sleep(1)
                 tryer +=1
@@ -264,6 +266,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer = 6
             except:
                 time.sleep(1)
                 tryer +=1
@@ -319,6 +322,7 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer =6
             except:
                 time.sleep(1)
                 tryer +=1
@@ -383,6 +387,7 @@ def runTODCheck(paths, resultsPath, sDate, eDate,ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer  = 6
             except:
                 time.sleep(1)
                 tryer +=1
@@ -507,6 +512,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer = 6
             except:
                 time.sleep(1)
                 tryer +=1
