@@ -209,7 +209,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
 
-def simulate(T , paramsPath , todPath, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
+def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -377,7 +377,10 @@ def simulate(T , paramsPath , todPath, filePathName = None, Pis = None, Pi_Q0 = 
         Pi_Q0["Bid_deep"] = Pi_Q0["Ask_deep"]
 
 
-    s = 0
+    if s0 is None:
+        s = 0
+    else:
+        s = s0
     Ts,lob,lobL3 = [],[],[]
     _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
     Ts.append(0)
