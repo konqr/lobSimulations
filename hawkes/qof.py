@@ -242,12 +242,28 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
+    # Get histogram
+    histEmp, bins = np.histogram(100*np.hstack(empSpreads), bins=100, density = True)
+    histSim, binsSim = np.histogram(100*np.hstack(simSpreads), bins= 100, density =True)
+    # Threshold frequency
+    freq = 1e-4
+
+    # Zero out low values
+    histEmp[np.where(histEmp <= freq)] = 0
+    histSim[np.where(histSim <= freq)] = 0
+
+    # Plot
+    width = 0.7 * (bins[1] - bins[0])
+    center = (bins[:-1] + bins[1:]) / 2
+
     fig = plt.figure()
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
-    plt.hist(100*np.hstack(empSpreads), bins = 100, label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(100*np.hstack(simSpreads), bins = 100, label = "Simulated", alpha = 0.5, density = True)
+    plt.bar(center, histEmp, align='center', width=width, label = "Empirical", aplha = 0.5)
+    width = 0.7 * (binsSim[1] - binsSim[0])
+    center = (binsSim[:-1] + binsSim[1:]) / 2
+    plt.bar(center, histSim, align='center', width=width, label = "Simulated", aplha = 0.5)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_spreadDistribution.png")
@@ -576,6 +592,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             tmp = times_Sim.get(k, [])
             times_Sim[k]=np.append(tmp, np.diff(data_times[k]) )
     for c in cols:
+        fig = plt.figure()
         plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
         plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated")
         plt.legend()
