@@ -287,34 +287,27 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
                                (200, 8.539722286633611e-05),
                                (500, 1.0538996186294693e-05)]]}
         elif "INTC.OQ" in paramsPath:
-            Pis = {'lo_top_Bid': [0.0012032594626957276,
-                                  [(1, 0.0004058911201508531),
-                                   (10, 0.004937100775363866),
-                                   (50, 0.011839578897579354),
-                                   (100, 4.2540607105295814e-05),
-                                   (200, 1.3215923263800984e-05),
-                                   (500, 4.946493652744191e-06)]],
-                   'lo_deep_Bid': [0.001446173610413779,
-                                   [(1, 0.0009504555025436379),
-                                    (10, 0.005970974450434397),
-                                    (50, 0.011838812712121737),
-                                    (100, 7.747866832159131e-05),
-                                    (200, 4.951687702705543e-06),
-                                    (500, 1.4416468076059402e-06)]],
-                   'lo_inspread_Bid': [0.0005940490977412251,
-                                       [(1, 0.0028645165426634195),
-                                        (10, 0.0007559432806511614),
-                                        (50, 0.0007559432806511614),
-                                        (100, 0.0007559432806511614),
-                                        (200, 0.0006377821948293843),
-                                        (500, 0.00011229632687737945)]],
-                   'mo_Bid': [0.0038746648120546903,
-                              [(1, 0.005292089328158008),
-                               (10, 0.0007267533052621235),
-                               (50, 0.0007267533052621235),
-                               (100, 0.0007267533052621235),
-                               (200, 0.0003865080466058066),
-                               (500, 6.402501409270695e-05)]]}
+            Pis = {'lo_deep_Bid': [0.001852053034664248,
+                                   [(1, 0.002939808343982239),
+                                    (10, 0.0008345574724029834),
+                                    (50, 0.006765547673248046),
+                                    (100, 1.4993234335200165)]],
+                   'lo_inspread_Bid': [0.000777255592021559,
+                                       [(1, 0.0010509182689977994),
+                                        (10, 0.0011177500567861932),
+                                        (50, 0.0003950002143943747),
+                                        (100, 0.729657046574722)]],
+                   'lo_top_Bid': [0.0018096999936874803,
+                                  [(1, 0.004068520537671112),
+                                   (10, 0.0),
+                                   (50, 0.0023684378938113593),
+                                   (100, 1.2015631555690254)]],
+                   'mo_Bid': [0.0038590215719931324,
+                              [(1, 0.06967670505278645),
+                               (10, 0.013356445214752877),
+                               (50, 0.013653531059951492),
+                               (100, 1.5095435525547378),
+                               (200, 0.2867609734608456)]]}
         Pis["mo_Ask"] = Pis["mo_Bid"]
         Pis["lo_top_Ask"] = Pis["lo_top_Bid"]
         Pis["lo_inspread_Ask"] = Pis["lo_inspread_Bid"]
@@ -407,7 +400,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
                 p = pi[0]
                 dd = pi[1]
                 pi = np.array([p*(1-p)**k for k in range(1,10000)])
-                pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
                 for i, p_i in dd:
                     pi[i-1] = p_i + pi[i-1]
                 pi = pi/sum(pi)
@@ -461,7 +454,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
             p = pi[0]
             dd = pi[1]
             pi = np.array([p*(1-p)**k for k in range(1,100000)])
-            pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+            # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
             for i, p_i in dd:
                 pi[i-1] = p_i + pi[i-1]
             pi = pi/sum(pi)
@@ -549,7 +542,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                     p = pi[0]
                     dd = pi[1]
                     pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
                     for i, p_i in dd:
                         pi[i-1] = p_i + pi[i-1]
                     pi = pi/sum(pi)
@@ -579,7 +572,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                     p = pi[0]
                     dd = pi[1]
                     pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
                     for i, p_i in dd:
                         pi[i-1] = p_i + pi[i-1]
                     pi = pi/sum(pi)
@@ -598,7 +591,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                     p = pi[0]
                     dd = pi[1]
                     pi = np.array([p*(1-p)**k for k in range(1,100000)])
-                    pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+                    # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
                     for i, p_i in dd:
                         pi[i-1] = p_i + pi[i-1]
                     pi = pi/sum(pi)

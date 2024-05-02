@@ -21,7 +21,7 @@ from scipy.linalg import inv
 # from aslsd.functionals.kernels.kernel import KernelModel
 # from aslsd.models.hawkes.linear.mhp import MHP
 # from aslsd.stats.events.process_path import ProcessPath
-
+import copy
 
 class ConditionalLeastSquares():
     # Kirchner 2015: An estimation procedure for the Hawkes Process
@@ -934,6 +934,8 @@ class ConditionalLeastSquaresLogLin():
         return
 
     def fitOrderSizeDistris(self):
+
+        resultsPath = (self.cfg.get("loader").dataPath).replace("extracted", "results")
         sizes = {}
         queues = {}
         for i in self.dates:
@@ -944,71 +946,93 @@ class ConditionalLeastSquaresLogLin():
                 continue
             df = data.groupby("event").Size.apply(list).to_dict()
             for k, v in df.items():
+                if "Ask" in k: k = k.replace("Ask", "Bid")
                 sizes[k] = sizes.get(k, []) + v
 
-            queues["Ask Size 1"] = np.append(queues.get("Ask Size 1", []) , data["Ask Size 1"].values)
-            queues["Ask Size 2"] = np.append(queues.get("Ask Size 2", []) , data["Ask Size 2"].values)
-            queues["Bid Size 1"] = np.append(queues.get("Bid Size 1", []) , data["Bid Size 1"].values)
-            queues["Bid Size 2"] = np.append(queues.get("Bid Size 2", []) , data["Bid Size 2"].values)
+            queues["Ask_touch"] = np.append(queues.get("Ask_touch", []) , data["Ask Size 1"].values)
+            queues["Ask_deep"] = np.append(queues.get("Ask_deep", []) , data["Ask Size 2"].values)
+            queues["Ask_touch"] = np.append(queues.get("Ask_touch", []) , data["Bid Size 1"].values)
+            queues["Ask_deep"] = np.append(queues.get("Ask_deep", []) , data["Bid Size 2"].values)
         params = {}
-        roundNums = [1,10,50,100,200,500]
+
+        #,200,500]
+        for c in sizes.keys():
+            roundNums = [1,10,50,100]
+            if "mo" in c: roundNums += [200]
+            diracs = {}
+            size, freq = np.unique(sizes[c], return_counts = True)
+            size_freq = np.vstack([size, freq])
+            size_freq_copy = copy.deepcopy(size_freq)
+            for num in roundNums:
+                idx = np.where(size_freq[0,:] == num)[0][0]
+                diracs[num] = size_freq_copy[1,idx]/np.sum(freq)
+                size_freq_copy[1,idx] = size_freq_copy[1, idx+1]
+            p = np.sum(size_freq_copy[1,:])/np.sum(np.multiply(size_freq_copy[0,:], size_freq_copy[1,:]))
+            p_dirac = []
+            totalProb = sum([p*(1-p)**(num-1) for num in roundNums])
+            totalObsProb = sum(list(diracs.values()))
+            for num in roundNums:
+                prob = p*(1-p)**(num-1)
+                p_dirac.append((num, np.max([0, (diracs[num]*(totalProb - 1)/(totalObsProb - 1)) - prob])))
+            params[c] = [p, p_dirac]
         hists = {}
         for k, v in sizes.items():
-            n, bins, _ = plt.hist(v, bins = "sqrt", density = True)
+            p , dd  = params[k]
+            pi = np.array([p*(1-p)**k for k in range(1,10000)])
+            # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+            for i, p_i in dd:
+                pi[i-1] = p_i + pi[i-1]
+            pi = pi/sum(pi)
+            fig = plt.figure()
+            n, bins, _ = plt.hist(v, bins = np.arange(1,10000), density = True)
+            plt.plot(np.arange(1,10000), pi, color = "red", alpha = 0.5)
             hists[k] = (n, bins)
-        for k,v in hists.items():
-            print(k)
-            edges = v[1]
-
-            params_rN = {}
-            for r in roundNums:
-                idx = np.searchsorted(edges, r)
-                params_rN[r] = v[0][idx]
-            params[k] = params_rN
-        for k, v in sizes.items():
-            v = np.array(v)
-            d = params[k]
-            i = [x not in roundNums for x in v]
-            d[0] = 1./np.average(v[i])
-            params[k] = d
-        paramsFinal = {}
-        for c in ["lo_top", "lo_deep", "lo_inspread", "mo"]:
-            b = params[c+"_Bid"]
-            a = params[c+"_Ask"]
-            paramsFinal[c+"_Bid"] = [(a[0]+b[0])/2, [(i, (a[i]+b[i])/2) for i in roundNums]]
+            plt.title(k)
+            plt.xscale("log")
+            plt.yscale("log")
+            plt.savefig(resultsPath + self.cfg.get("loader").ric + "_Plot_" + self.dates[0] + "_" + self.dates[-1] + "_orderSizes_"+k+".png")
         with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_orderSizesDict", "wb") as f:
-            pickle.dump(paramsFinal, f)
+            pickle.dump(params, f)
 
-        hists = {}
-        for k, v in queues.items():
-            n, bins, _ = plt.hist(v, bins = "sqrt", density = True)
-            hists[k] = (n, bins)
         params = {}
-        roundNums = [1,10,50,100,200,500,1000]
-        for k,v in hists.items():
-            print(k)
-            edges = v[1]
-
-            params_rN = {}
-            for r in roundNums:
-                idx = np.searchsorted(edges, r)
-                params_rN[r] = v[0][idx]
-            params[k] = params_rN
-        for k, v in queues.items():
-            v = np.array(v)
-            d = params[k]
-            i = [x not in roundNums for x in v]
-            d[0] = 1./np.average(v[i])
-            params[k] = d
-        paramsFinal = {}
-        for c in [" Size 1", " Size 2"]:
-            b = params["Bid"+c]
-            a = params["Ask" + c]
-            id = "deep"
-            if c == " Size 1": id = "touch"
-            paramsFinal["Ask_" + id] = [(a[0]+b[0])/2, [(i, (a[i]+b[i])/2) for i in roundNums]]
+        sizes = copy.deepcopy(queues)
+        #,200,500]
+        for c in sizes.keys():
+            roundNums = [1,10,100, 500, 1000]
+            diracs = {}
+            size, freq = np.unique(sizes[c], return_counts = True)
+            size_freq = np.vstack([size, freq])
+            size_freq_copy = copy.deepcopy(size_freq)
+            for num in roundNums:
+                idx = np.where(size_freq[0,:] == num)[0][0]
+                diracs[num] = size_freq_copy[1,idx]/np.sum(freq)
+                size_freq_copy[1,idx] = size_freq_copy[1, idx+1]
+            p = np.sum(size_freq_copy[1,:])/np.sum(np.multiply(size_freq_copy[0,:], size_freq_copy[1,:]))
+            p_dirac = []
+            totalProb = sum([p*(1-p)**(num-1) for num in roundNums])
+            totalObsProb = sum(list(diracs.values()))
+            for num in roundNums:
+                prob = p*(1-p)**(num-1)
+                p_dirac.append((num, np.max([0, (diracs[num]*(totalProb - 1)/(totalObsProb - 1)) - prob])))
+            params[c] = [p, p_dirac]
+        hists = {}
+        for k, v in sizes.items():
+            p , dd  = params[k]
+            pi = np.array([p*(1-p)**k for k in range(1,10000)])
+            # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+            for i, p_i in dd:
+                pi[i-1] = p_i + pi[i-1]
+            pi = pi/sum(pi)
+            fig = plt.figure()
+            n, bins, _ = plt.hist(v, bins = np.arange(1,10000), density = True)
+            plt.plot(np.arange(1,10000), pi, color = "red", alpha = 0.5)
+            hists[k] = (n, bins)
+            plt.title(k)
+            plt.xscale("log")
+            plt.yscale("log")
+            plt.savefig(resultsPath + self.cfg.get("loader").ric + "_Plot_" + self.dates[0] + "_" + self.dates[-1] + "_queueSizes_"+k+".png")
         with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_queueSizesDict", "wb") as f:
-            pickle.dump(paramsFinal, f)
+            pickle.dump(params, f)
 
         return
 
