@@ -900,6 +900,15 @@ class ConditionalLeastSquaresLogLin():
             df_e = df.loc[df.event == e].groupby(["Date","halfHourId"])['Time'].count().reset_index().groupby("halfHourId")['Time'].mean()
             df_e = df_e/df_e.mean()
             dictTOD[e] = df_e.to_dict()
+        for c in ["lo_deep_", "co_deep_", "lo_top_","co_top_", "mo_", "lo_inspread_" ]:
+            c1 = c + "Ask"
+            c2 = c+"Bid"
+            for k in dictTOD[c1].keys():
+                dictTOD[c1][k] = (dictTOD[c1][k]+dictTOD[c2][k])*0.5
+                dictTOD[c2][k] = dictTOD[c1][k]
+            for k,v in dictTOD[c1].items():
+                dictTOD[c1][k] = v/np.average(list(dictTOD[c1].values()))
+                dictTOD[c2][k] = v/np.average(list(dictTOD[c1].values()))
         with open(self.cfg.get("loader").dataPath + self.cfg.get("loader").ric + "_Params_" + self.dates[0] + "_" + self.dates[-1] + "_dictTOD" , "wb") as f: #"/home/konajain/params/"
             pickle.dump(dictTOD, f)
         return
