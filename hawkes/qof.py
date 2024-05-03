@@ -243,15 +243,18 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
     # Get histogram
-    histEmp, bins = np.histogram(100*np.hstack(empSpreads), bins=100, density = True)
-    histSim, binsSim = np.histogram(100*np.hstack(simSpreads), bins= 100, density =True)
+    histEmp, bins = np.histogram(100*np.hstack(empSpreads), density = True)
+    histSim, binsSim = np.histogram(100*np.hstack(simSpreads), density =True)
     # Threshold frequency
     freq = 1e-4
 
     # Zero out low values
     histEmp[np.where(histEmp <= freq)] = 0
     histSim[np.where(histSim <= freq)] = 0
-
+    bins = bins[np.where(histEmp > 0)]
+    histEmp = histEmp[np.where(histEmp > 0)]
+    binsSim = binsSim[np.where(histSim > 0)]
+    histSim = histSim[np.where(histSim > 0)]
     # Plot
     width = 0.7 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
