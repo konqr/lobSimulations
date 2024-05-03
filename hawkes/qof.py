@@ -243,8 +243,10 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
     # Get histogram
-    histEmp, bins = np.histogram(100*np.hstack(empSpreads), density = True)
-    histSim, binsSim = np.histogram(100*np.hstack(simSpreads), density =True)
+    bins, freq = np.unique(np.round(100*np.hstack(empSpreads)), return_counts = True)
+    histEmp = freq/sum(freq)
+    binsSim, freq = np.unique(np.round(100*np.hstack(simSpreads)), return_counts = True)
+    histSim = freq/sum(freq)
     # Threshold frequency
     freq = 1e-4
 
@@ -257,8 +259,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     histSim = histSim[np.where(histSim > 0)]
     # Plot
     width = 0.99 * (bins[1] - bins[0])
-    center = (bins[:-1] + bins[1:]) / 2
-
+    center = bins[:-1]
     fig = plt.figure()
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks")
@@ -266,7 +267,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
 
     widthSim = 0.99 * (binsSim[1] - binsSim[0])
-    centerSim = (binsSim[:-1] + binsSim[1:]) / 2
+    centerSim = binsSim[:-1]
     plt.bar(centerSim, histSim, align='center', width=widthSim, label = "Simulated", alpha = 0.5)
     plt.yscale("log")
     plt.legend()
