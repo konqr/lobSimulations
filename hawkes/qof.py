@@ -251,12 +251,12 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     # Zero out low values
     histEmp[np.where(histEmp <= freq)] = 0
     histSim[np.where(histSim <= freq)] = 0
-    bins = bins[np.where(histEmp > 0)]
+    bins = bins[np.append(np.where(histEmp > 0)[0], [np.where(histEmp > 0)[0][-1]+1])]
     histEmp = histEmp[np.where(histEmp > 0)]
-    binsSim = binsSim[np.where(histSim > 0)]
+    binsSim = binsSim[np.append(np.where(histSim > 0)[0], [np.where(histSim > 0)[0][-1]+1])]
     histSim = histSim[np.where(histSim > 0)]
     # Plot
-    width = 0.7 * (bins[1] - bins[0])
+    width = 0.99 * (bins[1] - bins[0])
     center = (bins[:-1] + bins[1:]) / 2
 
     fig = plt.figure()
@@ -264,9 +264,10 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
     plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
-    width = 0.7 * (binsSim[1] - binsSim[0])
-    center = (binsSim[:-1] + binsSim[1:]) / 2
-    plt.bar(center, histSim, align='center', width=width, label = "Simulated", alpha = 0.5)
+
+    widthSim = 0.99 * (binsSim[1] - binsSim[0])
+    centerSim = (binsSim[:-1] + binsSim[1:]) / 2
+    plt.bar(centerSim, histSim, align='center', width=widthSim, label = "Simulated", alpha = 0.5)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_spreadDistribution.png")
