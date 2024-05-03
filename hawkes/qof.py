@@ -260,10 +260,10 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
-    plt.bar(center, histEmp, align='center', width=width, label = "Empirical", aplha = 0.5)
+    plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
     width = 0.7 * (binsSim[1] - binsSim[0])
     center = (binsSim[:-1] + binsSim[1:]) / 2
-    plt.bar(center, histSim, align='center', width=width, label = "Simulated", aplha = 0.5)
+    plt.bar(center, histSim, align='center', width=width, label = "Simulated", alpha = 0.5)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_spreadDistribution.png")
