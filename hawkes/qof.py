@@ -547,6 +547,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         simPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
 
     empPriceChangeTimes = []
+    times = {}
     for d in pd.date_range(sDate,eDate):
         l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
         data = l.load()
@@ -558,6 +559,10 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         ts = np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float))
         empPriceChangeTimes += [np.log(ts[ts>0])/np.log(10)]
         # print(data.Spread.values)
+        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
+        for k in data_times:
+            tmp = times.get(k, [])
+            times[k]=np.append(tmp, np.diff(data_times[k]) )
 
     fig = plt.figure()
     plt.title(ric + " PriceChangeTime distribution")
@@ -568,17 +573,6 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
 
-    times = {}
-    for d in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
-        try:
-            data = pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/"+ric+"_"+ d.strftime("%Y-%m-%d") +"_12D.csv")
-        except:
-            continue
-        # data = data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
-        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
-        for k in data_times:
-            tmp = times.get(k, [])
-            times[k]=np.append(tmp, np.diff(data_times[k]) )
     times_Sim = {}
     for path in paths:
         print(path)
@@ -587,6 +581,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             try:
                 with open(path, "rb") as f:
                     results = pickle.load(f)
+                tryer = 6
             except:
                 time.sleep(1)
                 tryer +=1
