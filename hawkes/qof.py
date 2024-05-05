@@ -562,7 +562,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     dictNorm = {}
     for i, c in zip(ids, counts):
         dictNorm[i] = 1/(13*c)
-    wts = [1/13]*len(paths) + [dictNorm[i] for i in simTimeIds]
+    wts = [dictNorm[i] for i in simTimeIds]
 
     empPriceChangeTimes = []
     for d in pd.date_range(sDate,eDate):
@@ -627,7 +627,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         dictNorm = {}
         for i, c in zip(ids, counts):
             dictNorm[i] = 1/(13*c)
-        wts = [1/13]*len(paths) + [dictNorm[i] for i in simTimeIds]
+        wts = [dictNorm[i] for i in simTimeIds]
         fig = plt.figure()
         plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
         plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated", weights = wts)
