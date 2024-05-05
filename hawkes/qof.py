@@ -188,7 +188,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simSpreads =[]
     simTimes = []
     t = .01
-    sample_x = np.linspace(0, 23400, int(23400/t))
+
     for path in paths:
         print(path)
         tryer= 0
@@ -207,8 +207,9 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         simDf['Spread'] = simDf['Ask'] - simDf['Bid']
         mid = simDf.Mid.values
-        times = np.append([0], np.array(results[0][1:])[:,1]).astype(float)
 
+        times = np.append([0], np.array(results[0][1:])[:,1]).astype(float)
+        sample_x = np.linspace(times[1], times[-1], int(23400/t))
         idxs = np.searchsorted(times, sample_x)[1:-1] - 1
         sample_y = mid[idxs]
         ret =  np.exp(np.diff(np.log(sample_y))) - 1
