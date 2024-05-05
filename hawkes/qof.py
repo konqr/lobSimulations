@@ -611,6 +611,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
 
 def run(ric = "AAPL.OQ", sDate = dt.date(2019,1,2), eDate = dt.date(2019,3,31), suffix = "_CLSLogLin_10", dataPath = "/SAN/fca/Konark_PhD_Experiments/simulated", resultsPath = "/SAN/fca/Konark_PhD_Experiments/results"):
     paths = [dataPath + "/" + i for i in os.listdir(dataPath) if (ric in i)&(suffix in i)&(~("tmp" in i))]
+    if "Symm2" in ric: ric = ric.replace("Symm2", "")
     if "Symm" in ric: ric = ric.replace("Symm", "")
     # runQQInterArrival(ric, sDate, eDate, resultsPath)
     runSignaturePlots(paths, resultsPath, ric, sDate, eDate)
