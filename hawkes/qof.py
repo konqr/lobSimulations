@@ -207,14 +207,14 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         simDf['Spread'] = simDf['Ask'] - simDf['Bid']
         mid = simDf.Mid.values
-        times = np.append([0], np.array(results[0][1:])[:,1])
+        times = np.append([0], np.array(results[0][1:])[:,1]).astype(float)
 
         idxs = np.searchsorted(times, sample_x)[1:-1] - 1
         sample_y = mid[idxs]
         ret =  np.exp(np.diff(np.log(sample_y))) - 1
         simRets.append(ret)
         simSpreads.append(simDf.Spread.values)
-        simTimes.append(times[1:])
+        simTimes.append(times)
 
     empRets = []
     empSpreads = []
@@ -553,7 +553,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
         simDf['Mid'] = 0.5*(simDf['Ask'] + simDf['Bid'])
         mid = simDf.Mid.values
-        times = np.append([0], np.array(results[0][1:])[:,1])
+        times = np.append([0], np.array(results[0][1:])[:,1]).astype(float)
         simPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
         simTimes += [times]
     simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
