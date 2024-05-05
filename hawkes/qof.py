@@ -625,8 +625,8 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         ids, counts = np.unique(simTimeIds, return_counts =True)
         counts = counts/sum(counts)
         dictNorm = {}
-        for i, c in zip(ids, counts):
-            dictNorm[i] = 1/(13*c)
+        for i, j in zip(ids, counts):
+            dictNorm[i] = 1/(13*j)
         wts = [dictNorm[i] for i in simTimeIds]
         fig = plt.figure()
         plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
