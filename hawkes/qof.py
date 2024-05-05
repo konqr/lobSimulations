@@ -546,8 +546,11 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
                     results = pickle.load(f)
                 tryer = 6
             except:
+                print("problem w " + path)
                 time.sleep(1)
                 tryer +=1
+                if tryer ==6:
+                    continue
 
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
