@@ -582,7 +582,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Times (log10)")
     plt.ylabel("Frequency")
     plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(np.hstack([i[1:] for i in simPriceChangeTimes]), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
+    plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
 
@@ -618,10 +618,10 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             tmp = times_Sim.get(k, [])
             times_Sim[k]=np.append(tmp, np.diff(data_times[k]) )
             tmp = times_Sim_wts.get(k, [])
-            times_Sim_wts[k]=np.append(tmp, data_times[k] )
+            times_Sim_wts[k]=np.append(tmp, data_times[k][1:] )
     for c in cols:
         simTimes = times_Sim_wts[c]
-        simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
+        simTimeIds = np.hstack([(i - 34200)//(1800) for i in simTimes])
         ids, counts = np.unique(simTimeIds, return_counts =True)
         counts = counts/sum(counts)
         dictNorm = {}
