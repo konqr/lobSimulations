@@ -186,6 +186,7 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
 def runDistribution(paths, resultsPath, sDate, eDate, ric):
     simRets = []
     simSpreads =[]
+    simTimes = []
     t = .01
     sample_x = np.linspace(0, 23400, int(23400/t))
     for path in paths:
@@ -213,6 +214,8 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
         ret =  np.exp(np.diff(np.log(sample_y))) - 1
         simRets.append(ret)
         simSpreads.append(simDf.Spread.values)
+        simTimes.append(times[1:])
+
     empRets = []
     empSpreads = []
     for d in pd.date_range(sDate,eDate):
@@ -245,7 +248,14 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     # Get histogram
     bins, freq = np.unique(np.round(100*np.hstack(empSpreads)), return_counts = True)
     histEmp = freq/sum(freq)
-    binsSim, freq = np.unique(np.round(100*np.hstack(simSpreads)), return_counts = True)
+    simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
+    ids, counts = np.unique(simTimeIds, return_counts =True)
+    counts = counts/sum(counts)
+    dictNorm = {}
+    for i, c in zip(ids, counts):
+        dictNorm[i] = 1/(13*c)
+    wts = [dictNorm[i] for i in simTimeIds]
+    freq, binsSim = np.histogram(np.round(100*np.hstack([i[1:] for i in simSpreads])), bins = np.unique(np.round(100*np.hstack(simSpreads))), weights = wts, density=True)
     histSim = freq/sum(freq)
     # Threshold frequency
     freq = 1e-4
@@ -525,7 +535,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     simPriceChangeTimes = []
-
+    simTimes = []
     for path in paths:
         print(path)
         tryer= 0
@@ -545,6 +555,14 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         mid = simDf.Mid.values
         times = np.append([0], np.array(results[0][1:])[:,1])
         simPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
+        simTimes += [times]
+    simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
+    ids, counts = np.unique(simTimeIds, return_counts =True)
+    counts = counts/sum(counts)
+    dictNorm = {}
+    for i, c in zip(ids, counts):
+        dictNorm[i] = 1/(13*c)
+    wts = [1/13]*len(paths) + [dictNorm[i] for i in simTimeIds]
 
     empPriceChangeTimes = []
     for d in pd.date_range(sDate,eDate):
@@ -564,7 +582,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Times (log10)")
     plt.ylabel("Frequency")
     plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True)
+    plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
 
@@ -601,7 +619,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     for c in cols:
         fig = plt.figure()
         plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
-        plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated")
+        plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated", weights = wts)
         plt.legend()
         plt.title(c + " : Inter-arrival time")
         plt.xlabel("$log_{10}(Time)$")
