@@ -555,7 +555,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         mid = simDf.Mid.values
         times = np.append([0], np.array(results[0][1:])[:,1]).astype(float)
         simPriceChangeTimes += [np.log(np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float)))/np.log(10)]
-        simTimes += [times]
+        simTimes += [times[np.append([0], np.diff(mid)) !=0].astype(float)]
     simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
     ids, counts = np.unique(simTimeIds, return_counts =True)
     counts = counts/sum(counts)
@@ -599,6 +599,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             times[k]=np.append(tmp, np.diff(data_times[k]) )
 
     times_Sim = {}
+    times_Sim_wts = {}
     for path in paths:
         print(path)
         tryer= 0
@@ -616,7 +617,17 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
         for k in data_times:
             tmp = times_Sim.get(k, [])
             times_Sim[k]=np.append(tmp, np.diff(data_times[k]) )
+            tmp = times_Sim_wts.get(k, [])
+            times_Sim_wts[k]=np.append(tmp, data_times[k] )
     for c in cols:
+        simTimes = times_Sim_wts[c]
+        simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
+        ids, counts = np.unique(simTimeIds, return_counts =True)
+        counts = counts/sum(counts)
+        dictNorm = {}
+        for i, c in zip(ids, counts):
+            dictNorm[i] = 1/(13*c)
+        wts = [1/13]*len(paths) + [dictNorm[i] for i in simTimeIds]
         fig = plt.figure()
         plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
         plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated", weights = wts)
