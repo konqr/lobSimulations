@@ -200,7 +200,6 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
             except:
                 time.sleep(1)
                 tryer +=1
-
         simDf = pd.DataFrame(results[1])
         simDf['Ask'] = simDf['Ask_touch'].apply(lambda x: x[0])
         simDf['Bid'] =  simDf['Bid_touch'].apply(lambda x: x[0])
