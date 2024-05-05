@@ -582,7 +582,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     plt.xlabel("Times (log10)")
     plt.ylabel("Frequency")
     plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
-    plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
+    plt.hist(np.hstack([i[1:] for i in simPriceChangeTimes]), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
 
@@ -612,7 +612,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
                 tryer +=1
         data = pd.DataFrame(results[0][1:], columns = ["event", "Time", "tmp"])
         # data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
-        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
+        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)[1:]).to_dict()
         for k in data_times:
             tmp = times_Sim.get(k, [])
             times_Sim[k]=np.append(tmp, np.diff(data_times[k]) )
