@@ -544,8 +544,8 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
                 with open(path, "rb") as f:
                     results = pickle.load(f)
                 tryer = 6
-            except:
-                print("problem w " + path)
+            except Exception as e:
+                print("problem w " + path + " " + str(e))
                 time.sleep(1)
                 tryer +=1
                 if tryer ==6:
