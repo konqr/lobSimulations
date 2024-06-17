@@ -1,3 +1,4 @@
+#%%
 import pickle
 import numpy as np
 import pandas as pd
@@ -26,9 +27,20 @@ def powerLawCutoff(time, alpha, beta, gamma):
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
 
+       
+def pairtoindex(i: int, j: int) -> int:        #maps (i,j) to a unique index in [0 .. 143]
+    if 0 <= i < 12 and 0 <= j < 12:
+        return i * 12 + j 
+    else:
+        raise ValueError("Indices must be in the range [0, 11]") #maps unique 0<= j <=143 to corresponding index (i, j)
 
+def indextopair(index: int) -> tuple[int, int] :
+    if 0<=index<=143:
+        return (index//12, index%12)
+    else: 
+        raise ValueError("Index must be in the range [0, 143]")
 num_nodes=12
-def preprocessdata(paramspath: str, todpath: str):
+def preprocessdata(paramsPath: str, todPath: str):
     """Takes in params and todpath and spits out corresponding vectorised numpy arrays
     
     Returns:
@@ -65,29 +77,19 @@ def preprocessdata(paramspath: str, todpath: str):
     kernelparams=[mask, alpha, beta, gamma] 
     params=[kernelparams, baselines] 
     return tod, params
-tod, params=preprocessdata(paramspath="fake_ParamsInferredWCutoff_sod_eod_true", todpath="fakeData_Params_sod_eod_dictTOD_constt")
-        
-def pairtoindex(i: int, j: int) -> int:        #maps (i,j) to a unique index in [0 .. 143]
-    if 0 <= i < 12 and 0 <= j < 12:
-        return i * 12 + j 
-    else:
-        raise ValueError("Indices must be in the range [0, 11]") #maps unique 0<= j <=143 to corresponding index (i, j)
-
-def indextopair(index: int) -> tuple[int, int] :
-    if 0<=index<=143:
-        return (index//12, index%12)
-    else: 
-        raise ValueError("Index must be in the range [0, 143]")
+tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true', todPath='fakeData_Params_sod_eod_dictTOD_constt')
+ 
 
 #%%
 def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     """ 
     Arguments:
-    T:
+    T: timelimit of simulation process
     params=[kernelparams, baselines]
         kernelparams: an array of [12, 12] matrices consisting of mask, alpha, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
         baselines: a vector of dim=(num_nodes, 1) consisting of baseline intensities
     tod: a [12, 13] matrix containing values of f(Q_t), the time multiplier for the 13 different 30 min bins of the trading day.
+    num_nodes: #of different processes
     """
     
     """Setting up thinningOgata params"""
@@ -142,6 +144,15 @@ def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n 
         todmult=tod[:, hourIndex].reshape((12, 1))
         decays=(0.99/specRad) * todmult * baselines
         
+        for i in range(num_nodes):
+            points=Ts[i]#all the old points in a specific dimension
+            for point in points:
+                if s - point >= 500: continue
+                if s - point < 1e-4: continue
+                for j in range(len(Ts)):
+                    
+                
+    return None
         
 #%%
 def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
@@ -231,13 +242,15 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             """Update candidate point"""
             s += w
         
-        """calculating sum of lambdas"""
+        """calculating sum of baselines"""
         decays = baselines.copy()
         hourIndex = min(12,int(s//1800))
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
-        for i in range(len(Ts)):
+        
+        """summation term"""
+        for i in range(len(Ts)): #num_nodes
             taus = Ts[i]
             idx = np.searchsorted(taus, s - 10)
             for tau in taus[idx:]:
@@ -315,7 +328,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
 
 #%%
 #paramvals:
-""" T= 100
+""" T= 100 
 paramsPath = "fake_ParamsInferredWCutoff_sod_eod_true"
 todPath = "fakeData_Params_sod_eod_dictTOD_constt"
 s=0

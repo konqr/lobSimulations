@@ -57,8 +57,8 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
-                if s - tau >= 500: continue
-                if s - tau < 1e-4: continue
+                if s - tau >= 500: continue #too far ago
+                if s - tau < 1e-4: continue #too recent
                 for j in range(len(Ts)):
                     kernelParams = params[cols[i] + "->" + cols[j]]
                     decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
