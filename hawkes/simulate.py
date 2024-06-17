@@ -114,11 +114,16 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     print("spectral radius = ", specRad)
     specRad = np.max(np.linalg.eig(mat)[0]).real
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
+    
+    """Set up Variables for ThinningOgata"""
+    
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
     Ts_new = num_nodes*[()]
     if spread is None: spread = 1
+    
+    """Compute initial value of lambbar"""
     if lamb is None:
         print(baselines)
 
@@ -130,6 +135,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             lamb = sum(decays)
         else:
             lamb = sum(np.array(baselines)[:,0])
+    
+    """Begin thinningOgata simulation loop"""
     while s <= T:
         lambBar = lamb
         print(lambBar)
@@ -138,11 +145,12 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             s += 0.1 # wait for some time
         else:
             w = np.max([1e-7,-1*np.log(u)/lambBar]) # floor at 0.1 microsec
+            """Update candidate point"""
             s += w
-
+        
+        """calculating sum of lambdas"""
         decays = baselines.copy()
         hourIndex = np.min([12,int(np.floor(s/1800))])
-
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
@@ -168,15 +176,21 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         print(decays)
         lamb = sum(decays)
         print(lamb)
+        
+        
+        
+        """Testing candidate point"""
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
             print(w)
+            "Assign candidate point to a process by ratio of intensities"
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
             # instantaneous lamb jumps
             if k in [5,6]:
                 spread = spread - 0.01
+                
             newdecays = len(cols)*[0]
             for i in range(len(Ts)):
                 kernelParams = params.get(cols[k] + "->" + cols[i], None)
@@ -203,6 +217,8 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             decays[5] = ((spread/avgSpread)**beta)*decays[5]
             decays[6] = ((spread/avgSpread)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
+            
+            """Updating history and returns"""
             tau = decays[k]
             Ts[k] += (s,)
             Ts_new[k] += (s,)
