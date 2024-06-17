@@ -183,14 +183,14 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
             print(w)
-            "Assign candidate point to a process by ratio of intensities"
+            """Assign candidate point to a process by ratio of intensities"""
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
             # instantaneous lamb jumps
             if k in [5,6]:
                 spread = spread - 0.01
-                
+            """Precalculating lambda for the next simulation"""    
             newdecays = len(cols)*[0]
             for i in range(len(Ts)):
                 kernelParams = params.get(cols[k] + "->" + cols[i], None)
@@ -396,6 +396,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
     lob.append(lob0[-1])
     lobL3.append(lob0_l3[-1])
     spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
+    print("initial spread: ", spread)
     n = None
     timestamps = None
     lob0 = lob0[0]

@@ -18,6 +18,7 @@ def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
     if x < t0: return 0
     return alpha*(x**beta)
 
+
 def powerLawCutoff(time, alpha, beta, gamma):
     # alpha = a*beta*(gamma - 1)
     funcEval = alpha/((1 + gamma*time)**beta)
@@ -39,6 +40,7 @@ def indextopair(index: int) -> tuple[int, int] :
         return (index//12, index%12)
     else: 
         raise ValueError("Index must be in the range [0, 143]")
+#%%
 num_nodes=12
 def preprocessdata(paramsPath: str, todPath: str):
     """Takes in params and todpath and spits out corresponding vectorised numpy arrays
@@ -46,12 +48,13 @@ def preprocessdata(paramsPath: str, todPath: str):
     Returns:
     tod: a [12, 13] matrix containing values of f(Q_t), the time multiplier for the 13 different 30 min bins of the trading day.
     params=[kernelparams, baselines]
-        kernelparams: an array of [12, 12] matrices consisting of mask, alpha, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
+        kernelparams: an array of [12, 12] matrices consisting of mask, alpha0, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
         baselines: a vector of dim=(num_nodes, 1) consisting of baseline intensities
     """
     
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    os.path.exists("")
     with open(todPath, "rb") as f:
         data = pickle.load(f)
     tod=np.zeros(shape=(num_nodes, 13))
@@ -77,21 +80,37 @@ def preprocessdata(paramsPath: str, todPath: str):
     kernelparams=[mask, alpha, beta, gamma] 
     params=[kernelparams, baselines] 
     return tod, params
+
+# def calcIntensities(Ts, s, baselines, mask, alpha, beta, gamma, memo):
+#     powerLawCutoff(alpha=)
+    
+
+
+
+if os.path.exists("hawkes"):
+    pass
+else:
+    os.chdir("..")
 tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true', todPath='fakeData_Params_sod_eod_dictTOD_constt')
  
 
 #%%
-def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
+def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, timeseries=None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     """ 
     Arguments:
     T: timelimit of simulation process
     params=[kernelparams, baselines]
-        kernelparams: an array of [12, 12] matrices consisting of mask, alpha, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
+        kernelparams: an array of [12, 12] matrices consisting of mask, alpha0, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
         baselines: a vector of dim=(num_nodes, 1) consisting of baseline intensities
     tod: a [12, 13] matrix containing values of f(Q_t), the time multiplier for the 13 different 30 min bins of the trading day.
     num_nodes: #of different processes
+    timeseries: the sequence of all point-events arranged in the form (t, m) where m is the #of the dimension
     """
-    
+    numJumps = 0
+    if n is None: n = num_nodes*[0]
+    if Ts is None: Ts = num_nodes*[[]]
+    Ts_new = num_nodes*[[]]
+    if spread is None: spread = 1
     """Setting up thinningOgata params"""
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
@@ -109,52 +128,87 @@ def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n 
     print("spectral radius = ", specRad)
     specRad = np.max(np.linalg.eig(mat)[0]).real
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
-    """Initializing variable values"""
-    numJumps = 0
-    if n is None: n = num_nodes*[0]
-    if Ts is None: Ts = num_nodes*[()]
-    Ts_new = num_nodes*[()]
-    if spread is None: spread = 1
+
     
     """calculating initial values of lamb_bar"""
-    decays=(0.99/specRad) * todmult * baselines
-    """array([[0.06079649],
-       [0.06079649],
-       [0.03039825],
-       [0.04053099],
-       [0.05066374],
-       [1.28128916],
-       [1.28128916],
-       [0.04053099],
-       [0.05066374],
-       [0.04053099],
-       [0.04053099],
-       [0.07092924]])"""
-    lamb_bar=np.sum(decays) #3.04895025
-    
+    if lamb is None:
+        decays=(0.99/specRad) * todmult * baselines
+        lamb=np.sum(decays) #3.04895025
+    left=0
+    if timeseries is None:
+        timeseries=[]
+        
+    """simulation loop"""
     while s<=T:
+        """Assign lamb_bar"""
+        lamb_bar=lamb 
+        """generate random u"""
         u=np.random.uniform(0, 1)
         if lamb_bar==0:
             s+=0.1  # wait for some time
         else:
             w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
             s+=w
-        """Recalculating lambdas with new candidate"""
+            
+        """Recalculating baseline lambdas sum with new candidate"""
         hourIndex = min(12,int(s//1800))
-        todmult=tod[:, hourIndex].reshape((12, 1))
-        decays=(0.99/specRad) * todmult * baselines
+        todmult=tod[:, hourIndex].reshape((12, 1)) * (0.99/specRad)
+        decays=todmult * baselines
+        """Summing cross excitations for previous points"""
+        while s-timeseries[left]=>10:
+            left+=1 
+        for point in timeseries[left:]:
+            kern=powerLawCutoff(time=s-point[0], alpha=params[0][0][point[1]]*params[0][1][point[1]], beta=params[0][2][point[1]], gamma=params[0][3][point[1]])
+            print(kern.shape) #should be (12, 1)
+            kern=kern.reshape((12, 1))
+            decays+=todmult*kern
+        decays=np.maximum(decays, 0)
+        decays[5] = ((spread/avgSpread)**beta)*decays[5]
+        decays[6] = ((spread/avgSpread)**beta)*decays[6]
+        if 100*np.round(spread, 2) < 2 : 
+            decays[5] = decays[6] = 0
+        print(decays)
+        lamb = sum(decays)
+        print(lamb)
         
-        for i in range(num_nodes):
-            points=Ts[i]#all the old points in a specific dimension
-            for point in points:
-                if s - point >= 500: continue
-                if s - point < 1e-4: continue
-                for j in range(len(Ts)):
-                    
-                
-    return None
         
+        """Testing candidate point"""
+        D=np.random.uniform(0, 1)
+        if D*lamb_bar<=lamb:
+            """Accepted so assign candidate point to a process by a ratio of intensities"""
+            k=0
+            total=decays[k]
+            while D*lamb_bar >= total:
+                k+=1
+                total+=decays[k]
+            """dimension is cols[k]"""   
+            """Update values of lambda for next simulation loop and append point to Ts"""
+            if k in [5, 6]:
+                spread=spread-0.01
+            newdecay=todmult * params[0][0][k]*params[0][1][k]
+            newdecays=np.maximum(newdecays, 0)
+            newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]
+            newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
+            if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
+            lamb+= np.sum(newdecays)
+            n[k]+=1
+            timeseries.append((s, k))
+            Ts[k].append(s)
+            
+            
+            numJumps+=1
+            if numJumps>=maxJumps:
+                return 
+            return None
+# time=s-tau
+# alpha=kernelParams[0]*kernelParams[1][0]
+# beta=kernelParams[1][1]
+# gamma=kernelParams[1][2]
 #%%
+if os.path.exists("hawkes"):
+    pass
+else:
+    os.chdir("..")
 def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     """
     Parameters:
@@ -191,9 +245,19 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     if s is None: 
         s = 0
     hourIndex = min(12,int(s//1800)) #1800 seconds in 30 minutes
+    
+    numJumps = 0
+    if n is None: 
+        n = num_nodes*[0]
+    if Ts is None: 
+        Ts = num_nodes*[()]
+    Ts_new = num_nodes*[()]
+    if spread is None: 
+        spread = 1
+        
     for i in range(num_nodes):
         for j in range(num_nodes):
-            kernelParams = data.get(cols[i] + "->" + cols[j], None)
+            kernelParams = params.get(cols[i] + "->" + cols[j], None)
             if kernelParams is None: continue
             if np.isnan(kernelParams[1][2]): continue
             # print(cols[i] + "->" + cols[j])
@@ -201,7 +265,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             todMult = tod[cols[j]][hourIndex]
             #implement vectorisation and broadcasting for this
             mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma   
-        #baselines[i] = data[cols[i]]
+        baselines[i] = params[cols[i]]
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
     specRad = np.max(np.linalg.eig(mat)[0])
@@ -210,12 +274,6 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
     
     
-    
-    numJumps = 0
-    if n is None: n = num_nodes*[0]
-    if Ts is None: Ts = num_nodes*[()]
-    Ts_new = num_nodes*[()]
-    if spread is None: spread = 1
     
     """Compute initial value of lambbar"""
     if lamb is None:
@@ -322,7 +380,10 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             if numJumps >= maxJumps:
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
-    
+paramsPath = "fake_ParamsInferredWCutoff_sod_eod_true"
+todPath = "fakeData_Params_sod_eod_dictTOD_constt"
+T=10
+s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1)    
     
     
 
