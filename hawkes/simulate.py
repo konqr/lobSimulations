@@ -111,7 +111,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
     specRad = np.max(np.linalg.eig(mat)[0])
-    print("spectral radius = ", specRad)
+    #print("spectral radius = ", specRad)
     specRad = np.max(np.linalg.eig(mat)[0]).real
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
     
@@ -125,7 +125,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     
     """Compute initial value of lambbar"""
     if lamb is None:
-        print(baselines)
+        #print(baselines)
 
         decays = baselines.copy()
         for i in range(len(Ts)):
@@ -139,7 +139,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     """Begin thinningOgata simulation loop"""
     while s <= T:
         lambBar = lamb
-        print(lambBar)
+        #print(lambBar)
         u = np.random.uniform(0,1)
         if lambBar == 0:
             s += 0.1 # wait for some time
@@ -173,16 +173,16 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         decays[5] = ((spread/avgSpread)**beta)*decays[5]
         decays[6] = ((spread/avgSpread)**beta)*decays[6]
         if 100*np.round(spread, 2) < 2 : decays[5] = decays[6] = 0
-        print(decays)
+        #print(decays)
         lamb = sum(decays)
-        print(lamb)
+        #print(lamb)
         
         
         
         """Testing candidate point"""
         D = np.random.uniform(0,1)
         if D*lambBar <= lamb: #accepted
-            print(w)
+            #print(w)
             """Assign candidate point to a process by ratio of intensities"""
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
@@ -206,7 +206,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
             if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
             lamb += sum(newdecays)
-            print(lamb)
+            #print(lamb)
             n[k] += 1
             if len(Ts[k]) > 0:
                 T_Minus1 = Ts[k][-1]
@@ -402,8 +402,13 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
     lob0 = lob0[0]
     lob0_l3 = lob0_l3[0]
     lamb = None
+    trials=1
     while s <= T:
+        start=time.perf_counter_ns()
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
+        end=time.perf_counter_ns()
+        print("Simulation ", trials, "took ", str((end-start)/10**9), "nanosecs. New number of points is ", str(np.sum(n)), "points. ")
+        trials +=1
         sizes = {}
         dictTimestamps = {}
         for t, col in zip(timestamps_this, cols):
@@ -437,7 +442,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
-            print(lob0)
+            #print(lob0)
             lobL3.append(lob0_l3)
         if (filePathName is not None)&(len(Ts)%100 == 0):
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
@@ -493,7 +498,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
         dfs += [pd.DataFrame({"event" : len(timestamps_e)*[event], "time": timestamps_e, "size" : sizes_e})]
     dfs = pd.concat(dfs)
     dfs = dfs.sort_values("time")
-    print(dfs.head())
+    #print(dfs.head())
     lob.append(lob0.copy())
     T.append(0)
     lob_l3.append(lob0_l3.copy())
