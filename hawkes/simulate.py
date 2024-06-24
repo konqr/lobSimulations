@@ -137,7 +137,10 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             lamb = sum(np.array(baselines)[:,0])
     
     """Begin thinningOgata simulation loop"""
+    loopcount=0
     while s <= T:
+        print("Inner while loop has run count: ", loopcount, "times. ")
+        loopcount+=1
         lambBar = lamb
         #print(lambBar)
         u = np.random.uniform(0,1)
@@ -405,7 +408,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
     trials=1
     while s <= T:
         start=time.perf_counter_ns()
-        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
+        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = None, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         end=time.perf_counter_ns()
         print("Simulation ", trials, "took ", str((end-start)/10**9), "nanosecs. New number of points is ", str(np.sum(n)), "points. ")
         trials +=1
