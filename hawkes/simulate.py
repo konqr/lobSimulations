@@ -77,8 +77,10 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
                 return n,Ts
     return n, Ts
 
-def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
-    if maxJumps is None: maxJumps = np.inf
+def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
+    if maxJumps is None: 
+        maxJumps = np.inf
+    print("maxjumps is: ", maxJumps)
     tryer = 0
     while tryer < 5: # retry on pickle clashes
         try:
@@ -227,6 +229,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             Ts_new[k] += (s,)
             numJumps += 1
             if numJumps >= maxJumps:
+                print("point added")
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
 
@@ -408,8 +411,12 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
     trials=1
     while s <= T:
         start=time.perf_counter_ns()
-        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = None, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
+        s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         end=time.perf_counter_ns()
+        print("Timestamps: ", timestamps)
+        print("Timestamps_this: ", timestamps_this)
+        print("n:", n)
+        print("s: ", s)
         print("Simulation ", trials, "took ", str((end-start)/10**9), "nanosecs. New number of points is ", str(np.sum(n)), "points. ")
         trials +=1
         sizes = {}
@@ -437,17 +444,18 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
                     size = np.argmax(cdf>=a)+1
             sizes[col]  = size
             dictTimestamps[col] = t
-
+        print("Sizes is: ", sizes, "\n")
         TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
+        print("lobtmp", lobTmp)
+        print("lobtmpl3", lobL3Tmp)
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
             #print(lob0)
-            lobL3.append(lob0_l3)
-        if (filePathName is not None)&(len(Ts)%100 == 0):
+        if (filePathName is not None)&(len(Ts)%100 == 0):   
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
                 pickle.dump((Ts, lob, lobL3), f)
     return Ts, lob, lobL3
