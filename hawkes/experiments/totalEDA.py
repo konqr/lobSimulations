@@ -11,7 +11,7 @@ from IPython import get_ipython
 import itertools
 import pickle
 
-def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False):
+def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False):
 
 
     # # Spread
@@ -604,6 +604,54 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_shapeWasserstein", "wb") as f:
             pickle.dump((wassDistances_mean,wassDistances_var), f)
 
+    if edaleverage:
+        orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
+        condCounts = []
+        uncondCounts= []
+        for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+            condProb = []
+            if j == dt.date(2019,1,9): continue
+            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            data = l.load()
+            if len(data):
+                data = data[0]
+            else:
+                continue
+            # events wrt distance from mid in ticks
+            data = data.loc[data['Type'] < 5]
+            data = data.loc[data['Type'] !=2]
+            data['mid'] = (data['Ask Price 1'] + data['Bid Price 1'])*0.5
+            data['midPrev'] = data.mid.shift(1).fillna(0)
+            data['depth'] = np.round(100*(data.Price/10000 - data.midPrev), 2)
+            data['depthAbs'] = data['depth'].apply(lambda x: np.abs(x))
+            converter ={ 1: 0, 3: 1, 4:2}
+            depthMax = int(np.max(data['depthAbs']))
+            # matrix = np.zeros((int(depthMax*3*2), int(depthMax*3*2)))
+            data['TypeDepth'] = data['Type'].astype(int).astype(str) +  data['depth'].astype(int).astype(str)
+            data['TypeDepth_1'] = data['TypeDepth'].shift(1)
+            # data.head()
+            if len(condCounts)==0:
+                condCounts = data.groupby(['TypeDepth','TypeDepth_1'])['Time'].count()
+                uncondCounts = data.groupby(['TypeDepth'])['Time'].count()
+            else:
+                tmp = data.groupby(['TypeDepth','TypeDepth_1'])['Time'].count()
+                # new_idx = condCounts.index.union(tmp.index)
+                # condCounts = condCounts.loc[new_idx].fillna(0) + tmp.loc[new_idx].fillna(0)
+                condCounts = condCounts.add(tmp, fill_value=0)
+                tmp= data.groupby(['TypeDepth'])['Time'].count()
+                # new_idx = uncondCounts.index.union(tmp.index)
+                # uncondCounts = uncondCounts.loc[new_idx].fillna(0) + tmp.loc[new_idx].fillna(0)
+                uncondCounts = uncondCounts.add(tmp, fill_value=0)
+        condProb = condCounts/uncondCounts
+        uncondProb = uncondCounts/uncondCounts.sum()
+        leverage = condProb/uncondProb
+        leverage = leverage.reset_index()
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverage", "wb") as f:
+            pickle.dump({'condCounts' : condCounts,'uncondCounts' :  uncondCounts , 'condProb' : condProb,'uncondProb' : uncondProb, 'leverage': leverage}, f)
 
 
-main( sys.argv[1] , edaspread = eval(sys.argv[2]), edashape = eval(sys.argv[3]), edasparse = eval(sys.argv[4]), edarest = eval(sys.argv[5]), edaqd = eval(sys.argv[6]), edashapemaxima = eval(sys.argv[7]), edashapesparsity  = eval(sys.argv[8]))
+
+
+
+
+main( sys.argv[1] , edaspread = eval(sys.argv[2]), edashape = eval(sys.argv[3]), edasparse = eval(sys.argv[4]), edarest = eval(sys.argv[5]), edaqd = eval(sys.argv[6]), edashapemaxima = eval(sys.argv[7]), edashapesparsity  = eval(sys.argv[8]), edaleverage  = eval(sys.argv[9]))
