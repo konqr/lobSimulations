@@ -80,7 +80,7 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
 def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     if maxJumps is None: 
         maxJumps = np.inf
-    print("maxjumps is: ", maxJumps)
+    print("\n maxjumps is: ", maxJumps)
     tryer = 0
     while tryer < 5: # retry on pickle clashes
         try:
@@ -398,6 +398,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
         s = s0
     Ts,lob,lobL3 = [],[],[]
     _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+    print("The initial LOB: lob0", lob0, "lob0_l3", lob0_l3)
     Ts.append(0)
     lob.append(lob0[-1])
     lobL3.append(lob0_l3[-1])
@@ -444,17 +445,14 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
                     size = np.argmax(cdf>=a)+1
             sizes[col]  = size
             dictTimestamps[col] = t
-        print("Sizes is: ", sizes, "\n")
+        print("Sizes is: ", sizes)
         TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
-        print("lobtmp", lobTmp)
-        print("lobtmpl3", lobL3Tmp)
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
-            #print(lob0)
         if (filePathName is not None)&(len(Ts)%100 == 0):   
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
                 pickle.dump((Ts, lob, lobL3), f)
@@ -481,6 +479,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
         lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + ticksize, 0)
         lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - ticksize, 0)
         for k, pi in Pi_Q0.items():
+            print("K: ", k, "and pi: ", pi)
             #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
             p = pi[0]
             dd = pi[1]
@@ -509,12 +508,12 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
         dfs += [pd.DataFrame({"event" : len(timestamps_e)*[event], "time": timestamps_e, "size" : sizes_e})]
     dfs = pd.concat(dfs)
     dfs = dfs.sort_values("time")
-    #print(dfs.head())
     lob.append(lob0.copy())
     T.append(0)
     lob_l3.append(lob0_l3.copy())
     for i in range(len(dfs)):
             r = dfs.iloc[i]
+            print(r)
             lobNew = lob[i].copy()
             lob_l3New = lob_l3[i].copy()
             T.append(r.time)
