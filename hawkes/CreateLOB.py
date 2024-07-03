@@ -20,7 +20,7 @@ class LimitOrderBook:
         }
         #init prices
         self.ticksize=ticksize
-        self.bids={}
+        self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
         self.asks={}
         self.askprices={ 
             "Ask_touch" : priceMid0 + np.floor(spread0/2)*self.ticksize,
@@ -30,6 +30,7 @@ class LimitOrderBook:
             "Bid_touch" : priceMid0 - np.ceil(spread0/2)*self.ticksize,
             "Bid_deep" : priceMid0 - np.ceil(spread0/2)*self.ticksize - self.ticksize
         }
+        self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
         #init random sizes 
         for k, pi in Pi_Q0.items():
             #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
@@ -48,6 +49,7 @@ class LimitOrderBook:
             elif "Bid" in k:
                 self.bids[self.bidprices[k]]=[qSize]
 
+
     def processorders(self, order):
         t, event, size=order[0], order[1], order[2]
         if "Ask" in event:
@@ -61,29 +63,82 @@ class LimitOrderBook:
             if "deep" in event:
                 if side=="Ask":
                     if np.abs(self.askprices["Ask_touch"] - self.askprices["Ask_deep"])> 2.5 * self.ticksize:
+                        #generate new ask_deep
+                        pricelvl=self.askprices["Ask_touch"]+self.ticksize
+                        self.askprices["Ask_deep"]=pricelvl
+                        self.asks[pricelvl]=[size]
+                    else:
+                        self.asks[self.askprices["Ask_deep"]].append(size)
                 elif side=="Bid":
-                    if np.abs(self.askprices["Ask_touch"] - self.askprices["Ask_deep"])> 2.5 * self.ticksize:
-
+                    if np.abs(self.askprices["Bid_touch"] - self.askprices["Bid_deep"])> 2.5 * self.ticksize:
+                        #generate new bid_deep
+                        pricelvl=self.bidprices["Bid_touch"]-self.ticksize
+                        self.bidprices["Bid_deep"]=pricelvl
+                        self.bids[pricelvl]=[size]
+                    else:
+                        self.bids[self.bidprices["Bid_deep"]].append(size)
             elif "top" in event:
-                self.asks[self.askprices[side+"_touch"]].append(size)
-            else: #inspread
+                if side=="Ask":
+                    self.asks[self.askprices[side+"_touch"]].append(size)    
+                else:
+                    self.bids[self.bidprices[side+"_touch"]].append(size)
+            else: #Inspread
+                if side=="Ask":
+                    self.asks
                 
-
-
-
-
-
+                else:
+                    
+                
+            else: #inspread
         elif "mo" in event:
             #Market_order
         elif "co" in event:
             #Cancel_order
-            
+                
+
+"""
+MO: asktouch, askdeep
+LO: asktouch, askdeep, bidtouch, biddeep, askinspread, bidinspread
+CO: asktouch, askdeep, bidtouch, biddeep
+
+Ask_Deep:  (45,08, [150])
+Ask_touch: (45.05, [100])
+Bid_touch: (45.03, [100])
+Bid_Deep: (45.02, [150])
+
+Order comes in: LO_askdeep, size=50
+
+Ask_touch:  (45.08, [200])
+
+Bid_touch: (45.02, [150]) 
+
+Ask_3:  (45.08, [150])
+Ask_Deep: (45.06, [50])
+Ask_touch: (45.05, [100])
+Bid_touch: (45.03, [100])
+Bid_Deep: (45.02, [150])
+"""
 
 
-def peaklob0():
 
-def peaklobl3(data):
-    p
+    def peaklob0(self)-> dict: 
+        rtn={
+            "Ask_deep": (self.askprices["Ask_deep"], sum(self.asks[self.askprices["Ask_deep"]])),
+            "Ask_touch": (self.askprices["Ask_touch"], sum(self.asks[self.askprices["Ask_touch"]])),
+            "Bid_touch": (self.bidprices["Bid_touch"], sum(self.bids[self.bidprices["Bid_touch"]])),
+            "Bid_deep": (self.bidprices["Bid_touch"], sum(self.bids[self.bidprices["Bid_touch"]]))
+        }
+        return rtn
 
-def logtofile(data, destination):
+    def peaklobl3(self):
+        rtn={
+            "Ask_deep": (self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]),
+            "Ask_touch": (self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]),
+            "Bid_touch": (self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]]),
+            "Bid_deep": (self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]])
+        }
+        return rtn
+
+    def logtofile(self, destination):
+        
 
