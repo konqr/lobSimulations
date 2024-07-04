@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import numpy as np
 import os 
+import random
 cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
 indextocol={}
@@ -48,6 +49,7 @@ class LimitOrderBook:
                 self.asks[self.askprices[k]]=[qSize]
             elif "Bid" in k:
                 self.bids[self.bidprices[k]]=[qSize]
+        #deal with residuals 
 
 
     def processorders(self, order):
@@ -84,42 +86,87 @@ class LimitOrderBook:
                     self.bids[self.bidprices[side+"_touch"]].append(size)
             else: #Inspread
                 if side=="Ask":
-                    self.asks
-                
+                    pricelvl=self.askprices["Ask_touch"]-self.ticksize
+                    self.askprices["Ask_deep"]=self.askprices["Ask_touch"]
+                    self.askprices["Ask_touch"]=pricelvl
+                    self.asks[pricelvl]=[size]
                 else:
-                    
-                
-            else: #inspread
-        elif "mo" in event:
-            #Market_order
-        elif "co" in event:
+                    pricelvl=self.bidprices["Bid_touch"]+self.ticksize
+                    self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]
+                    self.bidrices["Bid_touch"]=pricelvl
+                    self.bids[pricelvl]=[size]
+        elif "mo" in event: #market order
+            if side=="Ask":
+                bidprice=self.bidprices["Bid_touch"]
+                while size>0:
+                    totalquantity=sum(self.bids[bidprice])
+                    if(totalquantity<=size): #consume all orders at a pricelevel
+                        size-=totalquantity
+                        del self.bids[bidprice]
+                        ###update bid touch price
+
+
+                        #queue depletion
+                    else: #partially consume a pricelevel
+                        j=0
+                        while size>0:
+                            if self.bids[bidprice][j]<=size:
+                                size-=self.bids[bidprice][j]
+                                j+=1
+                            else:
+                                self.bids[bidprice][j]-=size
+                                size=0
+                                break
+                        self.bids[bidprice]=self.bids[bidprice][j:]
+            else: #bid market order
+                askprice=self.askprices["Ask_touch"]
+                while size>0:
+                    totalquantity=sum(self.asks[askprice])
+                    if(totalquantity<=size): #consume all orders at a pricelevel
+                        size-=totalquantity
+                        del self.asks[askprice]
+                        ###update ask touch price
+
+
+                        #queue depletion
+                    else: #partially consume a pricelevel
+                        j=0
+                        while size>0:
+                            if self.asks[askprice][j]<=size:
+                                size-=self.asks[askprice][j]
+                                j+=1
+                            else:
+                                self.asks[askprice][j]-=size
+                                size=0
+                                break
+                        self.asks[askprice]=self.asks[askprice][j:]
+
+        elif "co" in event: #Cancel Order
+            if "deep" in event:
+                if side="Ask":
+                    a=self.asks[self.askprices["Ask_deep"]]
+                    a.pop(random.randrange(0,len(a)))
+                    if a==[]: #queue depletion
+                else:
+                    a=self.asks[self.bidprices["Bid_deep"]]
+                    a.pop(random.randrange(0,len(a)))
+                    if a==[]: #queue depletion
+            elif "top" in event:
+                if side="Ask":
+                    a=self.asks[self.askprices["Ask_touch"]]
+                    a.pop(random.randrange(0,len(a)))
+                    if a==[]: #queue depletion
+                else:
+                    a=self.asks[self.bidprices["Bid_touch"]]
+                    a.pop(random.randrange(0,len(a)))
+                    if a==[]: #queue depletion
+            else:
+                pass
             #Cancel_order
-                
-
-"""
-MO: asktouch, askdeep
-LO: asktouch, askdeep, bidtouch, biddeep, askinspread, bidinspread
-CO: asktouch, askdeep, bidtouch, biddeep
-
-Ask_Deep:  (45,08, [150])
-Ask_touch: (45.05, [100])
-Bid_touch: (45.03, [100])
-Bid_Deep: (45.02, [150])
-
-Order comes in: LO_askdeep, size=50
-
-Ask_touch:  (45.08, [200])
-
-Bid_touch: (45.02, [150]) 
-
-Ask_3:  (45.08, [150])
-Ask_Deep: (45.06, [50])
-Ask_touch: (45.05, [100])
-Bid_touch: (45.03, [100])
-Bid_Deep: (45.02, [150])
-"""
-
-
+            #Check queue depletion
+            if self.ask
+        #update spread:
+        self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
 
     def peaklob0(self)-> dict: 
         rtn={
@@ -139,6 +186,9 @@ Bid_Deep: (45.02, [150])
         }
         return rtn
 
-    def logtofile(self, destination):
+def logtofile(data, destination):
+    
+
+        
         
 
