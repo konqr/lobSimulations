@@ -414,7 +414,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
         start=time.perf_counter_ns()
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
         end=time.perf_counter_ns()
-        print("Timestamps: ", timestamps)
+        print("Length of Timestamps: ", len(timestamps))
         print("Timestamps_this: ", timestamps_this)
         print("n:", n)
         print("s: ", s)
@@ -450,6 +450,7 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
+        print("Snapshot LOB0: ", lob0)
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
@@ -457,6 +458,8 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
                 pickle.dump((Ts, lob, lobL3), f)
     return Ts, lob, lobL3
+
+
 
 
 
@@ -479,7 +482,6 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
         lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + ticksize, 0)
         lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - ticksize, 0)
         for k, pi in Pi_Q0.items():
-            print("K: ", k, "and pi: ", pi)
             #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
             p = pi[0]
             dd = pi[1]
@@ -498,6 +500,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                 lob0_l3[l] = [lob0[l][1] - sum(tmp)] + tmp
             else:
                 lob0_l3[l] = [lob0[l][1]]
+        print("Lob0_l3 post init: ", lob0_l3)
     if len(dictTimestamps) == 0:
         return T, [lob0], [lob0_l3]
 
@@ -513,7 +516,6 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
     lob_l3.append(lob0_l3.copy())
     for i in range(len(dfs)):
             r = dfs.iloc[i]
-            print(r)
             lobNew = lob[i].copy()
             lob_l3New = lob_l3[i].copy()
             T.append(r.time)
@@ -525,6 +527,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
             if "lo" in r.event:
                 if "deep" in r.event:
                     if np.abs(lobNew[side + "_touch"][0] - lobNew[side + "_deep"][0]) >  2.5*ticksize:
+                        print("triggered")
                         direction = 1
                         if side == "Ask": direction = -1
                         lobNew[side + "_deep"] = (np.round(lobNew[side + "_touch"][0] - direction*ticksize, decimals=2), r['size'])

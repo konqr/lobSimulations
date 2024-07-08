@@ -12,7 +12,8 @@ for i in range(len(cols)):
     indextocol[i]=cols[i]
 class LimitOrderBook:
     def __init__(self, Pi_Q0, priceMid0=260, spread0=4, ticksize=0.01, numOrdersPerLevel=10):
-        levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
+        self.levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
+        self.numOrdersPerLevel=numOrdersPerLevel
         colsToLevels = {
             "lo_deep_Ask" : "Ask_deep",
             "lo_top_Ask" : "Ask_touch",
@@ -21,6 +22,8 @@ class LimitOrderBook:
         }
         #init prices
         self.ticksize=ticksize
+        self.spread0=spread0
+        self.priceMid0=priceMid0
         self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
         self.asks={}
         self.askprices={ 
@@ -32,24 +35,44 @@ class LimitOrderBook:
             "Bid_deep" : priceMid0 - np.ceil(spread0/2)*self.ticksize - self.ticksize
         }
         self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
+        self.Pi_Q0=Pi_Q0
         #init random sizes 
-        for k, pi in Pi_Q0.items():
+    
+    def updatebidaskprices(self): #to be implemented
+        pass
+        if self.asks[self.askprices["Ask_touch"]]==[]:
+            del self.asks[self.askprices["Ask_touch"]]
+            self.askprices["Ask_touch"]=self.askprices["Ask_deep"]
+        if self.bids[self.bidprices["Bid_touch"]]==[]
+            del self.bids[self.bidprices["Bid_touch"]]
+            self.bidprices=["Bid_touch"]-self.bidprices["Bid_deep"]
+        if self.asks[self.askprices["Ask_deep"]]==[]:
+            self.askprices["Ask_deep"]=self.askprices["Ask_touch"]+self.ticksize
+        if self.bids[self.bidprices["Bid_deep"]]==[]:
+            self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]-self.ticksize
+        
+             
+    def populateLoBlevel(self, k):    
+        pi=self.Pi_Q0[k]
             #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-            p = pi[0]
-            dd = pi[1]
-            pi = np.array([p*(1-p)**k for k in range(1,100000)])
-            # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-            for i, p_i in dd:
-                pi[i-1] = p_i + pi[i-1]
-            pi = pi/sum(pi)
-            cdf = np.cumsum(pi)
-            a = np.random.uniform(0, 1)
-            qSize = np.argmax(cdf>=a) + 1
-            if "Ask" in k:
+        qSize=generateqsize(pi)
+        if "Ask" in k:
+            print("qsize init: ", k, ": ", qSize)
+            d=qSize//self.numOrdersPerLevel
+            if(d!=0):
+                r=qSize%self.numOrdersPerLevel
+                self.asks[self.askprices[k]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
+            else:
                 self.asks[self.askprices[k]]=[qSize]
-            elif "Bid" in k:
-                self.bids[self.bidprices[k]]=[qSize]
-        #deal with residuals 
+        else:
+            print("qsize init: ", k, ": ", qSize)
+            d=qSize//self.numOrdersPerLevel
+            if (d!=0):
+                r=qSize%self.numOrdersPerLevel
+                self.bids[self.bidprices[k]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
+            else:
+                self.bids[self.bidprices[k]]=[qSize]          
+
 
 
     def processorders(self, order):
@@ -104,8 +127,7 @@ class LimitOrderBook:
                         size-=totalquantity
                         del self.bids[bidprice]
                         ###update bid touch price
-
-
+                        self.updatebidaskprices
                         #queue depletion
                     else: #partially consume a pricelevel
                         j=0
@@ -142,29 +164,33 @@ class LimitOrderBook:
                         self.asks[askprice]=self.asks[askprice][j:]
 
         elif "co" in event: #Cancel Order
+            a=None
+            k=None
             if "deep" in event:
-                if side="Ask":
+                if side=="Ask":
+                    k="Ask_deep"
                     a=self.asks[self.askprices["Ask_deep"]]
                     a.pop(random.randrange(0,len(a)))
-                    if a==[]: #queue depletion
+                        
                 else:
+                    k="Bid_deep"
                     a=self.asks[self.bidprices["Bid_deep"]]
                     a.pop(random.randrange(0,len(a)))
-                    if a==[]: #queue depletion
             elif "top" in event:
-                if side="Ask":
+                if side=="Ask":
+                    k="Ask_deep"
                     a=self.asks[self.askprices["Ask_touch"]]
                     a.pop(random.randrange(0,len(a)))
-                    if a==[]: #queue depletion
                 else:
+                    k="Bid_deep"
                     a=self.asks[self.bidprices["Bid_touch"]]
                     a.pop(random.randrange(0,len(a)))
-                    if a==[]: #queue depletion
-            else:
-                pass
-            #Cancel_order
-            #Check queue depletion
-            if self.ask
+            if a==[]: #check queue depletion
+                #update touch and deep prices
+                self.updatebidaskprices
+                pi=self.Pi_Q0[k]
+                qSize=generateqsize(pi)
+                self.populateLoBlevel(k)
         #update spread:
         self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
 
@@ -186,9 +212,29 @@ class LimitOrderBook:
         }
         return rtn
 
+    def getlob(self):
+        rtn=[[self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]], [self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]], [self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]]], [self.bidprices["Bid_deep"], self.bids[self.bidprices["Bid_deep"]]], self.spread]
+        return rtn
+        
+        
+        
 def logtofile(data, destination):
+    #data=[order book, spread]
     
-
+    return
+def generateqsize(pi):
+    #k, the level of the bid/ask spread i.e Ask_touch, Bid_touch...
+    #pi=(p, diracdeltas(i, p_i))
+    p = pi[0]
+    dd = pi[1]
+    pi = np.array([p*(1-p)**k for k in range(1,100000)])
+    # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+    for i, p_i in dd:
+        pi[i-1] = p_i + pi[i-1]
+    pi = pi/sum(pi)
+    cdf = np.cumsum(pi)
+    a = np.random.uniform(0, 1)
+    qSize = np.argmax(cdf>=a)+1
+    return qSize
         
         
-
