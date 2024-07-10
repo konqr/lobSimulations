@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import time
 import numpy as np
-
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
     if x < t0: return 0
     return alpha*(x**beta)
@@ -21,6 +20,7 @@ def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
 
 def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
+    
     if maxJumps is None: maxJumps = np.inf
     with open(paramsPath, "rb") as f:
         params = pickle.load(f)
@@ -57,8 +57,8 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
         for i in range(len(Ts)):
             taus = Ts[i]
             for tau in taus:
-                if s - tau >= 500: continue
-                if s - tau < 1e-4: continue
+                if s - tau >= 500: continue #too far ago
+                if s - tau < 1e-4: continue #too recent
                 for j in range(len(Ts)):
                     kernelParams = params[cols[i] + "->" + cols[j]]
                     decay = powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
@@ -77,8 +77,9 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
                 return n,Ts
     return n, Ts
 
-def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
-    if maxJumps is None: maxJumps = np.inf
+def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
+    if maxJumps is None: 
+        maxJumps = np.inf
     tryer = 0
     while tryer < 5: # retry on pickle clashes
         try:
@@ -111,16 +112,21 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
     specRad = np.max(np.linalg.eig(mat)[0])
-    print("spectral radius = ", specRad)
+    #print("spectral radius = ", specRad)
     specRad = np.max(np.linalg.eig(mat)[0]).real
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
+    
+    """Set up Variables for ThinningOgata"""
+    
     numJumps = 0
     if n is None: n = num_nodes*[0]
     if Ts is None: Ts = num_nodes*[()]
     Ts_new = num_nodes*[()]
     if spread is None: spread = 1
+    
+    """Compute initial value of lambbar"""
     if lamb is None:
-        print(baselines)
+        #print(baselines)
 
         decays = baselines.copy()
         for i in range(len(Ts)):
@@ -130,19 +136,23 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             lamb = sum(decays)
         else:
             lamb = sum(np.array(baselines)[:,0])
+    
+    """Begin thinningOgata simulation loop"""
+    loopcount=0
     while s <= T:
+        loopcount+=1
         lambBar = lamb
-        print(lambBar)
+        #print("lamb_bar: ", lambBar)
         u = np.random.uniform(0,1)
         if lambBar == 0:
             s += 0.1 # wait for some time
         else:
             w = np.max([1e-7,-1*np.log(u)/lambBar]) # floor at 0.1 microsec
+            """Update candidate point"""
             s += w
-
+        """calculating sum of lambdas"""
         decays = baselines.copy()
         hourIndex = np.min([12,int(np.floor(s/1800))])
-
         for i in range(len(Ts)):
             todMult = tod[cols[i]][hourIndex]*0.99/specRad
             decays[i] = todMult*decays[i]
@@ -150,6 +160,7 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
             taus = Ts[i]
             idx = np.searchsorted(taus, s - 10)
             for tau in taus[idx:]:
+                #print("timestamp: ", tau, ", s: ", s)
                 if s - tau >= 10: continue
                 #if s - tau < 1e-4: continue
                 for j in range(len(Ts)):
@@ -165,18 +176,24 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
         decays[5] = ((spread/avgSpread)**beta)*decays[5]
         decays[6] = ((spread/avgSpread)**beta)*decays[6]
         if 100*np.round(spread, 2) < 2 : decays[5] = decays[6] = 0
-        print(decays)
         lamb = sum(decays)
-        print(lamb)
+        #print("LAMBDA: ", lamb)
+        
+        
+        
+        """Testing candidate point"""
         D = np.random.uniform(0,1)
+        #print("Candidate D: ", D)
         if D*lambBar <= lamb: #accepted
-            print(w)
+            #print(w)
+            """Assign candidate point to a process by ratio of intensities"""
             k = 0
             while D*lambBar >= sum(decays[:k+1]):
                 k+=1
             # instantaneous lamb jumps
             if k in [5,6]:
                 spread = spread - 0.01
+            """Precalculating lambda for the next simulation"""    
             newdecays = len(cols)*[0]
             for i in range(len(Ts)):
                 kernelParams = params.get(cols[k] + "->" + cols[i], None)
@@ -185,28 +202,31 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = None, s =
                 if np.isnan(kernelParams[1][2]): continue
                 # decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                 decay = todMult*powerLawCutoff(0, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
-                # print(decay)
                 newdecays[i] += decay
             newdecays = [np.max([0, d]) for d in newdecays]
             newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]
             newdecays[6] = ((spread/avgSpread)**beta)*newdecays[6]
             if 100*np.round(spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
             lamb += sum(newdecays)
-            print(lamb)
+            #print(lamb)
             n[k] += 1
             if len(Ts[k]) > 0:
                 T_Minus1 = Ts[k][-1]
             else:
                 T_Minus1 = 0
             decays = np.array(baselines.copy())
+            #print("postdecays: ", decays)
             hourIndex = np.min([12,int(np.floor(s/1800))])
             decays[5] = ((spread/avgSpread)**beta)*decays[5]
             decays[6] = ((spread/avgSpread)**beta)*decays[6]
             decays = decays*(s-T_Minus1)
+            
+            """Updating history and returns"""
             tau = decays[k]
             Ts[k] += (s,)
             Ts_new[k] += (s,)
             numJumps += 1
+            #print("point added")
             if numJumps >= maxJumps:
                 return s,n,Ts, Ts_new, tau, lamb
     return s,n, Ts, Ts_new, -1, lamb
@@ -376,17 +396,32 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
         s = s0
     Ts,lob,lobL3 = [],[],[]
     _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
+    #print("The initial LOB: lob0", lob0, "lob0_l3", lob0_l3)
     Ts.append(0)
     lob.append(lob0[-1])
     lobL3.append(lob0_l3[-1])
     spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
+    #print("initial spread: ", spread, "\n")
     n = None
     timestamps = None
     lob0 = lob0[0]
     lob0_l3 = lob0_l3[0]
     lamb = None
+    trials=1
+    thinningtime=0
     while s <= T:
+        start=time.perf_counter_ns()
         s, n, timestamps, timestamps_this, tau, lamb = thinningOgataIS(T, paramsPath, todPath, maxJumps = 1, s = s, n = n, Ts = timestamps, spread=spread, beta = beta, avgSpread = avgSpread, lamb = lamb)
+        end=time.perf_counter_ns()
+        thinningtime+=abs(end-start)
+        # print("s: ", s)
+        # print("n: ", n)
+        # print("Timestamps: ", timestamps)
+        # print("Timestamps_this: ", timestamps_this)
+        # print("tau: ", tau)
+        # print("lamb: ", lamb)
+        #print("Simulation ", trials, "took ", str((end-start)/10**9), "nanosecs. New number of points is ", str(np.sum(n)), "points. ")
+        trials +=1
         sizes = {}
         dictTimestamps = {}
         for t, col in zip(timestamps_this, cols):
@@ -412,20 +447,21 @@ def simulate(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = Non
                     size = np.argmax(cdf>=a)+1
             sizes[col]  = size
             dictTimestamps[col] = t
-
+        #print("Sizes is: ", sizes)
         TsTmp, lobTmp, lobL3Tmp = createLOB(dictTimestamps, sizes, Pi_Q0, lob0 = lob0, lob0_l3 = lob0_l3)
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
+        #print("Snapshot LOB0: ", lob0, "\n")
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
-            print(lob0)
-            lobL3.append(lob0_l3)
-        if (filePathName is not None)&(len(Ts)%100 == 0):
+        if (filePathName is not None)&(len(Ts)%100 == 0):   
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
                 pickle.dump((Ts, lob, lobL3), f)
-    return Ts, lob, lobL3
+    return Ts, lob, lobL3, thinningtime
+
+
 
 
 
@@ -466,6 +502,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
                 lob0_l3[l] = [lob0[l][1] - sum(tmp)] + tmp
             else:
                 lob0_l3[l] = [lob0[l][1]]
+        #print("Lob0_l3 post init: ", lob0_l3)
     if len(dictTimestamps) == 0:
         return T, [lob0], [lob0_l3]
 
@@ -476,7 +513,6 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
         dfs += [pd.DataFrame({"event" : len(timestamps_e)*[event], "time": timestamps_e, "size" : sizes_e})]
     dfs = pd.concat(dfs)
     dfs = dfs.sort_values("time")
-    print(dfs.head())
     lob.append(lob0.copy())
     T.append(0)
     lob_l3.append(lob0_l3.copy())
@@ -493,6 +529,7 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
             if "lo" in r.event:
                 if "deep" in r.event:
                     if np.abs(lobNew[side + "_touch"][0] - lobNew[side + "_deep"][0]) >  2.5*ticksize:
+                        print("triggered")
                         direction = 1
                         if side == "Ask": direction = -1
                         lobNew[side + "_deep"] = (np.round(lobNew[side + "_touch"][0] - direction*ticksize, decimals=2), r['size'])
