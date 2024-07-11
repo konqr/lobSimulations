@@ -215,7 +215,7 @@ def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n 
 # beta=kernelParams[1][1]
 # gamma=kernelParams[1][2]
 #%%
-def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
+def simulate_optimized(T , params , tod, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -402,10 +402,10 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
         timestamps_this[timeseries[-1][1]]=(timeseries[-1][0],)
         end=time.perf_counter_ns()
         thinningtime+=abs(end-start)
-        # print("s: ", s)
+        print("s: ", s)
         # print("n: ", n)
         # print("Timestamps: ", timestamps)
-        # print("Timestamps_this: ", timestamps_this)
+        print("Timestamps_this: ", timestamps_this)
         # print("tau:", tau)
         # print("lamb: ", lamb)
         # print("left:", left)
@@ -442,7 +442,7 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
-        #print("Snapshot LOB0: ", lob0, "\n")
+        print("Snapshot LOB0: ", lob0, "\n")
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
