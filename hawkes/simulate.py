@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import time
 import numpy as np
+
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
     if x < t0: return 0
     return alpha*(x**beta)
@@ -18,6 +19,9 @@ def powerLawCutoff(time, alpha, beta, gamma):
 
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
+
+def expKernel(x, alpha, beta):
+    return alpha*np.exp(-x*beta)
 
 def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
     
@@ -77,7 +81,7 @@ def thinningOgata(T, paramsPath, num_nodes = 12, maxJumps = None):
                 return n,Ts
     return n, Ts
 
-def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
+def thinningOgataIS(T, paramsPath, todPath, kernel = 'powerlaw', num_nodes = 12, maxJumps = 1, s = None, n = None, Ts = None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None):
     if maxJumps is None: 
         maxJumps = np.inf
     tryer = 0
@@ -102,12 +106,19 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = No
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = params.get(cols[i] + "->" + cols[j], None)
-            if kernelParams is None: continue
-            if np.isnan(kernelParams[1][2]): continue
+            if kernelParams is None:
+                continue
+            if len(kernelParams[1]) and np.isnan(kernelParams[1][2]):
+                continue
             # print(cols[i] + "->" + cols[j])
             # print((kernelParams[0]*np.exp(kernelParams[1][0]) , kernelParams[1][1] , kernelParams[1][2]))
             todMult = tod[cols[j]][hourIndex]
-            mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            if kernel == 'powerlaw':
+                mat[i][j]  = todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) # alpha/(beta -1)*gamma
+            elif kernel == 'exp':
+                mat[i][j]  = todMult*kernelParams[0]/kernelParams[1]
+            else:
+                raise Exception("kernel must be either 'exp' or 'powerlaw'")
         baselines[i] = params[cols[i]]
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
@@ -170,7 +181,12 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = No
                     if np.isnan(kernelParams[1][2]): continue
                     # decay = todMult*powerLawKernel(s - tau, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
                     # print(decay)
-                    decay = todMult*powerLawCutoff(s - tau, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
+                    if kernel == 'powerlaw':
+                        decay = todMult*powerLawCutoff(s - tau, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
+                    elif kernel == 'exp':
+                        decay = todMult*expKernel(s - tau, kernelParams[0], kernelParams[1])
+                    else:
+                        raise Exception("kernel must be either 'exp' or 'powerlaw'")
                     decays[j] += decay
         decays = [np.max([0, d]) for d in decays]
         decays[5] = ((spread/avgSpread)**beta)*decays[5]
@@ -200,8 +216,10 @@ def thinningOgataIS(T, paramsPath, todPath, num_nodes = 12, maxJumps = 1, s = No
                 todMult = tod[cols[i]][hourIndex]*0.99/specRad
                 if kernelParams is None: continue
                 if np.isnan(kernelParams[1][2]): continue
-                # decay = todMult*powerLawKernel(0, alpha = kernelParams[0]*np.exp(kernelParams[1][0]), t0 = kernelParams[1][2], beta = kernelParams[1][1])
-                decay = todMult*powerLawCutoff(0, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
+                if kernel == 'powerlaw':
+                    decay = todMult*powerLawCutoff(0, kernelParams[0]*kernelParams[1][0], kernelParams[1][1], kernelParams[1][2])
+                elif kernel == 'exp':
+                    decay = todMult*expKernel(0, kernelParams[0], kernelParams[1])
                 newdecays[i] += decay
             newdecays = [np.max([0, d]) for d in newdecays]
             newdecays[5] = ((spread/avgSpread)**beta)*newdecays[5]

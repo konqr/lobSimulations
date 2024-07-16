@@ -27,6 +27,9 @@ def powerLawCutoff(time, alpha, beta, gamma):
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
 
+def expKernel(x, alpha, beta):
+    return alpha*np.exp(-x*beta)
+
 #%%
 num_nodes=12
 def preprocessdata(paramsPath: str, todPath: str):
@@ -84,7 +87,7 @@ tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true',
  
 
 #%%
-def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, timeseries=None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None, left=None):
+def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, timeseries=None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None, left=None):
     """ 
     Arguments:
     T: timelimit of simulation process
@@ -153,7 +156,12 @@ def thinningOgataIS2(T, params, tod, num_nodes=12, maxJumps = None, s = None, n 
                 else:
                     break
             for point in timeseries[left:]: #point is of the form(s, k)
-                kern=powerLawCutoff(time=s-point[0], alpha=params[0][0][point[1]]*params[0][1][point[1]], beta=params[0][2][point[1]], gamma=params[0][3][point[1]])
+                if kernel == 'powerlaw':
+                    kern=powerLawCutoff(time=s-point[0], alpha=params[0][0][point[1]]*params[0][1][point[1]], beta=params[0][2][point[1]], gamma=params[0][3][point[1]])
+                elif kernel == 'exp':
+                    kern=expKernel(s-point[0], params[0][0][point[1]], params[0][1][point[1]])
+                else:
+                    raise Exception("kernel must be either 'exp' or 'powerlaw'")
                 kern=kern.reshape((12, 1))
                 decays+=todmult*kern
         #print(decays.shape) #should be (12, 1)
