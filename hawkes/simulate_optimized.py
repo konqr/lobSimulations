@@ -76,11 +76,11 @@ def preprocessdata(paramsPath: str, todPath: str):
 
 
 
-if os.path.exists("hawkes"):
-    pass
-else:
-    os.chdir("..")
-tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true', todPath='fakeData_Params_sod_eod_dictTOD_constt')
+# if os.path.exists("hawkes"):
+#     pass
+# else:
+#     os.chdir("..")
+# tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true', todPath='fakeData_Params_sod_eod_dictTOD_constt')
  
 
 #%%
