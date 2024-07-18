@@ -11,16 +11,21 @@ class ArrivalModel(StochasticModel):
     @abstractmethod
     def get_nextarrival(self):
         pass
+    
+    @abstractmethod
+    def reset(self):
+        pass
 
 
 class HawkesArrival(ArrivalModel):
-    def __init__(self, T, params, tod, Pis, Pi_Q0, beta, avgSpread, spread0, price0):
+    def __init__(self, params, tod, Pis, Pi_Q0, beta, avgSpread, spread0, price0, seed=1, T=100):
         self.Pi_Q0=Pi_Q0
         self.beta=beta
         self.avgSpread=avgSpread
         self.spread0=spread0
         self.price0=price0
-        super().__init__(params, T=T, seed=1)
+        self.T=T
+        super().__init__(params, seed=1)
         
     def get_nextarrivaltime(self): #returns a tuple (t, k) where t is timestamp, k is event
         s, n, timestamps, tau, lamb, timeseries, left=Simulate.thinningOgataIS2(T, params, tod, num_nodes=num_nodes, maxJumps = 1, s = s, n = n, Ts = timestamps, timeseries=timeseries, spread=spread, beta = beta, avgSpread = avgSpread,lamb= lamb, left=left)
@@ -47,8 +52,12 @@ class HawkesArrival(ArrivalModel):
         a = np.random.uniform(0, 1)
         qSize = np.argmax(cdf>=a) + 1
         return qSize
-        
+
+
     def get_nextarrival(self):
         t, k=self.get_nextarrivaltime()
         s=self.generate_ordersize
-        return 
+        return (t, k, s)
+    
+    def reset(self):
+        return super().reset()

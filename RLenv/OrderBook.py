@@ -5,13 +5,15 @@ import time
 import numpy as np
 import os 
 import random
+from Stochastic_Processes.Arrival_Models import HawkesArrival
+
 cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
 indextocol={}
 for i in range(len(cols)):
     indextocol[i]=cols[i]
 class LimitOrderBook:
-    def __init__(self, Pi_Q0, priceMid0=260, spread0=4, ticksize=0.01, numOrdersPerLevel=10):
+    def __init__(self, Pi_Q0, priceMid0=260, spread0=4, ticksize=0.01, numOrdersPerLevel=10, Arrival_model: HawkesArrival=None):
         self.levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
         self.numOrdersPerLevel=numOrdersPerLevel
         colsToLevels = {
@@ -22,28 +24,74 @@ class LimitOrderBook:
         }
         #init prices
         self.ticksize=ticksize
-        self.spread0=spread0
-        self.priceMid0=priceMid0
-        self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
-        self.asks={}
+        self.priceMid=priceMid0
+        self.spread=spread0
         self.askprices={ 
-            "Ask_touch" : priceMid0 + np.floor(spread0/2)*self.ticksize,
-            "Ask_deep" : priceMid0 + np.floor(spread0/2)*self.ticksize + self.ticksize
+            "Ask_touch" : self.priceMid + np.floor(self.spread/2)*self.ticksize,
+            "Ask_deep" : self.priceMid + np.floor(self.spread/2)*self.ticksize + self.ticksize
         }
         self.bidprices={
-            "Bid_touch" : priceMid0 - np.ceil(spread0/2)*self.ticksize,
-            "Bid_deep" : priceMid0 - np.ceil(spread0/2)*self.ticksize - self.ticksize
+            "Bid_touch" : self.priceMid - np.ceil(self.spread/2)*self.ticksize,
+            "Bid_deep" : self.priceMid - np.ceil(self.spread/2)*self.ticksize - self.ticksize
         }
-        self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
+        self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
+        self.asks={}
+        
         self.Pi_Q0=Pi_Q0
         #init random sizes 
+        self.Arrival_model=Arrival_model 
+        self.history=[] #History of an order book is an array of the form (t, LOB, spread)
+        self.cols=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    def generate_ordersize(self, loblevel):
+        """
+        generate ordersize
+        loblevel: one of the 4 possible levels in the LOB
+        Returns: qsize the size of the order
+        """
+        #use generaeordersize method in hawkes arrival
+        if self.Arrival_model is not None:
+            return self.Arrival_model.generate_ordersize(loblevel)
+        else:
+            raise ValueError("Arrival_model is not provided")
     
+    def get_nextarrival(self):
+        """
+        Returns a tuple (t, k, s) describing the next event where t is the time, k the event, and s the size
+        """
+        return self.Arrival_model.get_nextarrival()
+        
+        
+    def sizetoqueue(self, qSize, loblevel):    
+        """
+        Generate the LOBL3 queue information based on the LOBL0 queuesize
+        loblevel: one of the 4 possible levels in the LOB
+        Returns: array representing queue
+        """
+        if "Ask" in loblevel:
+            print("qsize init: ", loblevel, ": ", qSize)
+            d=qSize//self.numOrdersPerLevel
+            if(d!=0):
+                r=qSize%self.numOrdersPerLevel
+                self.asks[self.askprices[loblevel]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
+            else:
+                self.asks[self.askprices[loblevel]]=[qSize]
+        else:
+            print("qsize init: ", loblevel, ": ", qSize)
+            d=qSize//self.numOrdersPerLevel
+            if (d!=0):
+                r=qSize%self.numOrdersPerLevel
+                self.bids[self.bidprices[loblevel]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
+            else:
+                self.bids[self.bidprices[loblevel]]=[qSize]   
+    
+        
     def updatebidaskprices(self): #to be implemented
         pass
         if self.asks[self.askprices["Ask_touch"]]==[]:
             del self.asks[self.askprices["Ask_touch"]]
             self.askprices["Ask_touch"]=self.askprices["Ask_deep"]
-        if self.bids[self.bidprices["Bid_touch"]]==[]
+        if self.bids[self.bidprices["Bid_touch"]]==[]:
             del self.bids[self.bidprices["Bid_touch"]]
             self.bidprices=["Bid_touch"]-self.bidprices["Bid_deep"]
         if self.asks[self.askprices["Ask_deep"]]==[]:
@@ -52,31 +100,17 @@ class LimitOrderBook:
             self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]-self.ticksize
         
              
-    def populateLoBlevel(self, k):    
-        pi=self.Pi_Q0[k]
-            #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
-        qSize=generateqsize(pi)
-        if "Ask" in k:
-            print("qsize init: ", k, ": ", qSize)
-            d=qSize//self.numOrdersPerLevel
-            if(d!=0):
-                r=qSize%self.numOrdersPerLevel
-                self.asks[self.askprices[k]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
-            else:
-                self.asks[self.askprices[k]]=[qSize]
-        else:
-            print("qsize init: ", k, ": ", qSize)
-            d=qSize//self.numOrdersPerLevel
-            if (d!=0):
-                r=qSize%self.numOrdersPerLevel
-                self.bids[self.bidprices[k]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
-            else:
-                self.bids[self.bidprices[k]]=[qSize]          
+       
 
 
 
     def processorders(self, order):
+        """
+        Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary
+        """
         t, event, size=order[0], order[1], order[2]
+        event=self.cols[event]
+        
         if "Ask" in event:
             side="Ask"
         elif "Bid" in event:
@@ -193,7 +227,8 @@ class LimitOrderBook:
                 self.populateLoBlevel(k)
         #update spread:
         self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
-
+        #update simulator Kernel:
+        
     def peaklob0(self)-> dict: 
         rtn={
             "Ask_deep": (self.askprices["Ask_deep"], sum(self.asks[self.askprices["Ask_deep"]])),
@@ -213,28 +248,14 @@ class LimitOrderBook:
         return rtn
 
     def getlob(self):
-        rtn=[[self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]], [self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]], [self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]]], [self.bidprices["Bid_deep"], self.bids[self.bidprices["Bid_deep"]]], self.spread]
-        return rtn
+        return [[self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]], [self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]], [self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]]], [self.bidprices["Bid_deep"], self.bids[self.bidprices["Bid_deep"]]], self.spread]
         
         
         
-def logtofile(data, destination):
-    #data=[order book, spread]
-    
-    return
-def generateqsize(pi):
-    #k, the level of the bid/ask spread i.e Ask_touch, Bid_touch...
-    #pi=(p, diracdeltas(i, p_i))
-    p = pi[0]
-    dd = pi[1]
-    pi = np.array([p*(1-p)**k for k in range(1,100000)])
-    # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
-    for i, p_i in dd:
-        pi[i-1] = p_i + pi[i-1]
-    pi = pi/sum(pi)
-    cdf = np.cumsum(pi)
-    a = np.random.uniform(0, 1)
-    qSize = np.argmax(cdf>=a)+1
-    return qSize
+    def updatehistory(self):
+        #data=[order book, spread]
+        data=(self.time, self.getlob(), self.spread)
+        self.history.append(data)
+
         
         

@@ -1,0 +1,19 @@
+from Agents.AgentClass import Agent
+import numpy as np
+
+class RLTrader(Agent):
+    """RLTrader implements a simple Q-learning agent. """
+    def __init__(self, id, cash, inventory, seed, tau=0.05):
+        super().__init__(id, cash, seed)
+        self.inventory=inventory
+        self.tau=tau
+        self._orderhistory=[]
+    
+    def get_action(self, observations):
+        return super().get_action(observations)
+    
+    def update_state(self, kernelmessage):
+        return super().update_state(kernelmessage)
+        
+    def resetseed(self, seed):
+        np.random.seed(seed)
