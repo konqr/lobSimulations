@@ -55,6 +55,9 @@ class HawkesArrival(ArrivalModel):
 
 
     def get_nextarrival(self):
+        """
+        Returns a tuple (t, k, s) describing the next event where t is the time, k the event, and s the size
+        """
         t, k=self.get_nextarrivaltime()
         s=self.generate_ordersize
         return (t, k, s)

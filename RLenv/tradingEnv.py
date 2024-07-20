@@ -1,9 +1,9 @@
 import gymnasium as gym 
 from gymnasium import spaces
 import numpy as np
-from RLenv.Agents.AgentClass import Agent
+from RLenv.SimulationEntities.TradingAgent import Agent
 from RLenv.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
-from RLenv.OrderBook import LimitOrderBook
+from RLenv.SimulationEntities.Exchange import LimitOrderBook
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
