@@ -1,28 +1,16 @@
-#%%
 import pickle
-import numpy as np
 import pandas as pd
 import time
 import numpy as np
-import os 
-
-#perf_counter() measures the real amount of time for a process to take, as if you used a stop watch. Includes I/O and sleeping
-
-# start = time.perf_counter_ns()
-# time.sleep(1)
-# end = time.perf_counter_ns()
-# print("it took" + str((end-start)/10**9)+ " secs.")
-
+import os
 
 def powerLawKernel(x, alpha = 1., t0 = 1., beta = -2.):
     if x < t0: return 0
     return alpha*(x**beta)
 
-
 def powerLawCutoff(time, alpha, beta, gamma):
     # alpha = a*beta*(gamma - 1)
     return alpha/((1 + gamma*time)**beta)
-
 
 def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
     return (x2/(1+beta))*powerLawKernel(x2, alpha = alpha, t0=t0, beta=beta) - (x1/(1+beta))*powerLawKernel(x1, alpha = alpha, t0=t0, beta=beta)
@@ -30,8 +18,8 @@ def powerLawKernelIntegral(x1, x2, alpha = 1., t0 = 1., beta = -2.):
 def expKernel(x, alpha, beta):
     return alpha*np.exp(-x*beta)
 
-#%%
 num_nodes=12
+
 def preprocessdata(paramsPath: str, todPath: str):
     """Takes in params and todpath and spits out corresponding vectorised numpy arrays
     
@@ -73,20 +61,6 @@ def preprocessdata(paramsPath: str, todPath: str):
     params=[kernelparams, baselines] 
     return tod, params
 
-# def calcIntensities(Ts, s, baselines, mask, alpha, beta, gamma, memo):
-#     powerLawCutoff(alpha=)
-    
-
-
-
-if os.path.exists("hawkes"):
-    pass
-else:
-    os.chdir("..")
-tod, params=preprocessdata(paramsPath='fake_ParamsInferredWCutoff_sod_eod_true', todPath='fakeData_Params_sod_eod_dictTOD_constt')
- 
-
-#%%
 def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps = None, s = None, n = None, Ts = None, timeseries=None, spread=None, beta = 0.7479, avgSpread = 0.0169,lamb= None, left=None):
     """ 
     Arguments:
@@ -218,11 +192,7 @@ def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps
             if numJumps>=maxJumps:
                 return s, n, Ts, tau, lamb, timeseries, left
     return s, n, Ts, -1, lamb, timeseries, left
-# time=s-tau
-# alpha=kernelParams[0]*kernelParams[1][0]
-# beta=kernelParams[1][1]
-# gamma=kernelParams[1][2]
-#%%
+
 def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
@@ -230,6 +200,7 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
     :param Pis: distribution of order sizes
     :param Pi_Q0: depleted queue size distribution
     """
+    tod, params=preprocessdata(paramsPath=paramsPath, todPath=todPath)
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     if Pis == None:
@@ -458,10 +429,6 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
             with open(filePathName , "wb") as f: #"/home/konajain/params/"
                 pickle.dump((Ts, lob, lobL3), f)
     return Ts, lob, lobL3, thinningtime
-
-
-
-
 
 def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksize = 0.01, numOrdersPerLevel = 10, lob0 = {}, lob0_l3 = {}):
     lob = []
