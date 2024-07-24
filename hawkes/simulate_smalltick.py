@@ -344,14 +344,16 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 lobNew[side+'_touch'] = (lobNew[side + "_touch"][0] - sgn*ticksize*eta_IS, r['size'])
                 lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
                 spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
-                if totalDepth + eta_IS*0.5 <= M_med:
-                    lobNew[side+'_m_D'] += orig_m_T
-                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
-                else:
-                    deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
-                    deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
-                    lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
-                    lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
+                # if totalDepth + eta_IS*0.5 <= M_med:
+                #     lobNew[side+'_m_D'] += orig_m_T
+                #     lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
+                # else:
+                #     deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
+                #     deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
+                #     lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
+                #     lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
+                lobNew[side+'_m_D'] += orig_m_T
+                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
         elif 'co_deep' in r.event:
             lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], max([0, lobNew[side + "_deep"][1] - r['size']]))
             spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
