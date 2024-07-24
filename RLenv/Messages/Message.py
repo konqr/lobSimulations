@@ -6,8 +6,8 @@ class Message:
     __message_counter: ClassVar[int] =1 
     message_id: int=field(init=False)
     def __post_init__(self):
-        self.message_id: int = Message.__message_id_counter
-        Message.__message_id_counter += 1
+        self.message_id: int = Message.__message_counter
+        Message.__message_counter += 1
     def __lt__(self, other: "Message") -> bool:
         return self.message_id < other.message_id
 
@@ -28,3 +28,9 @@ class Message:
 
     def type(self) -> str:
         return self.__class__.__name__
+
+@dataclass
+class WakeupMsg(Message):
+    """Message sent to entities when waking them up. For wakeup messages, the recipientID is the intended entity to be woken up and the senderID is optional"""
+    time: int
+    

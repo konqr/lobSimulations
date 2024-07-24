@@ -3,18 +3,19 @@ from RLenv.Messages.Message import Message
 from RLenv.Orders import Order, LimitOrder,MarketOrder, CancelOrder
 
 @dataclass
-class OrderMsg(Message):
+class AgentMsg(Message):
     pass
 
 @dataclass
-class LimitOrderMsg(OrderMsg):
+class LimitOrderMsg(AgentMsg):
     order: LimitOrder
 
 @dataclass
-class MarketOrderMsg(OrderMsg):
+class MarketOrderMsg(AgentMsg):
     order: MarketOrder
 
 
 @dataclass
-class CancelOrderMsg(OrderMsg):
+class CancelOrderMsg(AgentMsg):
     order: CancelOrder
+

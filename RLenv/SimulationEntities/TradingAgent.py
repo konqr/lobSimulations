@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
 import pandas as pd
 import logging
-from Messages.Message import Message
+from RLenv.Messages.Message import Message
 from RLenv.SimulationEntities.Entity import Entity
 logger = logging.getLogger(__name__)
 
@@ -18,13 +18,13 @@ class TradingAgent(Entity):
         seed: Every agent is given a random seed for stochastic purposes.
         cash: cash of an agent
         Inventory: Initial inventory of an agent
-        log_events: flag to log or not the events during the simulation 
+        log_events: Boolean flag to log the events during the simulation 
             Logging format:
                 time: time of event
                 event_type: label of the event (e.g., Order submitted, order accepted, last trade etc....)
                 event: actual event to be logged (co_deep_Ask, lo_deep_Ask...)
                 size: size of the order (if applicable)
-        log_to_file: flag to write on disk or not the logged events
+        log_to_file: Boolean flag to write the logged events on disk or not
     """
     def __init__(self, id: int, type: str = None, seed=1, cash: int=10000, inventory: int=500, log_events: bool = True, log_to_file: bool = False) -> None:
         self.id=id
@@ -115,19 +115,7 @@ class TradingAgent(Entity):
                     current_time, self.id
                 )
             )
-    
-    
-           
-    """Private Methods for Internal use by agents"""   
-    def _logevent(self, event: Tuple[int, str, str, int]):
-        """Adds an event to this agents log"""
-        if not self.log_events:
-            return
-        self.log.append(event)
-
-    def writelog()
-        
-        
+         
     
           
     @abstractmethod        

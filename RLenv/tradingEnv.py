@@ -1,9 +1,9 @@
 import gymnasium as gym 
 from gymnasium import spaces
 import numpy as np
-from RLenv.SimulationEntities.TradingAgent import Agent
+from RLenv.SimulationEntities.TradingAgent import TradingAgent
 from RLenv.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
-from RLenv.SimulationEntities.Exchange import LimitOrderBook
+from RLenv.SimulationEntities.Exchange import Exchange
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
@@ -29,8 +29,8 @@ class tradingEnv(gym.Env):
         Input: Action
         Output: Observations, Rewards, termination, truncation, Logging info+metrics 
         """
-
-        return observations, rewards, dones, infos    
+        return None
+        #return observations, rewards, dones, infos    
         
         
     def reset(self, seed=None):
@@ -42,14 +42,14 @@ class tradingEnv(gym.Env):
         
         #Reset Random seed
         #Sample LOB State
-        
-        return Observations, info
+        return None
+        #return Observations, info
     
     def render(self):
         """
         Render an environment
         """
-    
+        pass
     def updatestate(self, action):
         """
         Update agent and market states

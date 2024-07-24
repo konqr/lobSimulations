@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from Stochastic_Processes.Stochastic_Models import StochasticModel
+from RLenv.Stochastic_Processes.Stochastic_Models import StochasticModel
 from hawkes import simulate_optimized as Simulate
 class ArrivalModel(StochasticModel):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.

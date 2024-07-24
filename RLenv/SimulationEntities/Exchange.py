@@ -7,7 +7,7 @@ import os
 import random
 
 from RLenv.SimulationEntities.Entity import Entity
-from Stochastic_Processes.Arrival_Models import HawkesArrival
+from RLenv.Stochastic_Processes.Arrival_Models import HawkesArrival
 
 cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]

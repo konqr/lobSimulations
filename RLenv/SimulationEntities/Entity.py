@@ -1,9 +1,9 @@
 import numpy as np
 from abc import ABC, abstractmethod 
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, ClassVar
 import pandas as pd
 import logging
-from Messages.Message import Message
+from RLenv.Messages.Message import Message
 
 logger = logging.getLogger(__name__)
 class Entity:
@@ -11,7 +11,7 @@ class Entity:
     Base Entity class of an object in the simulation. An Entity can either be a trading agent or an exchange
 
     Attributes:
-        id: Must be a unique number (usually autoincremented).
+        id: Must be a unique number (usually autoincremented) belonging to the subclass.
         type: is it a trading agent, exchange or simulation kernel?
         seed: Every entity is given a random seed for stochastic purposes.
         log_events: flag to log or not the events during the simulation 
@@ -22,9 +22,13 @@ class Entity:
                 size: size of the order (if applicable)
         log_to_file: flag to write on disk or not the logged events
     """
-    def __init__(self, id: int, type: str = None, seed=1, log_events: bool = True, log_to_file: bool = False) -> None:
-        self.id=id
+    _entity_counter: ClassVar[int]=1
+    _registry={}
+    def __init__(self, type: str = None, seed=1, log_events: bool = True, log_to_file: bool = False) -> None:
+        self.id=self.__class__._entity_counter
+        type(self)._entity_counter+=1
         self.type=type
+        self.name="Entity"+str(self.id)+"_"+str(self.type)+"_"+str(self.id)
         self.log_events=log_events
         self.log_to_file=log_events & log_to_file
         self.seed=seed
@@ -39,6 +43,15 @@ class Entity:
         
         if self.log_to_file:
             self.filename=None
+        
+        #Finally, add the entity object to the registry
+        Entity._registry[self.id]=self
+    
+    @classmethod
+    def get_entity_by_id(cls, ID: int):
+        return cls._registry.get(ID)
+    
+    
     
     def kernel_start(self, start_time: int) -> None:
         assert self.kernel is not None
@@ -130,7 +143,7 @@ class Entity:
         """
         assert self.kernel is not None
         self.kernel.write_log(self.id, df_log, filename)
-        
+    
     
           
     @abstractmethod        

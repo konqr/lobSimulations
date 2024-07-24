@@ -19,6 +19,3 @@ class StochasticModel(ABC):
         self._params = data
         
     
-    
-
-print("yes")
