@@ -188,7 +188,7 @@ def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None,
     Ts.append(0)
     lob.append(lob0[-1])
     spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
-    #print("initial spread: ", spread, "\n")
+    print("initial spread: ", spread, "\n")
     n = None
     timestamps = None
     timeseries=None
@@ -228,11 +228,11 @@ def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None,
                 size = np.argmax(cdf>=a)+1
             sizes[col]  = size
             dictTimestamps[col] = t
-        #print("Sizes is: ", sizes)
+        print("Sizes is: ", sizes)
         TsTmp, lobTmp = createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, lob0 = lob0, M_med = M_med)
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
-        #print("Snapshot LOB0: ", lob0, "\n")
+        print("Snapshot LOB0: ", lob0, "\n")
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
@@ -262,7 +262,7 @@ def sampleGeometricWithSpikes(p, dd, maxWidth = 100000):
     return qSize
 
 def partition(q, new_width, original_width):
-    return q*new_width/original_width
+    return np.round(q*new_width/original_width, decimals=0)
 
 def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 = 260, spread0 = 4, ticksize = 0.01, lob0 = {}, M_med = 100):
     lob = []
@@ -281,8 +281,8 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 #geometric
                 lob0[side+'_'+k] = sampleGeometric(pi)
         # init prices at deep
-        lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + lob0['Ask_m_T'], 0)
-        lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - lob0['Bid_m_T'], 0)
+        lob0['Ask_deep'] = (priceMid0 + np.floor(spread0/2)*ticksize + lob0['Ask_m_T']*ticksize, 0)
+        lob0['Bid_deep'] = (priceMid0 - np.ceil(spread0/2)*ticksize - lob0['Bid_m_T']*ticksize, 0)
         # init queue sizes
         for k, pi in Pi_Q0.items():
             #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
@@ -329,32 +329,43 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                     # order in between top and top +1
                     lobNew[side+'_m_D'] = lobNew[side+'_m_D'] + lobNew[side+'_m_T'] - eta_T
                     lobNew[side+'_m_T'] = eta_T
-                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*lobNew[side+'_m_T'] + sgn*ticksize*eta_T, lobNew[side + "_deep"][1] + r['size'])
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*lob0[side+'_m_T'] + sgn*ticksize*eta_T, lobNew[side + "_deep"][1] + r['size'])
                 else:
                     # order at top
                     lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] + r['size'])
             else: # inspread
                 eta_IS_hat = Pi_eta['eta_IS']
                 # distance from current top to the new order
-                spread = int(100*(lobNew['Ask_touch'] - lobNew['Bid_touch']))
+                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
                 eta_IS = min([spread - 1, sampleGeometric(eta_IS_hat)])
                 totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
                 orig_m_T  = lobNew[side+'_m_T']
                 lobNew[side+'_m_T'] = eta_IS
                 lobNew[side+'_touch'] = (lobNew[side + "_touch"][0] - sgn*ticksize*eta_IS, r['size'])
-                lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'] + lobNew[antiside+'_touch']), decimals=2)
-                spread = int(100*(lobNew['Ask_touch'] - lobNew['Bid_touch']))
+                lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
+                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
                 if totalDepth + eta_IS*0.5 <= M_med:
                     lobNew[side+'_m_D'] += orig_m_T
-                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lobNew[side + "_touch"][1])
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
                 else:
                     deltaQ_D = partition(lobNew[side + "_deep"][1], M_med - 0.5*eta_IS, lobNew[side+'_m_D'])
                     lobNew[side+'_m_D'] = M_med - int(0.5*spread) - lobNew[side+'_m_T']
-                    lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lobNew[side + "_touch"][1] - deltaQ_D)
-
-        else: # mo or co
+                    lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
+        elif 'co_deep' in r.event:
+            lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - r['size'])
+            spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
+            totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
+            if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] <= 0): # go deeper
+                width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
+                p, dd = Pi_Q0[side+'_deep']
+                qSize = sampleGeometricWithSpikes(p,dd)
+                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], width*qSize )
+                lobNew[side+'_m_D'] = width
+            lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
+        else: # mo or co_top
             lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - r['size'])
             while lobNew[side + "_touch"][1] <= 0: # queue depletion
+                if 'co' in r.event: lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], 0) # CO size cant be more than existing queue size
                 extraVolume = -1*lobNew[side + "_touch"][1]
                 eta_Tp1_hat = Pi_eta['eta_T+1']
                 eta_Tp1 = min([lobNew[side+'_m_D'] , sampleGeometric(eta_Tp1_hat)])
@@ -362,15 +373,23 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 lobNew[side + "_touch"] = (lobNew[side + "_deep"][0], Q_T - extraVolume)
                 lobNew[side+'_m_T'] = eta_Tp1
                 lobNew[side+'_m_D'] = lobNew[side+'_m_D'] - eta_Tp1
-                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] + eta_Tp1, lobNew[side + "_deep"][1] - Q_T )
-                spread = int(100*(lobNew['Ask_touch'] - lobNew['Bid_touch']))
+                lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + ticksize*sgn*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] - Q_T )
+                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
                 totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
                 if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] == 0): # go deeper
                     width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
                     p, dd = Pi_Q0[side+'_deep']
                     qSize = sampleGeometricWithSpikes(p,dd)
-                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], width*qSize )
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] , width*qSize )
                     lobNew[side+'_m_D'] = width
+                lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
+        for k in ['Ask_touch','Bid_touch','Ask_deep','Bid_deep']:
+            lobNew[k] = (np.round(lobNew[k][0],decimals=2), lobNew[k][1])
         lob.append(lobNew.copy())
 
     return T, lob
+
+def main():
+    simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 50, price0 = 450)
+
+main()
