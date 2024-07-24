@@ -390,7 +390,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
 
     return T, lob
 
-def main():
-    simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 110, price0 = 450)
-
-main()
+# def main():
+#     simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 110, price0 = 450)
+#
+# main()
