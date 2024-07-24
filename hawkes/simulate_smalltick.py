@@ -336,24 +336,25 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
             else: # inspread
                 eta_IS_hat = Pi_eta['eta_IS']
                 # distance from current top to the new order
-                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
+                spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
                 eta_IS = min([spread - 1, sampleGeometric(eta_IS_hat)])
                 totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
                 orig_m_T  = lobNew[side+'_m_T']
                 lobNew[side+'_m_T'] = eta_IS
                 lobNew[side+'_touch'] = (lobNew[side + "_touch"][0] - sgn*ticksize*eta_IS, r['size'])
                 lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
-                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
+                spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
                 if totalDepth + eta_IS*0.5 <= M_med:
                     lobNew[side+'_m_D'] += orig_m_T
                     lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
                 else:
-                    deltaQ_D = partition(lobNew[side + "_deep"][1], M_med - 0.5*eta_IS, lobNew[side+'_m_D'])
-                    lobNew[side+'_m_D'] = M_med - int(0.5*spread) - lobNew[side+'_m_T']
+                    deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
+                    deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
+                    lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
                     lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
         elif 'co_deep' in r.event:
             lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - r['size'])
-            spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
+            spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
             totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
             if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] <= 0): # go deeper
                 width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
@@ -374,7 +375,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 lobNew[side+'_m_T'] = eta_Tp1
                 lobNew[side+'_m_D'] = lobNew[side+'_m_D'] - eta_Tp1
                 lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + ticksize*sgn*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] - Q_T )
-                spread = int(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]))
+                spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
                 totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
                 if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] == 0): # go deeper
                     width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
@@ -389,7 +390,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
 
     return T, lob
 
-# def main():
-#     simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 50, price0 = 450)
-#
-# main()
+def main():
+    simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 110, price0 = 450)
+
+main()
