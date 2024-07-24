@@ -344,16 +344,14 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 lobNew[side+'_touch'] = (lobNew[side + "_touch"][0] - sgn*ticksize*eta_IS, r['size'])
                 lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
                 spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
-                # if totalDepth + eta_IS*0.5 <= M_med:
-                #     lobNew[side+'_m_D'] += orig_m_T
-                #     lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
-                # else:
-                #     deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
-                #     deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
-                #     lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
-                #     lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
-                lobNew[side+'_m_D'] += orig_m_T
-                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
+                if totalDepth + eta_IS*0.5 <= M_med:
+                    lobNew[side+'_m_D'] += orig_m_T
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] - sgn*ticksize*orig_m_T, lobNew[side + "_deep"][1] + lob0[side + "_touch"][1])
+                else:
+                    deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
+                    deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
+                    lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
+                    lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
         elif 'co_deep' in r.event:
             lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], max([0, lobNew[side + "_deep"][1] - r['size']]))
             spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
@@ -393,6 +391,6 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
     return T, lob
 
 def main():
-    simulate_smallTick(1000, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0., avgSpread = .50, spread0 = 110, price0 = 450, M_med = 50)
+    simulate_smallTick(100, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","D:\PhD\\results - small tick\AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .47, spread0 = 110, price0 = 1700, M_med = 50)
 
 # main()
