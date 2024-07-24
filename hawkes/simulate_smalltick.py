@@ -175,9 +175,9 @@ def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None,
         Pi_M0 = {'m_T': 0.1,
                  'm_D': 0.2}
     if Pi_eta == None:
-        Pi_eta = {'eta_T' : 0.01,
-                  'eta_IS' : 0.01,
-                  'eta_T+1': 0.02}
+        Pi_eta = {'eta_T' : 1,
+                  'eta_IS' : 1,
+                  'eta_T+1': 2}
     if s0 is None:
         s = 0
     else:
@@ -355,7 +355,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
         elif 'co_deep' in r.event:
             lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], max([0, lobNew[side + "_deep"][1] - r['size']]))
             spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
-            totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
+            totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + np.round(0.5*spread, decimals=0)
             if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] <= 0): # go deeper
                 width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
                 p, dd = Pi_Q0[side+'_deep']
@@ -376,7 +376,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 lobNew[side+'_m_D'] = lobNew[side+'_m_D'] - eta_Tp1
                 lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + ticksize*sgn*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] - Q_T )
                 spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
-                totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
+                totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + np.round(0.5*spread, decimals=0)
                 if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] == 0): # go deeper
                     width = min([M_med - totalDepth, sampleGeometric(Pi_M0['m_D'])])
                     p, dd = Pi_Q0[side+'_deep']
@@ -390,7 +390,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
 
     return T, lob
 
-# def main():
-#     simulate_smallTick(100, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.5, avgSpread = .50, spread0 = 110, price0 = 450)
-#
-# main()
+def main():
+    simulate_smallTick(1000, "C:\\Users\\konar\IdeaProjects\lobSimulations\\fake_ParamsInferredWCutoff_sod_eod_true","C:\\Users\\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0., avgSpread = .50, spread0 = 110, price0 = 450, M_med = 50)
+
+main()
