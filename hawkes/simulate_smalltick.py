@@ -353,7 +353,7 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                     lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
                     lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
         elif 'co_deep' in r.event:
-            lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], lobNew[side + "_deep"][1] - r['size'])
+            lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], max([0, lobNew[side + "_deep"][1] - r['size']]))
             spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
             totalDepth = lobNew[side+'_m_T'] + lobNew[side+'_m_D'] + spread*0.5
             if (totalDepth <= M_med) and (lobNew[side + "_deep"][1] <= 0): # go deeper
