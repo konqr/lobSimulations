@@ -7,7 +7,7 @@ import os
 
 num_nodes = 12
 
-def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260, M_med = 100):
+def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260, M_med = 100, verbose = False):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -228,11 +228,11 @@ def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None,
                 size = np.argmax(cdf>=a)+1
             sizes[col]  = size
             dictTimestamps[col] = t
-        print("Sizes is: ", sizes)
+        if verbose: print("Sizes is: ", sizes)
         TsTmp, lobTmp = createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, lob0 = lob0, M_med = M_med)
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
-        print("Snapshot LOB0: ", lob0, "\n")
+        if verbose: print("Snapshot LOB0: ", lob0, "\n")
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
@@ -391,6 +391,6 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
     return T, lob
 
 def main():
-    simulate_smallTick(100, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","D:\PhD\\results - small tick\AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .47, spread0 = 110, price0 = 1700, M_med = 50)
+    simulate_smallTick(100, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","C:\\Users\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.6, avgSpread = .47, spread0 = 110, price0 = 1700, M_med = 50)
 
 # main()
