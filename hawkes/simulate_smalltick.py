@@ -350,8 +350,12 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 else:
                     deletedWidth = min([lobNew[side+'_m_D'] ,lobNew[side+'_m_D'] - M_med + np.round(0.5*spread, decimals=0) + eta_IS + lob0[side+'_m_T']])
                     deltaQ_D = partition(lobNew[side + "_deep"][1], deletedWidth, lobNew[side+'_m_D'])
-                    lobNew[side+'_m_D'] = M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']
+                    lobNew[side+'_m_D'] = max([1,M_med - np.round(0.5*spread, decimals=0) - lobNew[side+'_m_T']])
                     lobNew[side + "_deep"] = (lobNew[side + "_touch"][0] + sgn*ticksize*lobNew[side+'_m_T'], lobNew[side + "_deep"][1] + lob0[side + "_touch"][1] - deltaQ_D)
+                    if lobNew[side + "_deep"][1] == 0: # even if at limit of M_med, add 1 deep level
+                        p, dd = Pi_Q0[side+'_deep']
+                        qSize = sampleGeometricWithSpikes(p,dd)
+                        lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] , 1*qSize )
         elif 'co_deep' in r.event:
             lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], max([0, lobNew[side + "_deep"][1] - r['size']]))
             spread = np.round(100*(lobNew['Ask_touch'][0] - lobNew['Bid_touch'][0]), decimals=0)
@@ -362,10 +366,17 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                 qSize = sampleGeometricWithSpikes(p,dd)
                 lobNew[side + "_deep"] = (lobNew[side + "_deep"][0], width*qSize )
                 lobNew[side+'_m_D'] = width
+            if lobNew[side + "_deep"][1] == 0: # even if at limit of M_med, add 1 deep level
+                p, dd = Pi_Q0[side+'_deep']
+                qSize = sampleGeometricWithSpikes(p,dd)
+                lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] , 1*qSize )
+                lobNew[side+'_m_D'] = 1
             lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
         else: # mo or co_top
             lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], lobNew[side + "_touch"][1] - r['size'])
             while lobNew[side + "_touch"][1] <= 0: # queue depletion
+                if lobNew[side + "_deep"][1] == 0:
+                    print('l')
                 if 'co' in r.event: lobNew[side + "_touch"] = (lobNew[side + "_touch"][0], 0) # CO size cant be more than existing queue size
                 extraVolume = -1*lobNew[side + "_touch"][1]
                 eta_Tp1_hat = Pi_eta['eta_T+1']
@@ -383,6 +394,11 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
                     qSize = sampleGeometricWithSpikes(p,dd)
                     lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] , width*qSize )
                     lobNew[side+'_m_D'] = width
+                if lobNew[side + "_deep"][1] == 0: # even if at limit of M_med, add 1 deep level
+                    p, dd = Pi_Q0[side+'_deep']
+                    qSize = sampleGeometricWithSpikes(p,dd)
+                    lobNew[side + "_deep"] = (lobNew[side + "_deep"][0] , 1*qSize )
+                    lobNew[side+'_m_D'] = 1
                 lobNew['mid'] = np.round(0.5*(lobNew[side+'_touch'][0] + lobNew[antiside+'_touch'][0]), decimals=2)
         for k in ['Ask_touch','Bid_touch','Ask_deep','Bid_deep']:
             lobNew[k] = (np.round(lobNew[k][0],decimals=2), lobNew[k][1])
@@ -391,9 +407,9 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
     return T, lob
 
 def main():
-    simulate_smallTick(400, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","D:\PhD\\results - small tick\\AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 30, verbose=True)
+    simulate_smallTick(400, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","D:\PhD\\results - small tick\\AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 100, verbose=True)
 
 def run(i):
     simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/demo_"+str(i))
 
-# main()
+main()
