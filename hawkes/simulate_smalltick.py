@@ -175,9 +175,9 @@ def simulate_smallTick(T , paramsPath , todPath, s0 = None, filePathName = None,
         Pi_M0 = {'m_T': 0.1,
                  'm_D': 0.2}
     if Pi_eta == None:
-        Pi_eta = {'eta_T' : 1,
-                  'eta_IS' : 1,
-                  'eta_T+1': 2}
+        Pi_eta = {'eta_T' : .91,
+                  'eta_IS' : .92,
+                  'eta_T+1': .992}
     if s0 is None:
         s = 0
     else:
