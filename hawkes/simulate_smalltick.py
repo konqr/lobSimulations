@@ -391,6 +391,9 @@ def createLOB_smallTick(dictTimestamps, sizes, Pi_Q0, Pi_M0, Pi_eta, priceMid0 =
     return T, lob
 
 def main():
-    simulate_smallTick(100, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","C:\\Users\konar\IdeaProjects\lobSimulations\\fakeData_Params_sod_eod_dictTOD_constt" , beta = 0.6, avgSpread = .47, spread0 = 110, price0 = 1700, M_med = 50)
+    simulate_smallTick(400, "D:\PhD\\results - small tick\AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","D:\PhD\\results - small tick\\AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 30, verbose=True)
+
+def run(i):
+    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_Params_2019-01-02_2019-12-30_dictTOD_symmetric" , beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/demo_"+str(i))
 
 # main()
