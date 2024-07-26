@@ -39,4 +39,4 @@ def main(i):
     return 0
 
 
-main( int(sys.argv[1]) )
+main( int(sys.argv[1]) - 1 )
