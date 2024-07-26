@@ -25,6 +25,14 @@ def main(i):
                               []],
                'mo_Bid': [0.1,
                           []]}
+        Pis["mo_Ask"] = Pis["mo_Bid"]
+        Pis["lo_top_Ask"] = Pis["lo_top_Bid"]
+        Pis["co_top_Ask"] = Pis["lo_top_Ask"]
+        Pis["co_top_Bid"] = Pis["lo_top_Bid"]
+        Pis["lo_inspread_Ask"] = Pis["lo_inspread_Bid"]
+        Pis["lo_deep_Ask"] = Pis["lo_deep_Bid"]
+        Pis["co_deep_Ask"] = Pis["lo_deep_Ask"]
+        Pis["co_deep_Bid"] = Pis["lo_deep_Bid"]
         run('erg_mo_lo_ratio_'+str(0.1/([0.01, 0.05, 0.1, 0.2, 0.5, 0.8][i-26])), Pis=Pis)
     # M0:
     if (i > 32) and (i <= 39):
