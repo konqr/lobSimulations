@@ -5,28 +5,64 @@ import time
 import numpy as np
 import os 
 import random
-
+import logging
+from typing import Any, List, Optional, Tuple, ClassVar
 from RLenv.SimulationEntities.Entity import Entity
-from RLenv.Stochastic_Processes.Arrival_Models import HawkesArrival
+from RLenv.Exceptions import *
+from RLenv.SimulationEntities.TradingAgent import TradingAgent
+from RLenv.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
+from RLenv.Orders import *
+from RLenv.Messages.ExchangeMessages import *
 
-cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
-            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-indextocol={}
-for i in range(len(cols)):
-    indextocol[i]=cols[i]
-    
+logger=logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 class Exchange(Entity):
-    def __init__(self, Pi_Q0, priceMid0=260, spread0=4, ticksize=0.01, numOrdersPerLevel=10, Arrival_model: HawkesArrival=None):
+    def __init__(self, ticksize: float =0.01, numOrdersPerLevel: int =10, Arrival_model: ArrivalModel=None, agents: List[TradingAgent]=None):
+        super().__init__(type="Exchange", seed=1, log_events=True, log_to_file=False)
         self.levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
+        self.cols=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        
+        
+        
+        
+        self.LOBhistory=[] #History of an order book is an array of the form (t, LOB, spread)
         self.numOrdersPerLevel=numOrdersPerLevel
-        colsToLevels = {
+        self.colsToLevels = {
             "lo_deep_Ask" : "Ask_deep",
             "lo_top_Ask" : "Ask_touch",
             "lo_top_Bid" : "Bid_touch",
-            "lo_deep_Bid" : "Bid_deep"
+            "lo_deep_Bid" : "Bid_deep",
+            "co_deep_Ask" : "Ask_deep",
+            "co_top_Ask" : "Ask_touch",
+            "co_top_Bid" : "Bid_touch",
+            "co_deep_Bid" : "Bid_deep"
         }
         #init prices
         self.ticksize=ticksize
+        if not Arrival_model:
+            raise ValueError("Please specify Arrival_model for Exchange")
+        else:
+            logger.debug(f"Arrival_model of Exchange specified as {self.Arrival_model.__class__.__name__}")
+            self.Arrival_model=Arrival_model
+        if not agents:
+            raise ValueError("Please provide a list of Trading Agents")
+        else:
+            self.agentIDs=[j.id for j in agents]
+            self.agents={j.id: j for j in agents}
+            self.agentcount=len(agents)
+            #Keep a registry of which agents are linked to this exchange
+        self.kernel=None
+        
+        
+    
+    def initialize_exchange(self, priceMid0: int=20, spread0: int =4): 
+        """
+        The initialize_exchange method is called by the simulation kernel. By this time, the exchange should be linked to the kernel.
+        """
+        if self.kernel is None:
+            raise ValueError("Exchange is initialized but is not linked to a simulation kernel")
+        #Initialize prices
         self.priceMid=priceMid0
         self.spread=spread0
         self.askprices={ 
@@ -38,18 +74,28 @@ class Exchange(Entity):
             "Bid_deep" : self.priceMid - np.ceil(self.spread/2)*self.ticksize - self.ticksize
         }
         self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
-        self.asks={}
+        self.asks={} 
+        #Initialize order sizes
+        for k in self.levels:
+            queue=self.Arrival_model.generate_orders_in_queue(loblevel=k, numorders=self.numOrdersPerLevel)
+            if "Ask" in k:
+                self.asks[self.askprices[k]]=queue
+            elif "Bid" in k:
+                self.asks[self.bidprices[k]]=queue
+            else:
+                raise AssertionError(f"Level is not an ASK or BID string")
+        logger.debug("Stock Exchange initalized at time")
+        #Send a message to agents to begin trading
+        message=BeginTradingMsg(time=self.current_time)
+        self.sendbatchmessage(recipientIDs=self.agentIDs, message=message, current_time=self.current_time)
         
-        self.Pi_Q0=Pi_Q0
-        #init random sizes 
-        self.Arrival_model=Arrival_model 
-        self.history=[] #History of an order book is an array of the form (t, LOB, spread)
-        self.cols=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
-            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    
+            
+
     def generate_ordersize(self, loblevel):
         """
         generate ordersize
-        loblevel: one of the 4 possible levels in the LOB
+        loblevel: one of the 4 possible levels in the LOB as a string
         Returns: qsize the size of the order
         """
         #use generaeordersize method in hawkes arrival
@@ -57,72 +103,63 @@ class Exchange(Entity):
             return self.Arrival_model.generate_ordersize(loblevel)
         else:
             raise ValueError("Arrival_model is not provided")
+        
     
-    def get_nextarrival(self):
+    def nextarrival(self):
         """
-        Returns a tuple (t, k, s) describing the next event where t is the time, k the event, and s the size
+        Automatically generates the next arrival and passes the order to the kernel to check for validity.
         """
-        return self.Arrival_model.get_nextarrival()
-        
-        
-    def sizetoqueue(self, qSize, loblevel):    
-        """
-        Generate the LOBL3 queue information based on the LOBL0 queuesize
-        loblevel: one of the 4 possible levels in the LOB
-        Returns: array representing queue
-        """
-        if "Ask" in loblevel:
-            print("qsize init: ", loblevel, ": ", qSize)
-            d=qSize//self.numOrdersPerLevel
-            if(d!=0):
-                r=qSize%self.numOrdersPerLevel
-                self.asks[self.askprices[loblevel]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
-            else:
-                self.asks[self.askprices[loblevel]]=[qSize]
-        else:
-            print("qsize init: ", loblevel, ": ", qSize)
-            d=qSize//self.numOrdersPerLevel
-            if (d!=0):
-                r=qSize%self.numOrdersPerLevel
-                self.bids[self.bidprices[loblevel]]=[d+r] +[d]*(self.numOrdersPerLevel-1)
-            else:
-                self.bids[self.bidprices[loblevel]]=[qSize]   
-    
-        
-    def updatebidaskprices(self): #to be implemented
-        pass
-        if self.asks[self.askprices["Ask_touch"]]==[]:
-            del self.asks[self.askprices["Ask_touch"]]
-            self.askprices["Ask_touch"]=self.askprices["Ask_deep"]
-        if self.bids[self.bidprices["Bid_touch"]]==[]:
-            del self.bids[self.bidprices["Bid_touch"]]
-            self.bidprices=["Bid_touch"]-self.bidprices["Bid_deep"]
-        if self.asks[self.askprices["Ask_deep"]]==[]:
-            self.askprices["Ask_deep"]=self.askprices["Ask_touch"]+self.ticksize
-        if self.bids[self.bidprices["Bid_deep"]]==[]:
-            self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]-self.ticksize
-        
-             
-       
-
-
-
-    def processorders(self, order):
-        """
-        Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary
-        """
-        t, event, size=order[0], order[1], order[2]
-        event=self.cols[event]
-        
-        if "Ask" in event:
+        t, k, s=self.Arrival_model.get_nextarrival()
+        if k<0 or k>11:
+            raise IndexError(f"Event index is out of bounds. Expected 0<=k<=11, but received k={k}")
+        if "Ask" in self.cols[k]:
             side="Ask"
-        elif "Bid" in event:
-            side="Bid"
         else:
-            pass
-        if "lo" in event:
+            side="Bid"
+        if self.cols[k][0:2]=="lo":
+            if k==5: #inspread ask
+                price=self.askprices["Ask_touch"]+self.ticksize
+            elif k==6: #inspread bid
+                price=self.bidprices["Bid_touch"]+self.ticksize
+            else:    
+                level=self.colsToLevels[self.cols[k]]
+                if side=="Ask":
+                    price=self.askprices[level]
+                else:
+                    price=self.bidprices[level]
+            order=LimitOrder(time_placed=t, event_type=k, side=side, size=s, symbol=None, agent_id=-1, price=price, loblevel=level)
+            
+        elif self.cols[k][0:2]=="mo":
+            #marketorder
+            order=MarketOrder(time_placed=t, side=side,  event_type=k, size=s, symbol=None, agent_id=-1)
+        else:
+            #cancelorder
+            level=self.colsToLevels[self.cols[k]]
+            if side=="Ask":
+                price=self.askprices[level]
+            else:
+                price=self.bidprices[level]
+            order=CancelOrder(time_placed=t,  event_type=k, side=side, size=-1, symbol=None, agent_id=-1, loblevel=level)
+        
+        message=OrderPending(order=order)
+        self.sendmessage(recipientID=-1, message=message)
+        
+
+
+
+    def processorders(self, order: Order):
+        """
+        Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
+        """
+        self.current_time=order.time_placed
+        #update the modelhistory
+        self.update_model_state(t=order.time_placed, k=order.event_type, s=order.size)
+        #process the order
+        trade_happened=False
+        side=order.side
+        if isinstance(order, LimitOrder):
             #Limit_order
-            if "deep" in event:
+            if "deep" in order.loblevel:
                 if side=="Ask":
                     if np.abs(self.askprices["Ask_touch"] - self.askprices["Ask_deep"])> 2.5 * self.ticksize:
                         #generate new ask_deep
@@ -139,7 +176,7 @@ class Exchange(Entity):
                         self.bids[pricelvl]=[size]
                     else:
                         self.bids[self.bidprices["Bid_deep"]].append(size)
-            elif "top" in event:
+            elif "top" in order.loblevel:
                 if side=="Ask":
                     self.asks[self.askprices[side+"_touch"]].append(size)    
                 else:
@@ -155,7 +192,7 @@ class Exchange(Entity):
                     self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]
                     self.bidrices["Bid_touch"]=pricelvl
                     self.bids[pricelvl]=[size]
-        elif "mo" in event: #market order
+        elif isinstance(order, MarketOrder): #market order
             if side=="Ask":
                 bidprice=self.bidprices["Bid_touch"]
                 while size>0:
@@ -200,39 +237,99 @@ class Exchange(Entity):
                                 break
                         self.asks[askprice]=self.asks[askprice][j:]
 
-        elif "co" in event: #Cancel Order
-            a=None
-            k=None
-            if "deep" in event:
-                if side=="Ask":
-                    k="Ask_deep"
-                    a=self.asks[self.askprices["Ask_deep"]]
-                    a.pop(random.randrange(0,len(a)))
-                        
+        elif isinstance(order, CancelOrder): #Cancel Order completed
+            if order.agent_id==-1:
+                public_cancel_flag=True
+            else:
+                public_cancel_flag=False
+                #test if it's a valid agent_id
+                if order.agent_id in self.agentIDs:
+                    pass
                 else:
-                    k="Bid_deep"
-                    a=self.asks[self.bidprices["Bid_deep"]]
-                    a.pop(random.randrange(0,len(a)))
-            elif "top" in event:
-                if side=="Ask":
-                    k="Ask_deep"
-                    a=self.asks[self.askprices["Ask_touch"]]
-                    a.pop(random.randrange(0,len(a)))
+                    raise AgentNotFoundError(f"Agent ID {order.agent_ID} is not listed in Exchange book")
+            queue=[]        
+            if order.side=="Ask":
+                queue=self.asks[order.price]
+            else:
+                queue=self.bids[order.price]
+            validcancels=[]
+            if public_cancel_flag==True:
+                validcancels=[item for item in queue if item.agent_id==-1]
+                if len(validcancels)==0:
+                    logger.info(f"Random cancel order issued, but only existing orders in queue are private agent orders so cancel order at time {order.time_placed} ignored.")
+                    pass
                 else:
-                    k="Bid_deep"
-                    a=self.asks[self.bidprices["Bid_touch"]]
-                    a.pop(random.randrange(0,len(a)))
-            if a==[]: #check queue depletion
-                #update touch and deep prices
-                self.updatebidaskprices
-                pi=self.Pi_Q0[k]
-                qSize=generateqsize(pi)
-                self.populateLoBlevel(k)
-        #update spread:
-        self.spread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
-        #update simulator Kernel:
+                    pass
+            else:
+                validcancels=[item for item in queue if item.agent_id==order.agent_id]
+                if len(validcancels)==0:
+                    raise InvalidActionError(f"Agent ID {order.agent_ID} issued cancel orders at a price-level without pre-existing limit orders")
+                else:
+                    pass
+            #non-empty queue for order cancellation, public and private
+            cancelled_id=validcancels.pop(random.randrange(0, len(validcancels))).order_id
+            queue=[item for item in queue if item.order_id != cancelled_id]            
+            if order.side=="Ask":
+                self.asks[order.price]=queue
+            else:
+                self.bids[order.price]=queue
+            self.regeneratequeuedepletion()
+        else:
+            raise InvalidOrderType(f"Invalid Order type with ID {order.order_id} passed to exchange")
+            pass
+        #log event:
+        self._logevent(event=[order.current_time, order.ordertype(), order.agent_id, order.order_id])
+        #update spread and notify agents if a trade has happened:
+        newspread=abs(self.askprices["Ask_touch"]-self.bidprices["Bid_touch"])
+        if self.spread==newspread:
+            pass
+        if trade_happened==False:
+            pass
+        if self.spread!=newspread:
+            
+            self.spread=newspread
+            #Send Batch message to agents
+            message=SpreadNotificationMsg()
+            self.sendbatchmessage(recipientIDs=self.agentIDs, message=message)
+        else:
+            if trade_happened==True:
+                message=TradeNotificationMsg()
+                self.sendbatchmessage(recipientIDs=self.agentIDs, message=message)
+        self.updatehistory()
+    
+    
+    def regeneratequeuedepletion(self): #to be implemented
+        """
+        Regenerates LOB from queue depletion and updates prices as necessary
+        """
+        if len(self.asks[self.askprices["Ask_touch"]])==0:
+            del self.asks[self.askprices["Ask_touch"]]
+            self.askprices["Ask_touch"]=self.askprices["Ask_deep"]
+            self.askprices["Ask_deep"]=self.askprices["Ask_touch"]+self.ticksize
+            self.asks[self.askprices["Ask_deep"]]=self.Arrival_model.generate_orders_in_queue(loblevel="Ask_deep", numorders=self.numOrdersPerLevel)
+            
+            
+        elif len(self.bids[self.bidprices["Bid_touch"]])==0:
+            del self.bids[self.bidprices["Bid_touch"]]
+            self.bidprices["Bid_touch"]=self.bidprices["Bid_deep"]
+            self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]-self.ticksize
+            self.bids[self.bidprices["Bid_deep"]]=self.Arrival_model.generate_orders_in_queue(loblevel="Bid_deep", numorders=self.numOrdersPerLevel)
         
-    def peaklob0(self)-> dict: 
+        elif len(self.asks[self.askprices["Ask_deep"]])==0:
+            del self.asks[self.askprices["Ask_deep"]]
+            self.askprices["Ask_deep"]=self.askprices["Ask_touch"]+self.ticksize
+            self.asks[self.askprices["Ask_deep"]]=self.Arrival_model.generate_orders_in_queue(loblevel="Ask_deep", numorders=self.numOrdersPerLevel)
+        
+        elif len(self.bids[self.bidprices["Bid_deep"]])==0:
+            del self.bids[self.bidprices["Bid_deep"]]
+            self.bidprices["Bid_deep"]=self.bidprices["Bid_touch"]-self.ticksize
+            self.bids[self.bidprices["Bid_deep"]]=self.Arrival_model.generate_orders_in_queue(loblevel="Bid_deep", numorders=self.numOrdersPerLevel)
+        else:
+            #queue is not depleted
+            pass
+    
+    #information getters and setters
+    def lob0(self)-> dict: 
         rtn={
             "Ask_deep": (self.askprices["Ask_deep"], sum(self.asks[self.askprices["Ask_deep"]])),
             "Ask_touch": (self.askprices["Ask_touch"], sum(self.asks[self.askprices["Ask_touch"]])),
@@ -241,7 +338,7 @@ class Exchange(Entity):
         }
         return rtn
 
-    def peaklobl3(self):
+    def lobl3(self):
         rtn={
             "Ask_deep": (self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]),
             "Ask_touch": (self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]),
@@ -253,12 +350,11 @@ class Exchange(Entity):
     def getlob(self):
         return [[self.askprices["Ask_deep"], self.asks[self.askprices["Ask_deep"]]], [self.askprices["Ask_touch"], self.asks[self.askprices["Ask_touch"]]], [self.bidprices["Bid_touch"], self.bids[self.bidprices["Bid_touch"]]], [self.bidprices["Bid_deep"], self.bids[self.bidprices["Bid_deep"]]], self.spread]
         
-        
-        
     def updatehistory(self):
         #data=[order book, spread]
-        data=(self.time, self.getlob(), self.spread)
-        self.history.append(data)
+        data=(self.current_time, self.getlob(), self.spread)
+        self.LOBhistory.append(data)
 
-        
+    def update_model_state(self, t: float, k: int, s: int):
+        self.Arrival_model.update_model_state(t, k, s)
         

@@ -42,10 +42,11 @@ class Kernel:
         assert len(agents)>0, f"Number of agents must be more than 0" 
         self.exchange: Exchange=exchange
         assert exchange, f"Expected a valid exchange but received None"
-        #Create Dictionary of entities by ID
-        self.entity_registry: Dict[int, Any]={x.id: x for x in self.agents}
+        #Create Dictionary of entities by ID and link entity kernels to self
+        self.entity_registry: Dict[int, Entity]={x.id: x for x in self.agents}
         self.entity_registry[exchange.id]=self.exchange
-        
+        for value in self.entity_registry.values():
+            value.kernel=self
         #Global seed:
         self.seed: Optional[int]=seed
         
@@ -132,6 +133,17 @@ class Kernel:
         """
     
     #Functions for communication   
+    
+    def isbatchmessage(self):
+        if self.queue and self.head<len(self.queue):
+            j=self.queue[self.head]
+            if type(j[1][1]) is list:
+                return True
+            else:
+                return False
+        else:
+            raise AssertionError("Kernel queue is empty, termination should have been called")
+        
     def sendmessage(self, senderID, recipientID, message: Message, delay: int=0):
         """
         Called by sender entity to send a message to a recipient
@@ -180,7 +192,26 @@ class Kernel:
         
         item: Tuple[int, Tuple[int, int, Message]]= (self.current_time+delay, (senderID, recipientID, message))
         self.queue.append(item)
+    
+    def sendbatchmessage(self, senderID: int , recipientIDs: int, message: Message, delay: int=0):
         
+        if senderID in self.entity_registry.keys():
+            sender=self.entity_registry[senderID]
+        else:
+            raise KeyError(f"{senderID} is not a valid entity")
+            
+        recipients=[]   
+        for recipientID in recipientIDs:
+            if  recipientID in self.entity_registry.keys():
+                recipients.append(self.entity_registry[recipientID])
+            elif recipientID not in self.entity_registry.keys():
+                raise KeyError(f"{recipientID} is not a valid entity")
+            else:
+                pass
+        item: Tuple[int, Tuple[int, List[int], Message]]=(self.current_time+delay, (senderID, recipientIDs, message))
+        self.queue.append(item)
+        
+
         
     def set_wakeup(self, agentID: int, requested_time: int=None) -> None:
         """

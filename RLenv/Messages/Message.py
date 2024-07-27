@@ -26,11 +26,7 @@ class Message:
     def __ge__(self, other: "Message") -> bool:
         return self.message_id >= other.message_id
 
-    def type(self) -> str:
+    def messagetype(self) -> str:
         return self.__class__.__name__
 
-@dataclass
-class WakeupMsg(Message):
-    """Message sent to entities when waking them up. For wakeup messages, the recipientID is the intended entity to be woken up and the senderID is optional"""
-    time: int
     

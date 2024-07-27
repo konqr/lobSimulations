@@ -28,18 +28,18 @@ class Entity:
         self.id=self.__class__._entity_counter
         type(self)._entity_counter+=1
         self.type=type
-        self.name="Entity"+str(self.id)+"_"+str(self.type)+"_"+str(self.id)
+        self.name="Entity"+str(self.id)+"_"+str(self.type)
         self.log_events=log_events
         self.log_to_file=log_events & log_to_file
         self.seed=seed
         # Simulation attributes
         
-        self.kernel=None
+        self.kernel=None     
         #What time does the entity think it is?
         self.current_time: int = 0 
         
         #Entities will maintain a log of their activities, events will likely be stored in the format of (time, event_type, eventname, size)
-        self.log: List[Tuple[int, str, str, int]]
+        self.log: List[Any]=[]
         
         if self.log_to_file:
             self.filename=None
@@ -66,15 +66,24 @@ class Entity:
     
     
     """Methods for communication with the exchange, kernel, or other entities"""
-    def sendmessage(self, recipientID: int, message: Message, current_time: int) -> None:
+    def sendmessage(self, recipientID: int, message: Message) -> None:
         """
-        Sends a message to a specific recipient
+        Sends a message to a specific recipient. If the recipient is -1 then it is aimed at the kernel
         """
         assert self.kernel is not None
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("At {}, entity {} sent: {}".format(self.current_time, self.id, message))
-        self.kernel.sendmessage(self.id, recipientID)
+            logger.debug("At {}, entity {} sent: {} to entity {}".format(self.current_time, self.id, message, recipientID))
+        self.kernel.sendmessage(self.id, recipientID, message)
         
+    def sendbatchmessage(self, recipientIDs: List[int], message: Message) -> None:
+        """
+        Sends a batch message to multiple recipients at the same time
+        """
+        assert self.kernel is not None
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("At {}, entity {} sent: {} to entities {}".format(self.current_time, self.id, message))
+        self.kernel.sendbatchmessage(self.id, recipientIDs, message)
+            
         
         
     def receivemessage(self, current_time, senderID: int, message: Message):
@@ -124,11 +133,12 @@ class Entity:
     
            
     """Book-keeping Methods for Internal use"""   
-    def _logevent(self, event: Tuple[int, str, str, int]):
-        """Adds an event to this entities log"""
+    def _logevent(self, event: List[Any]):
+        """Adds an event to this entities log: events are stored differently for different entities."""
         if not self.log_events:
             return
         self.log.append(event)
+        return
 
     def writelog(self, df_log: pd.DataFrame, filename: Optional[str]=None) -> None:
         """
@@ -147,7 +157,7 @@ class Entity:
     
           
     @abstractmethod        
-    def update_state(self, kernelmessage): #update internal state given a kernel message
+    def update_modelstate(self): #update internal state 
         pass
     
         
