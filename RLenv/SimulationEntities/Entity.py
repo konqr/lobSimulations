@@ -157,7 +157,7 @@ class Entity:
     
           
     @abstractmethod        
-    def update_modelstate(self): #update internal state 
+    def update_model_state(self): #update internal state 
         pass
     
         

@@ -134,15 +134,7 @@ class Kernel:
     
     #Functions for communication   
     
-    def isbatchmessage(self):
-        if self.queue and self.head<len(self.queue):
-            j=self.queue[self.head]
-            if type(j[1][1]) is list:
-                return True
-            else:
-                return False
-        else:
-            raise AssertionError("Kernel queue is empty, termination should have been called")
+
         
     def sendmessage(self, senderID, recipientID, message: Message, delay: int=0):
         """
@@ -262,3 +254,25 @@ class Kernel:
                 raise ValueError(f"No log found for {entity.__class__.__name__} with ID: {senderID}")
         else:
             raise KeyError(f"No entity found with ID {senderID}")
+
+    def isbatchmessage(self, item: Tuple[int, Tuple[Optional[int], Any, Message]]):
+        if type(item[1][1]) is list:
+            return True
+        else:
+            return False
+            
+            
+    def processmessage(self):
+        if self.head>=len(self.queue):
+            raise IndexError("Queue is empty. Kernel should have been terminated.")
+        else:
+            item=self.queue[self.head]
+            rtn=self.isbatchmessage(item)
+            if not rtn:
+                #Is a batch message
+            else:
+                #Is not a batch message
+                message=item[1][2]
+                recipientID=item[1][1]
+                senderID=item[1][1]
+                logger.debug(f"Processing message ")
