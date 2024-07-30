@@ -6,9 +6,10 @@ import pandas as pd
 from RLenv.SimulationEntities.Entity import Entity
 from RLenv.SimulationEntities.TradingAgent import TradingAgent
 from RLenv.SimulationEntities.Exchange import Exchange
-from RLenv.Messages.Message import Message, WakeupMsg
-from RLenv.Messages.AgentMessages import AgentMsg
-from RLenv.Messages.ExchangeMessages import ExchangeMsg
+from RLenv.Messages.Message import *
+from RLenv.Messages.AgentMessages import *
+from RLenv.Messages.ExchangeMessages import *
+from RLenv.Exceptions import *
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 logger=logging.getLogger(__name__)
@@ -63,7 +64,7 @@ class Kernel:
         #The simulation times of the different entities, used to keep track of whose turn it is
         self.agents_current_times: Dict[int, any] ={j.id: self.start_time for j in self.agents}
         self.exchange_time: int=self.start_time
-        
+        self.agents_action_freq: Dict[int, float]={j.id: j.action_freq for j in self.agents}
         #Implementation of message queue
         #An item in the queue takes the form of (time, (senderID, recipientID, Message))
         self.queue: List[Tuple[int, Tuple[Optional[int], int, Message]]] =[]
@@ -107,11 +108,21 @@ class Kernel:
         """
         
         #While there are still items in the queue or time limit is not up yet and simulation has started, process a message.
-        while (self.head < len(self.queue)) and (self.current_time<=self.stop_time) and self.current_time:  
-            t, event=self.queue[self.head]
-            senderID, recipientID, message=event
+        while (self.head < len(self.queue)) and (self.current_time<=self.stop_time):  
+            item=self.queue[self.head]
+            if self.isbatchmessage(item=item):
+                self.processbatchmessage(item=item)
+            else:
+                self.processmessage(item=item)
+            
             #update new current_time
-            self.current_time=t
+        
+        if self.head==len(self.queue):
+            logger.debug("---Kernel Message queue empty. Terminating now ---")
+        if self.current_time and (self.current_time > self.stop_time):
+            logger.debug("---Kernel Stop Time surpassed---")
+        return 
+            
            
                     
             
@@ -126,10 +137,15 @@ class Kernel:
         Called when the simulation is terminated. Called once the queue is empty, or the gym environement is done, or the simulation reached either of the kernel stop time or wall_time limits.
         Returns: object that contains all relevant information from simulation
         """
+        logger.debug("---Kernel Terminating---")
+        for entity in self.entity_registry.values():
+            entity.kernel_terminate()
+        
     
     def reset(self) -> None:
         """
-        Reset simulation
+        Reset simulation, used in the gym core environment
+        
         """
     
     #Functions for communication   
@@ -151,7 +167,11 @@ class Kernel:
             recipient=self.entity_registry[recipientID]
             pass
         elif senderID not in self.entity_registry.keys():
-            raise KeyError(f"{senderID} is not a valid entity")
+            if senderID==-1:
+                #Exception for the kernelID
+                pass
+            else:
+                raise KeyError(f"{senderID} is not a valid entity")
         elif recipientID not in self.entity_registry.keys():
             raise KeyError(f"{recipientID} is not a valid entity")
         else:
@@ -189,6 +209,8 @@ class Kernel:
         
         if senderID in self.entity_registry.keys():
             sender=self.entity_registry[senderID]
+        elif senderID==-1:
+            pass
         else:
             raise KeyError(f"{senderID} is not a valid entity")
             
@@ -203,8 +225,108 @@ class Kernel:
         item: Tuple[int, Tuple[int, List[int], Message]]=(self.current_time+delay, (senderID, recipientIDs, message))
         self.queue.append(item)
         
-
+    def processmessage(self, item: Tuple[int, Tuple[int, int, Message]]):
+        message=item[1][2]
+        recipientID=item[1][1]
+        senderID=item[1][0]
+        timesent=item[0]
+        logger.debug(f"Processing message with ID {message.message_id}")
+        if isinstance(message, ExchangeMsg):
+            if isinstance(message, OrderPending):
+                #Check whether it is an order that can be made
+                agents_to_wake = {key: value for key, value in self.agents_current_times.items() if value < message.order.time_placed}
+                if len(agents_to_wake)==0:
+                    #No agents need to be woken up, so accept the order
+                    logger.debug(f"Simulated trading order {message.order.order_id} accepted.")
+                    self.exchange.processorder(order=message.order)
+                else:
+                    tmp=BeginTradingMsg()
+                    logger.debug(f"Simulated trading order {message.order.order_id} rejected, waking agents ({agents_to_wake.keys()}) for trading.")
+                    self.exchange.sendbatchmessage(senderID=self.exchange.id, recipientIDs=agents_to_wake.keys(), message=tmp, delay=0)
+            elif isinstance(message, OrderAcceptedMsg):
+                #pass the message back onto the agent
+                pass
+            elif isinstance(message, OrderCancelledMsg):
+                #pass message onto agent
+                pass
+            elif isinstance(message, OrderExecutedMsg):
+                #tells an agent that a previously placed limit order has been executed
+                if(message.order.fill_time !=timesent):
+                    raise Exception("Time processing era. Order fill time does not match timestamp of notification message")
+                self.current_time=timesent
+                agent: TradingAgent=self.entity_registry[recipientID]
+                self.agents_current_times[recipientID]=timesent
+                agent.update_state(kernelmessage=message)
+                tmp=TradeNotificationMsg()
+                self.sendmessage(senderID=-1, recipientID=recipientID, message=tmp, delay=0)
+            elif isinstance(message, WakeAgentMsg):
+                #Message sent to agents to tell them to start trading
+                self.current_time=timesent
+                self.agents_current_times[recipientID]=timesent
+                logger.debug(f"Kernel sending wake up message to agent {recipientID}.")
+                self.wakeup(agentID=recipientID)
+            else:
+                #SHOULD NEVER HAPPEN
+                raise UnexpectedMessageType(f"Unexpected message type received")
+                pass
+                
+        elif isinstance(message, AgentMsg):
+            #Process orders from agents and set their wake-ups
+            if timesent!=order.time_placed:
+                raise TimeSyncError(f"Message time of message {message.message_id} expected to be the same as order placement time{order.time_placed} but is different")
+            self.current_time=timesent
+            if isinstance(message, LimitOrderMsg):
+                order: LimitOrder =message.order
+                logger.debug(f"Agent {senderID} placed a Limit Order with ID {order.order_id}")     
+                self.exchange.processorder(order=order)
+                wakeuptime=self.agents_current_times[senderID]+self.agents_action_freq[senderID]
+                self.set_wakeup(agentID=senderID, requested_time=wakeuptime)
+            elif isinstance(message, MarketOrder):
+                order: MarketOrder=message.order
+                logger.debug(f"Agent {senderID} placed a Market Order with ID {order.order_id}")  
+                self.exchange.processorder(order=order)
+                wakeuptime=self.agents_current_times[senderID]+self.agents_action_freq[senderID]
+                self.set_wakeup(agentID=senderID, requested_time=wakeuptime)
+            elif isinstance(message, CancelOrderMsg):
+                order: CancelOrder=message.order
+                logger.debug(f"Agent {senderID} cancelled previous order with ID {order.cancelID}")  
+                self.exchange.processorder(order=order)
+                wakeuptime=self.agents_current_times[senderID]+self.agents_action_freq[senderID]
+                self.set_wakeup(agentID=senderID, requested_time=wakeuptime)
+            elif isinstance(message, DoNothing):
+                logger.debug(f"Agent {senderID} chose to do nothing at time {self.current_time}")
+                wakeuptime=self.agents_current_times[senderID]+self.agents_action_freq[senderID]
+                self.set_wakeup(agentID=senderID, requested_time=wakeuptime)
+            else: 
+                #SHOULD NEVER HAPPEN
+                raise UnexpectedMessageType(f"Unexpected message type received")
+                pass
+        else:
+            #SHOULD NEVER HAPPEN
+            raise UnexpectedMessageType(f"Unexpected message type received")
+            pass
         
+    def processbatchmessage(self, item=Tuple[int, Tuple[int, List[int], Message]]):
+        message: Message=item[1][2]
+        recipientIDs: List[int]=item[1][1]
+        senderID: int=item[1][0]
+        timesent: float=item[0]
+        if isinstance(message,ExchangeMsg):
+            if isinstance(OrderExecutedMsg):
+                #to be implemented
+                pass
+            elif isinstance(WakeAgentMsg):
+                #to be implemented
+                pass
+            else:
+                raise UnexpectedMessageType(f"Unexpected batch message type received")
+                pass
+                
+            
+        
+        
+        
+    
     def set_wakeup(self, agentID: int, requested_time: int=None) -> None:
         """
         Called by an agent to set a specific wake-up call at a certain time in the future. I.e after tau seconds
@@ -256,23 +378,7 @@ class Kernel:
             raise KeyError(f"No entity found with ID {senderID}")
 
     def isbatchmessage(self, item: Tuple[int, Tuple[Optional[int], Any, Message]]):
-        if type(item[1][1]) is list:
-            return True
-        else:
-            return False
+        return isinstance(item[1][1], list)
             
             
-    def processmessage(self):
-        if self.head>=len(self.queue):
-            raise IndexError("Queue is empty. Kernel should have been terminated.")
-        else:
-            item=self.queue[self.head]
-            rtn=self.isbatchmessage(item)
-            if not rtn:
-                #Is a batch message
-            else:
-                #Is not a batch message
-                message=item[1][2]
-                recipientID=item[1][1]
-                senderID=item[1][1]
-                logger.debug(f"Processing message ")
+    

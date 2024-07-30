@@ -26,7 +26,7 @@ class TradingAgent(Entity):
                 size: size of the order (if applicable)
         log_to_file: Boolean flag to write the logged events on disk or not
     """
-    def __init__(self, id: int, type: str = None, seed=1, cash: int=10000, inventory: int=500, log_events: bool = True, log_to_file: bool = False) -> None:
+    def __init__(self, id: int, type: str = None, seed=1, cash: int=10000, inventory: int=500, log_events: bool = True, log_to_file: bool = False, action_freq=0.5) -> None:
         self.id=id
         self.type=type
         self.cash=cash
@@ -35,6 +35,7 @@ class TradingAgent(Entity):
         self.log_to_file=log_events & log_to_file
         self.seed=seed
         self.resetseed(self.seed)
+        self.action_freq=action_freq
         # Simulation attributes
         
         self.kernel=None
@@ -58,15 +59,6 @@ class TradingAgent(Entity):
             df_log=pd.DataFrame(self.log, columns=("EventTime", "Event Type", "Event", "Size"))
             self.write_log(df_log)
     
-    
-    
-    """Methods for communication with the exchange, kernel, or other agents"""
-    def sendmessage(self, recipient: Any, message: Message) -> None:
-        """
-        Sends a message to 
-        """
-        assert self.kernel is not None
-        
         
         
     def receivemessage(self, current_time, sender: Any, message: Message):

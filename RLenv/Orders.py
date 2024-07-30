@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Dict
 @dataclass
 class Order:
     time_placed: int
@@ -38,4 +38,5 @@ class MarketOrder(Order):
 class CancelOrder(Order):
     price: float=0
     loblevel: str=None
+    cancelID: int=0
 

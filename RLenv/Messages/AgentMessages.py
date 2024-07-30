@@ -6,6 +6,7 @@ from RLenv.Orders import Order, LimitOrder,MarketOrder, CancelOrder
 class AgentMsg(Message):
     pass
 
+#These are agents issuing an order to an exchange
 @dataclass
 class LimitOrderMsg(AgentMsg):
     order: LimitOrder
@@ -19,3 +20,6 @@ class MarketOrderMsg(AgentMsg):
 class CancelOrderMsg(AgentMsg):
     order: CancelOrder
 
+@dataclass
+class DoNothing(AgentMsg):
+    pass

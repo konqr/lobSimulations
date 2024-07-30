@@ -147,7 +147,7 @@ class Exchange(Entity):
 
 
 
-    def processorders(self, order: Order):
+    def processorder(self, order: Order):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """

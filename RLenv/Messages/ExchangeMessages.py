@@ -7,17 +7,18 @@ class ExchangeMsg(Message):
     pass
 
 @dataclass
-class OrderPending(ExchangeMsg):
+class OrderPending(ExchangeMsg): #this one ensures that a random market simulated order is made at a valid time. It is sent from the exchange to the kernel
     order: Order
 @dataclass
-class OrderAcceptedMsg(ExchangeMsg):
+class OrderAcceptedMsg(ExchangeMsg): #Exchange to agent
     order: Order
+    
 @dataclass
-class OrderCancelledMsg(ExchangeMsg):
+class OrderCancelledMsg(ExchangeMsg):#exchange to agent 
     order: CancelOrder
 
 @dataclass
-class OrderExecutedMsg(ExchangeMsg):
+class OrderExecutedMsg(ExchangeMsg):#exchange to agent
     order: Order
     
 
