@@ -1,0 +1,30 @@
+name: hwe
+channels:
+  - defaults
+  - conda-forge
+  - pytorch
+  - pip
+dependencies:
+  - python=3.9.0
+  - mkl < 2022
+  - pandas
+  - numpy=1.23.5
+  - tqdm
+  - pytorch
+  - jupyterlab
+  - yfinance
+  - matplotlib
+  - openpyxl
+  - ipywidgets
+  - cvxopt
+  - statsmodels
+  - cvxpy
+  - seaborn
+  - tensorflow
+  - scikit-learn
+  - scipy
+  - pip
+  - numba
+  - osqp
+  - pip:
+    - git+https://github.com/dcuoliveira/nphc
