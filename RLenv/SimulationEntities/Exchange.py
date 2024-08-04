@@ -17,7 +17,7 @@ from RLenv.Messages.ExchangeMessages import *
 logger=logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 class Exchange(Entity):
-    def __init__(self, ticksize: float =0.01, numOrdersPerLevel: int =10, Arrival_model: ArrivalModel=None, agents: List[TradingAgent]=None):
+    def __init__(self, symbol: str ="AAPL", ticksize: float =0.01, numOrdersPerLevel: int =10, Arrival_model: ArrivalModel=None, agents: List[TradingAgent]=None):
         super().__init__(type="Exchange", seed=1, log_events=True, log_to_file=False)
         self.levels = ["Ask_deep", "Ask_touch", "Bid_touch", "Bid_deep"]
         self.cols=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -53,6 +53,7 @@ class Exchange(Entity):
             self.agentcount=len(agents)
             #Keep a registry of which agents are linked to this exchange
         self.kernel=None
+        self.symbol=symbol
         
         
     
@@ -127,11 +128,11 @@ class Exchange(Entity):
                     price=self.askprices[level]
                 else:
                     price=self.bidprices[level]
-            order=LimitOrder(time_placed=t, event_type=k, side=side, size=s, symbol=None, agent_id=-1, price=price, loblevel=level)
+            order=LimitOrder(time_placed=t, event_type=k, side=side, size=s, symbol=self.symbol, agent_id=-1, price=price, loblevel=level)
             
         elif self.cols[k][0:2]=="mo":
             #marketorder
-            order=MarketOrder(time_placed=t, side=side,  event_type=k, size=s, symbol=None, agent_id=-1)
+            order=MarketOrder(time_placed=t, side=side,  event_type=k, size=s, symbol=self.symbol, agent_id=-1)
         else:
             #cancelorder
             level=self.colsToLevels[self.cols[k]]
@@ -139,7 +140,7 @@ class Exchange(Entity):
                 price=self.askprices[level]
             else:
                 price=self.bidprices[level]
-            order=CancelOrder(time_placed=t,  event_type=k, side=side, size=-1, symbol=None, agent_id=-1, loblevel=level)
+            order=CancelOrder(time_placed=t,  event_type=k, side=side, size=-1, symbol=self.symbol, agent_id=-1, loblevel=level)
         
         message=OrderPending(order=order)
         self.sendmessage(recipientID=-1, message=message)
@@ -256,23 +257,22 @@ class Exchange(Entity):
             if public_cancel_flag==True:
                 validcancels=[item for item in queue if item.agent_id==-1]
                 if len(validcancels)==0:
-                    logger.info(f"Random cancel order issued, but only existing orders in queue are private agent orders so cancel order at time {order.time_placed} ignored.")
-                    pass
+                    logger.info(f"Random cancel order issued, but only existing orders in queue are private agent orders so cancel order at time {order.time_placed} ignored.")  
                 else:
-                    pass
-            else:
-                validcancels=[item for item in queue if item.agent_id==order.agent_id]
-                if len(validcancels)==0:
-                    raise InvalidActionError(f"Agent ID {order.agent_ID} issued cancel orders at a price-level without pre-existing limit orders")
-                else:
-                    pass
-            #non-empty queue for order cancellation, public and private
-            cancelled_id=validcancels.pop(random.randrange(0, len(validcancels))).order_id
-            queue=[item for item in queue if item.order_id != cancelled_id]            
+                    cancelled=validcancels.pop(random.randrange(0, len(validcancels)))
+                    queue=[item for item in queue if item.order_id != cancelled.order_id]
+            else: #Cancel order from an agent
+                queue=[item for item in queue if item.order_id!=order.cancelID]
+                assert len(queue)>0, f"Agent {order.agent_id} attemptd to place cancel orders wihout pre-existing limit orders in the book at the same price"
+            #non-empty queue for order cancellation, public and private           
             if order.side=="Ask":
                 self.asks[order.price]=queue
             else:
                 self.bids[order.price]=queue
+            order.cancelled=True
+            if public_cancel_flag==False:
+                notif=OrderExecutedMsg(order=order)
+                self.sendmessage(recipientID=order.agent_id, message=notif)
             self.regeneratequeuedepletion()
         else:
             raise InvalidOrderType(f"Invalid Order type with ID {order.order_id} passed to exchange")
@@ -355,6 +355,9 @@ class Exchange(Entity):
         data=(self.current_time, self.getlob(), self.spread)
         self.LOBhistory.append(data)
 
-    def update_model_state(self, t: float, k: int, s: int):
-        self.Arrival_model.update_model_state(t, k, s)
+    def update_model_state(self, s: float, k: int):
+        """
+        Adds a point to the arrival model, updates the spread
+        """
+        self.Arrival_model.update(s, k)
         

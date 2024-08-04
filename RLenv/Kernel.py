@@ -141,6 +141,7 @@ class Kernel:
         for entity in self.entity_registry.values():
             entity.kernel_terminate()
         
+        
     
     def reset(self) -> None:
         """
@@ -256,7 +257,7 @@ class Kernel:
                 self.current_time=timesent
                 agent: TradingAgent=self.entity_registry[recipientID]
                 self.agents_current_times[recipientID]=timesent
-                agent.update_state(kernelmessage=message)
+                agent.receivemessage(message=message)
                 tmp=TradeNotificationMsg()
                 self.sendmessage(senderID=-1, recipientID=recipientID, message=tmp, delay=0)
             elif isinstance(message, WakeAgentMsg):
@@ -327,7 +328,7 @@ class Kernel:
         
         
     
-    def set_wakeup(self, agentID: int, requested_time: int=None) -> None:
+    def set_wakeup(self, agentID: int, requested_time: float=None) -> None:
         """
         Called by an agent to set a specific wake-up call at a certain time in the future. I.e after tau seconds
         """

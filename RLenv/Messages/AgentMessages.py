@@ -23,3 +23,8 @@ class CancelOrderMsg(AgentMsg):
 @dataclass
 class DoNothing(AgentMsg):
     pass
+
+@dataclass
+class WakeUpRequestMsg(AgentMsg):
+    agentID: int
+    pass

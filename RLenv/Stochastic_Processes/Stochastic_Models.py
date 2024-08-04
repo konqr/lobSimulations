@@ -1,21 +1,24 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from typing import *
 class StochasticModel(ABC):
-    def __init__(self, params, seed=1):
-        self._params=params
+    def __init__(self, params: Dict[str, Any], seed=1):
+        #Params is a dictionary of parameters
+        for key, value in params.items():
+            setattr(self, key, value)
         self.seed=seed
-        np.random.seed(self.seed)
+        
     
     @abstractmethod
     def reset(self):
         pass
-        
-    @property
     @abstractmethod
-    def params(self):
+    def update(self, *args, **kwargs):
         pass
-    @params.setter
-    def params(self, data):
-        self._params = data
+    @abstractmethod
+    def seed(self):
+        pass
+    
+    
         
     

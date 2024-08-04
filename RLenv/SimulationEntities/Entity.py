@@ -12,7 +12,7 @@ class Entity:
 
     Attributes:
         id: Must be a unique number (usually autoincremented) belonging to the subclass.
-        type: is it a trading agent, exchange or simulation kernel?
+        type: is it a trading agent or exchange?
         seed: Every entity is given a random seed for stochastic purposes.
         log_events: flag to log or not the events during the simulation 
             Logging format:
@@ -49,20 +49,7 @@ class Entity:
     
     @classmethod
     def get_entity_by_id(cls, ID: int):
-        return cls._registry.get(ID)
-    
-    
-    
-    def kernel_start(self, start_time: int) -> None:
-        assert self.kernel is not None
-        logger.debug(
-            "Entity {} requesting kernel wakeup at time {}".format(self.id, start_time))
-    
-    def kernel_terminate(self) -> None:
-        if self.log and self.log_to_file:
-            df_log=pd.DataFrame(self.log, columns=("EventTime", "Event Type", "Event", "Size"))
-            self.write_log(df_log)
-    
+        return cls._registry.get(ID)   
     
     
     """Methods for communication with the exchange, kernel, or other entities"""
@@ -124,7 +111,7 @@ class Entity:
                 )
             )
     
-    def set_wakeup(self, requested_time: int) -> None:
+    def set_wakeup(self, requested_time: float) -> None:
         """
         Called to receive a future call from the kernel at the point of requested_time
         """
@@ -157,9 +144,16 @@ class Entity:
     
           
     @abstractmethod        
-    def update_model_state(self): #update internal state 
+    def update_state(self): #update internal state 
         pass
-    
-        
+    @abstractmethod
+    def reset(self):
+        pass
+    @abstractmethod
+    def kernel_start(self, start_time: int) -> None:
+        pass
+    @abstractmethod
+    def kernel_terminate(self) -> None:
+        pass
     
         
