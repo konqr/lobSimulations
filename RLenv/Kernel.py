@@ -5,12 +5,13 @@ import numpy as np
 import pandas as pd
 from RLenv.SimulationEntities.Entity import Entity
 from RLenv.SimulationEntities.TradingAgent import TradingAgent
+from RLenv.SimulationEntities.RLAgent import RLAgent
 from RLenv.SimulationEntities.Exchange import Exchange
 from RLenv.Messages.Message import *
 from RLenv.Messages.AgentMessages import *
 from RLenv.Messages.ExchangeMessages import *
 from RLenv.Exceptions import *
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple
 
 logger=logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,6 +41,8 @@ class Kernel:
     def __init__(self, agents: List[TradingAgent], exchange: Exchange, seed: int=1, kernel_name: str="Alpha", stop_time: int=100, wall_time_limit: int=600, log_to_file: bool=True, parameters: Dict[str, any]=None) -> None:
         self.kernel_name=kernel_name
         self.agents: List[TradingAgent]=agents
+        self.gymagents= [agent for agent in self.agents if isinstance(agent, RLAgent)]
+        assert len(self.gymagents==1), f"This Kernel is currently incompatible with more than one Gym RLAgent"
         assert len(agents)>0, f"Number of agents must be more than 0" 
         self.exchange: Exchange=exchange
         assert exchange, f"Expected a valid exchange but received None"
@@ -123,7 +126,11 @@ class Kernel:
             logger.debug("---Kernel Stop Time surpassed---")
         return 
             
-           
+    def runaction(self, action):
+        """
+        Calls the kernel.run function to run an action by a RL Agent and return the next state of the RL agent
+        """
+        pass     
                     
             
             
@@ -244,10 +251,10 @@ class Kernel:
                     tmp=BeginTradingMsg()
                     logger.debug(f"Simulated trading order {message.order.order_id} rejected, waking agents ({agents_to_wake.keys()}) for trading.")
                     self.exchange.sendbatchmessage(senderID=self.exchange.id, recipientIDs=agents_to_wake.keys(), message=tmp, delay=0)
-            elif isinstance(message, OrderAcceptedMsg):
+            elif isinstance(message, PartialOrderFill):
                 #pass the message back onto the agent
                 pass
-            elif isinstance(message, OrderCancelledMsg):
+            elif isinstance(message, OrderAutoCancelledMsg):
                 #pass message onto agent
                 pass
             elif isinstance(message, OrderExecutedMsg):
@@ -260,6 +267,8 @@ class Kernel:
                 agent.receivemessage(message=message)
                 tmp=TradeNotificationMsg()
                 self.sendmessage(senderID=-1, recipientID=recipientID, message=tmp, delay=0)
+                
+                
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
                 self.current_time=timesent
@@ -381,5 +390,14 @@ class Kernel:
     def isbatchmessage(self, item: Tuple[int, Tuple[Optional[int], Any, Message]]):
         return isinstance(item[1][1], list)
             
-            
+    #Helper functions
+    def istruncated(self):
+        return self.current_time>self.stop_time
     
+    def isterminated(self):
+        return [agent.isterminated for agent in self.gymagents]
+    
+    def getobservations(self):
+        pass
+    def getinfo(self):
+        pass

@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from RLenv.Stochastic_Processes.Stochastic_Models import StochasticModel
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
-from RLenv import logging_config
 import logging
+from RLenv import logging_config
 logger = logging.getLogger(__name__)
 class ArrivalModel(StochasticModel):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
@@ -14,11 +14,7 @@ class ArrivalModel(StochasticModel):
     @abstractmethod
     def get_nextarrival(self):
         pass
-    
-    @abstractmethod
-    def get_nextarrivaltime(self):
-        pass
-    
+
     @abstractmethod
     def generate_ordersize(self):
         pass
@@ -39,6 +35,18 @@ class HawkesArrival(ArrivalModel):
         """
         self.cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        self.coltolevel={0: "Ask_L2",
+                         1: "Ask_L2",
+                         2: "Ask_L1",
+                         3: "Ask_L1",
+                         4: "Ask_MO",
+                         5: "Ask_inspread",
+                         6: "Bid_inspread",
+                         7: "Bid_MO",
+                         8: "Bid_L1",
+                         9: "Bid_L1",
+                         10: "Bid_L2",
+                         11: "Bid_L2"}
         required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "spread0", "price0", "Pi_Q0"]
         missing_keys = [key for key in required_keys if (key not in params.keys()) or params.get(key) is None]
         if len(missing_keys)>0:
@@ -60,31 +68,31 @@ class HawkesArrival(ArrivalModel):
         self.timeseries=None
         self.lamb = None
         self.left=None
-        self.maxJumps = None 
+        self.pointcount=0
         
     def generatefakeparams(self):
         """
         Generates all the necessary default/fake parameters for the Hawkes Simulation model. 
         """
-        Pi_Q0= {'Ask_touch': [0.0018287411983379015,
+        Pi_Q0= {'Ask_L1': [0.0018287411983379015,
                             [(1, 0.007050802017724003),
                             (10, 0.009434048841996959),
                             (100, 0.20149407216104853),
                             (500, 0.054411455742183645),
                             (1000, 0.01605198687975892)]],
-                'Ask_deep': [0.001229380704944344,
+                'Ask_L2': [0.001229380704944344,
                             [(1, 0.0),
                             (10, 0.0005240951083719349),
                             (100, 0.03136813097471952),
                             (500, 0.06869444491232923),
                             (1000, 0.04298980350337664)]],
-                'Bid_touch': [0.0018287411983379015,
+                'Bid_L1': [0.0018287411983379015,
                             [(1, 0.007050802017724003),
                             (10, 0.009434048841996959),
                             (100, 0.20149407216104853),
                             (500, 0.054411455742183645),
                             (1000, 0.01605198687975892)]],
-                'Bid_deep': [0.001229380704944344,
+                'Bid_L2': [0.001229380704944344,
                             [(1, 0.0),
                             (10, 0.0005240951083719349),
                             (100, 0.03136813097471952),
@@ -145,7 +153,10 @@ class HawkesArrival(ArrivalModel):
         loblevel: one of the 4 possible levels in the LOB
         Returns: qsize the size of the order
         """
-        pi= self.Pi_Q0[loblevel]
+        try:
+            pi= self.Pi_Q0[loblevel]
+        except KeyError:
+            raise KeyError(f"LOB level {loblevel} not provided in PI_Q0s of arrival model")
         p = pi[0]
         dd = pi[1]
         pi = np.array([p*(1-p)**k for k in range(1,100000)])
@@ -167,21 +178,15 @@ class HawkesArrival(ArrivalModel):
         Returns: queue -- a list of orders[ints]
         """
         
-        total=self.generate_orders_in_queue(loblevel)
+        total=self.generate_ordersize(loblevel)
         tmp=(numorders-1)*[np.floor(total/numorders)]
         if tmp!=0:
             queue=[total-sum(tmp)]+tmp
         else:
-            queue=total
+            queue=[total]
         return queue
-    
-    
-    def get_nextarrivaltimes(self, timelimit): #returns a tuple (t, k) where t is timestamp, k is event
-        pointcount=self.thinningOgataIS2(T=timelimit)
-        newpoints=self.timeseries[-pointcount:]
-        return newpoints
             
-        
+        # return queue
         
     
     def thinningOgataIS2(self, T=100):
@@ -306,9 +311,48 @@ class HawkesArrival(ArrivalModel):
                     return pointcount
         return pointcount
                 
+    def orderwrapper(self, time:float, k: int, size: int):
+        """
+        Takes in an event tuple of (time, event) and wraps it into information compatible with the exchange
+        """
+        side=None
+        if "Ask" in self.cols[k]:
+            side="Ask"
+        else:
+            side="Bid"
+        order_type=None
+        if "lo" in self.cols[k]:
+            order_type="lo"
+        elif "mo" in self.cols[k]:
+            order_type="mo"
+        elif "co" in self.cols[k]:
+            order_type="co"
+        level=self.coltolevel[k]
+        return time, side, order_type, level, size
+        
+    def orderunwrap(self, time:float, side: str, order_type: str, level: str, size: int):
+        """Takes in information about an event from the exchange and wraps it into an event tuple of (s,k)"""
+        s=time
+        k=-1
+        if order_type="lo"
+        side=side
+        level=level
+            
     
     
-    #Concrete implementations
+    def get_nextarrival(self, timelimit):
+        """Returns None if no arrivals before the timelimit. Otherwise, 
+        Returns: time, side, order_type, level, size"""
+        tmp=self.thinningOgataIS2(T=timelimit)
+        if tmp==self.pointcount:
+            return None
+        #Newest point
+        t, k=self.timeseries[tmp-1]
+        size=self.generate_ordersize[self.colstolevel[k]]
+        return self.orderwrapper(time=t, k=k, size=size)
+        
+            
+    #Concrete implementations of Abstract Base Class Methods
     def update(self, s: float, k: int):
         """
         Update values of lambda for next simulation loop and append point to Ts

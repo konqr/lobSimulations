@@ -2,7 +2,7 @@ from RLenv.SimulationEntities.Entity import Entity
 from RLenv.SimulationEntities.TradingAgent import TradingAgent
 import numpy as np
 
-class RLTrader(TradingAgent):
+class RLAgent(TradingAgent):
     """RLTrader implements a simple Q-learning agent. """
     def __init__(self, id, cash, inventory, seed, tau=0.05):
         super().__init__(id, cash, seed)

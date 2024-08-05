@@ -6,5 +6,7 @@ class InvalidOrderType(Exception):
     pass
 class UnexpectedMessageType(Exception):
     pass
+class LOBProcessingError(Exception):
+    pass
 class TimeSyncError(Exception):
     pass

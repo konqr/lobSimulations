@@ -31,29 +31,32 @@ class TradingAgent(Entity):
         cash: cash of an agent
         Inventory: Initial inventory of an agent
         action_freq: what is the time period betweeen an agent's actions in seconds
+        on_trade: decides whether agent gets suscribed to new information every time a trade happens
         """
-    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: int=Dict[str, Any], action_freq: float =0.5) -> None:
+    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: int=Dict[str, Any], cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
         
         self.strategy=strategy #string that describes what strategy the agent has
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
+        self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
         self.positions: Dict[str, List[LimitOrder]]={} #A Dictionary that describes an agent's active orders in the market
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         self.actionsToLevels = {
-            "lo_deep_Ask" : "Ask_deep",
-            "lo_top_Ask" : "Ask_touch",
-            "lo_top_Bid" : "Bid_touch",
-            "lo_deep_Bid" : "Bid_deep",
-            "co_deep_Ask" : "Ask_deep",
-            "co_top_Ask" : "Ask_touch",
-            "co_top_Bid" : "Bid_touch",
-            "co_deep_Bid" : "Bid_deep"
+            "lo_deep_Ask" : "Ask_L2",
+            "lo_top_Ask" : "Ask_L1",
+            "lo_top_Bid" : "Bid_L1",
+            "lo_deep_Bid" : "Bid_L2",
+            "co_deep_Ask" : "Ask_L2",
+            "co_top_Ask" : "Ask_L1",
+            "co_top_Bid" : "Bid_L1",
+            "co_deep_Bid" : "Bid_L2"
         }
         # Simulation attributes
         
         self.kernel=None
         self.exchange=None
+        self.isterminated=False
         #What time does the agent think it is?
         self.current_time: int = 0 
         
@@ -101,9 +104,9 @@ class TradingAgent(Entity):
             side="Bid"
         if self.actions[k][0:2]=="lo":
             if k==5: #inspread ask
-                price=lob["Ask_touch"][0]+self.exchange.ticksize
+                price=lob["Ask_L1"][0]+self.exchange.ticksize
             elif k==6: #inspread bid
-                price=lob["Bid_touch"][0]+self.exchange.ticksize
+                price=lob["Bid_L1"][0]+self.exchange.ticksize
             else:    
                 level=self.actionsToLevels[self.actions[k]]
                 if side=="Ask":
@@ -168,10 +171,12 @@ class TradingAgent(Entity):
                 self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
             elif isinstance(order, CancelOrder):
                 self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
+                self.writelog
             else:
                 raise UnexpectedMessageType(f"Agent {self.id} received uenxpected message type from Exchange {self.id}")
                 pass
         elif isinstance(message, WakeAgentMsg):
+            
             action=self.get_action()
             order=self.action_to_order(action)
             self.submitorder(order)
@@ -203,7 +208,7 @@ class TradingAgent(Entity):
                 )
             )
          
-    
+
           
     @abstractmethod        
     def update_state(self, kernelmessage): #update internal state given a kernel message
@@ -219,3 +224,4 @@ class TradingAgent(Entity):
         pass
     
         
+    
