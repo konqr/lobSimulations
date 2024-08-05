@@ -1,14 +1,11 @@
 from dataclasses import dataclass
 from RLenv.Messages.Message import Message
-from RLenv.Orders import Order, CancelOrder
+from RLenv.Orders import Order
 @dataclass
 class ExchangeMsg(Message):
     #Messages that an exchange sends to an agent or the kernel
     pass
 
-@dataclass
-class OrderPending(ExchangeMsg): #this one ensures that a random market simulated order is made at a valid time. It is sent from the exchange to the kernel
-    order: Order
 @dataclass
 class PartialOrderFill(ExchangeMsg): #Exchange to agent
     order: Order

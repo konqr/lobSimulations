@@ -39,7 +39,7 @@ class TradingAgent(Entity):
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
-        self.positions: Dict[str, List[LimitOrder]]={} #A Dictionary that describes an agent's active orders in the market
+        self.positions: Dict[str,List[Order]]={} #A Dictionary that describes an agent's active orders in the market
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         self.actionsToLevels = {
@@ -136,7 +136,7 @@ class TradingAgent(Entity):
         return self.exchange.lob0()
     
     
-    def receivemessage(self, current_time, senderID: Any, message: Message):
+    def receivemessage(self, current_time: float, senderID: int, message: Message):
         """
         Called each time a message destined for this agent reaches the front of the
         kernel's priority queue.
@@ -170,8 +170,7 @@ class TradingAgent(Entity):
                     self.cash-=order.price*order.size
                 self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
             elif isinstance(order, CancelOrder):
-                self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
-                self.writelog
+                self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
             else:
                 raise UnexpectedMessageType(f"Agent {self.id} received uenxpected message type from Exchange {self.id}")
                 pass
@@ -181,6 +180,19 @@ class TradingAgent(Entity):
             order=self.action_to_order(action)
             self.submitorder(order)
             self.set_wakeup(requested_time=self.current_time+self.action_freq)
+        elif isinstance(message, PartialOrderFill):
+            newsize=message.newsize
+            order: LimitOrder=message.order
+            price=order.price
+            if order.side=="Ask":
+                self.cash+=order.price*(order.size-newsize)
+                self.Inventory[order.symbol]-=(order.size-newsize)
+            else:
+                self.cash-=order.price*(order.size-newsize)
+                self.Inventory[order.symbol]+=(order.size-newsize)
+            order.size=newsize
+        elif isinstance(message, OrderAutoCancelledMsg):
+            self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
         super().receivemessage(current_time, senderID, message)

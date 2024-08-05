@@ -240,38 +240,30 @@ class Kernel:
         timesent=item[0]
         logger.debug(f"Processing message with ID {message.message_id}")
         if isinstance(message, ExchangeMsg):
-            if isinstance(message, OrderPending):
-                #Check whether it is an order that can be made
-                agents_to_wake = {key: value for key, value in self.agents_current_times.items() if value < message.order.time_placed}
-                if len(agents_to_wake)==0:
-                    #No agents need to be woken up, so accept the order
-                    logger.debug(f"Simulated trading order {message.order.order_id} accepted.")
-                    self.exchange.processorder(order=message.order)
-                else:
-                    tmp=BeginTradingMsg()
-                    logger.debug(f"Simulated trading order {message.order.order_id} rejected, waking agents ({agents_to_wake.keys()}) for trading.")
-                    self.exchange.sendbatchmessage(senderID=self.exchange.id, recipientIDs=agents_to_wake.keys(), message=tmp, delay=0)
-            elif isinstance(message, PartialOrderFill):
+            self.current_time=timesent
+            if isinstance(message, PartialOrderFill):
                 #pass the message back onto the agent
-                pass
+                agentID=message.order.agent_id
+                if agentID==-1:
+                    raise UnexpectedMessageType("Partial Order Fills Messages should not be generated for random non-agent orders")
+                else:
+                    self.agents[agentID].receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, OrderAutoCancelledMsg):
                 #pass message onto agent
-                pass
+                if agentID==-1:
+                    raise UnexpectedMessageType("Partial Order Fills Messages should not be generated for random non-agent orders")
+                else:
+                    self.agents[agentID].receivemessage(current_time=self.self.current_time, senderID=senderID, message=message)
             elif isinstance(message, OrderExecutedMsg):
                 #tells an agent that a previously placed limit order has been executed
                 if(message.order.fill_time !=timesent):
                     raise Exception("Time processing era. Order fill time does not match timestamp of notification message")
-                self.current_time=timesent
                 agent: TradingAgent=self.entity_registry[recipientID]
                 self.agents_current_times[recipientID]=timesent
                 agent.receivemessage(message=message)
-                tmp=TradeNotificationMsg()
-                self.sendmessage(senderID=-1, recipientID=recipientID, message=tmp, delay=0)
-                
                 
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
-                self.current_time=timesent
                 self.agents_current_times[recipientID]=timesent
                 logger.debug(f"Kernel sending wake up message to agent {recipientID}.")
                 self.wakeup(agentID=recipientID)

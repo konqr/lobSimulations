@@ -271,13 +271,14 @@ class Exchange(Entity):
                     item: LimitOrder=self.bids[pricelvl][0]
                     if remainingsize<item.size:
                         totalvalue+=pricelvl*remainingsize
+                        newsize=item.size=remainingsize
                         remainingsize=0
                         order.fill_time=self.current_time
                         order.filled=True
                         if item.agent_id==-1:
                             pass
                         else:
-                            notif=PartialOrderFill(order=item)
+                            notif=PartialOrderFill(order=item, newsize=newsize)
                             self.sendmessage(recipientID=item.agent_id, message=notif)
                         return totalvalue
                     else:
@@ -309,6 +310,7 @@ class Exchange(Entity):
                 while len(self.asks)>0:
                     item: LimitOrder=self.asks[pricelvl][0]
                     if remainingsize<item.size:
+                        newsize=item.size-remainingsize
                         totalvalue+=pricelvl*remainingsize
                         remainingsize=0
                         order.fill_time=self.current_time
@@ -316,7 +318,7 @@ class Exchange(Entity):
                         if item.agent_id==-1:
                             pass
                         else:
-                            notif=PartialOrderFill(order=item)
+                            notif=PartialOrderFill(order=item, newsize=newsize)
                             self.sendmessage(recipientID=item.agent_id, message=notif)
                         if order.agent_id==-1:
                             pass
@@ -350,7 +352,9 @@ class Exchange(Entity):
         cancelID=order.cancelID
         tocancel: Order=Order._get_order_by_id(cancelID)
         side=tocancel.side
-        price=tocancel.price    
+        price=tocancel.price 
+        public_cancel_flag=0   
+        tocancel.cancelled=True
         if tocancel.agent_id==-1:
             public_cancel_flag=True
         else:
