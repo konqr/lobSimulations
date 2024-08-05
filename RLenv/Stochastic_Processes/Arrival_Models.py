@@ -189,8 +189,9 @@ class HawkesArrival(ArrivalModel):
         # return queue
         
     
-    def thinningOgataIS2(self, T=100):
+    def thinningOgataIS2(self):
         """ 
+        Simulates a single point via thinningogata
         Arguments:
         T: timelimit of simulation process
         Returns:
@@ -227,88 +228,87 @@ class HawkesArrival(ArrivalModel):
         if self.timeseries is None:
             self.timeseries=[]
             
-        """simulation loop"""
+        """simulate a point"""
         pointcount=0
-        while self.s<=T:
-            """Assign lamb_bar"""
-            lamb_bar=self.lamb 
-            #print("lamb_bar: ", lamb_bar)
-            """generate random u"""
-            u=np.random.uniform(0, 1)
-            if lamb_bar==0:
-                s+=0.1  # wait for some time
+        
+        """Assign lamb_bar"""
+        lamb_bar=self.lamb 
+        #print("lamb_bar: ", lamb_bar)
+        """generate random u"""
+        u=np.random.uniform(0, 1)
+        if lamb_bar==0:
+            s+=0.1  # wait for some time
+        else:
+            w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
+            s+=w  
+        """Recalculating baseline lambdas sum with new candidate"""
+        hourIndex = min(12,int(self.s//1800))
+        self.todmult=self.tod[:, hourIndex].reshape((12, 1)) * (0.99/specRad)
+        decays=self.todmult * self.baselines
+        """Summing cross excitations for previous points"""
+        if self.timeseries==[]:
+            pass
+        else:
+            while self.left<len(self.timeseries):
+                #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
+                if self.s-self.timeseries[self.left][0]>=10:
+                    self.left+=1 
+                else:
+                    break
+            for point in self.timeseries[self.left:]: #point is of the form(s, k)
+                kern=powerLawCutoff(time=self.s-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
+                kern=kern.reshape((12, 1))
+                decays+=self.todmult*kern
+        #print(decays.shape) #should be (12, 1)
+        decays=np.maximum(decays, 0)
+        decays[5] = ((self.spread/self.avgSpread)**self.beta)*decays[5]
+        decays[6] = ((self.spread/self.avgSpread)**self.beta)*decays[6]
+        if 100*np.round(self.spread, 2)  < 2 : 
+            decays[5] = decays[6] = 0
+        self.lamb = float(sum(decays))
+        #print("LAMBDA: ", lamb)
+        
+        """Testing candidate point"""
+        D=np.random.uniform(0, 1)
+        #print("Candidate D: ", D)
+        if D*lamb_bar<=self.lamb:
+            pointcount+=1
+            """Accepted so assign candidate point to a process by a ratio of intensities"""
+            k=0
+            total=decays[k]
+            while D*lamb_bar >= total:
+                k+=1
+                total+=decays[k]
+            """dimension is cols[k]"""   
+            """Update values of lambda for next simulation loop and append point to Ts"""
+            if k in [5, 6]:
+                self.spread=self.spread-0.01      
+            
+            """Precalc next value of lambda_bar"""    
+            newdecays=self.todmult * self.kernelparams[0][0][k].reshape(12, 1)*self.kernelparams[0][1][k].reshape(12, 1)
+            newdecays=np.maximum(newdecays, 0)
+            newdecays[5] = ((self.spread/self.avgSpread)**self.beta)*newdecays[5]
+            newdecays[6] = ((self.spread/self.avgSpread)**self.beta)*newdecays[6]
+            if 100*np.round(self.spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
+            self.lamb+= sum(newdecays)
+            self.lamb=self.lamb[0]
+
+
+            if len(self.Ts[k]) > 0:
+                T_Minus1 = self.Ts[k][-1]
             else:
-                w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
-                s+=w  
-            """Recalculating baseline lambdas sum with new candidate"""
-            hourIndex = min(12,int(self.s//1800))
-            self.todmult=self.tod[:, hourIndex].reshape((12, 1)) * (0.99/specRad)
-            decays=self.todmult * self.baselines
-            """Summing cross excitations for previous points"""
-            if self.timeseries==[]:
-                pass
-            else:
-                while self.left<len(self.timeseries):
-                    #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
-                    if self.s-self.timeseries[self.left][0]>=10:
-                        self.left+=1 
-                    else:
-                        break
-                for point in self.timeseries[self.left:]: #point is of the form(s, k)
-                    kern=powerLawCutoff(time=self.s-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
-                    kern=kern.reshape((12, 1))
-                    decays+=self.todmult*kern
-            #print(decays.shape) #should be (12, 1)
-            decays=np.maximum(decays, 0)
+                T_Minus1 = 0
+            decays = np.array(self.baselines.copy())
             decays[5] = ((self.spread/self.avgSpread)**self.beta)*decays[5]
             decays[6] = ((self.spread/self.avgSpread)**self.beta)*decays[6]
-            if 100*np.round(self.spread, 2)  < 2 : 
-                decays[5] = decays[6] = 0
-            self.lamb = float(sum(decays))
-            #print("LAMBDA: ", lamb)
+            decays = decays*(self.s-T_Minus1)
             
-            """Testing candidate point"""
-            D=np.random.uniform(0, 1)
-            #print("Candidate D: ", D)
-            if D*lamb_bar<=self.lamb:
-                pointcount+=1
-                """Accepted so assign candidate point to a process by a ratio of intensities"""
-                k=0
-                total=decays[k]
-                while D*lamb_bar >= total:
-                    k+=1
-                    total+=decays[k]
-                """dimension is cols[k]"""   
-                """Update values of lambda for next simulation loop and append point to Ts"""
-                if k in [5, 6]:
-                    self.spread=self.spread-0.01      
-                
-                """Precalc next value of lambda_bar"""    
-                newdecays=self.todmult * self.kernelparams[0][0][k].reshape(12, 1)*self.kernelparams[0][1][k].reshape(12, 1)
-                newdecays=np.maximum(newdecays, 0)
-                newdecays[5] = ((self.spread/self.avgSpread)**self.beta)*newdecays[5]
-                newdecays[6] = ((self.spread/self.avgSpread)**self.beta)*newdecays[6]
-                if 100*np.round(self.spread, 2) < 2 : newdecays[5] = newdecays[6] = 0
-                self.lamb+= sum(newdecays)
-                self.lamb=self.lamb[0]
-
-
-                if len(self.Ts[k]) > 0:
-                    T_Minus1 = self.Ts[k][-1]
-                else:
-                    T_Minus1 = 0
-                decays = np.array(self.baselines.copy())
-                decays[5] = ((self.spread/self.avgSpread)**self.beta)*decays[5]
-                decays[6] = ((self.spread/self.avgSpread)**self.beta)*decays[6]
-                decays = decays*(self.s-T_Minus1)
-                
-                """Updating history and returns"""
-                self.Ts[k]+=(s,)
-                tau = decays[k][0]
-                self.n[k]+=1
-                self.timeseries.append((s, k)) #(time, event)
-                if k in [4, 7]:
-                    return pointcount
+            """Updating history and returns"""
+            self.Ts[k]+=(s,)
+            tau = decays[k][0]
+            self.n[k]+=1
+            self.timeseries.append((s, k)) #(time, event)
+        self.pointcount+=pointcount
         return pointcount
                 
     def orderwrapper(self, time:float, k: int, size: int):
@@ -376,11 +376,11 @@ class HawkesArrival(ArrivalModel):
     def get_nextarrival(self, timelimit):
         """Returns None if no arrivals before the timelimit. Otherwise, 
         Returns: time, side, order_type, level, size"""
-        tmp=self.thinningOgataIS2(T=timelimit)
-        if tmp==self.pointcount:
+        tmp=self.thinningOgataIS2()
+        if tmp==0:
             return None
         #Newest point
-        t, k=self.timeseries[tmp-1]
+        t, k=self.timeseries[-1][0], self.timeseries[-1][1]
         size=self.generate_ordersize[self.colstolevel[k]]
         return self.orderwrapper(time=t, k=k, size=size)
         
