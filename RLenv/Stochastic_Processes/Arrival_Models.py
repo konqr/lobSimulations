@@ -334,9 +334,42 @@ class HawkesArrival(ArrivalModel):
         """Takes in information about an event from the exchange and wraps it into an event tuple of (s,k)"""
         s=time
         k=-1
-        if order_type="lo"
-        side=side
-        level=level
+        if order_type=="lo":
+            if level=="Ask_L1":
+                k=2
+            elif level=="Ask_L2":
+                k=0
+            elif level=="Bid_L1":
+                k=9
+            elif level=="Bid_L2":
+                k=11
+            elif level=="Bid_inspread":
+                k=6
+            elif level=="Ask_inspread":
+                k=5
+            else:
+                pass
+        elif order_type=="mo":
+            if level=="Ask_MO":
+                k=4
+            elif level=="Bid_MO":
+                k=7
+            else:
+                pass
+        elif order_type=="co":
+            if level=="Ask_L1":
+                k=3
+            elif level=="Ask_L2":
+                k=1
+            elif level=="Bid_L1":
+                k=8
+            elif level=="Bid_L2":
+                k=10
+            else:
+                pass
+        if k==-1:
+            raise Exception("'Level' passed incorrectly into order unwrapper")
+        return s,k
             
     
     
@@ -353,7 +386,7 @@ class HawkesArrival(ArrivalModel):
         
             
     #Concrete implementations of Abstract Base Class Methods
-    def update(self, s: float, k: int):
+    def update(self, time:float, side: str, order_type: str, level: str, size: int):
         """
         Update values of lambda for next simulation loop and append point to Ts
         Arguments: spread, (s=time of latest point, k=event, s=size) tuple
@@ -362,6 +395,7 @@ class HawkesArrival(ArrivalModel):
         
         """
         """Update values of lambda for next simulation loop and append point to Ts"""
+        s, k=self.orderunwrap(time=time, side=side, order_type=order_type, level=level, size=size)
         if k in [5, 6]:
             self.spread=self.spread-0.01      
         
