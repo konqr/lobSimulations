@@ -1,4 +1,9 @@
-# Hawkes Process with Exogenous Features
+# Hawkes Process for LOB modelling
+
+## Please cite the following if you wish to use this code:
+
+1) Jain, Konark and Firoozye, Nick and Kochems, Jonathan and Treleaven, Philip, Limit Order Book Dynamics and Order Size Modelling Using Compound Hawkes Process (December 14, 2023). Available at SSRN: https://ssrn.com/abstract=4766449 or http://dx.doi.org/10.2139/ssrn.4766449
+2) Jain, Konark and Firoozye, Nick and Kochems, Jonathan and Treleaven, Philip, Limit Order Book Simulations: A Review (October 2023). Available at SSRN: https://ssrn.com/abstract=4745587 or http://dx.doi.org/10.2139/ssrn.4745587
 
 ## Installing conda env
 
