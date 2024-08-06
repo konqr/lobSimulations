@@ -666,7 +666,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
             dataOrig = data.copy()
-            for d, side in zip([1,-1],['Ask', 'Bid']):
+            for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
                 # data['mid'] = (data['Ask Price 1'] + data['Bid Price 1'])*0.5
                 data['topPrev'] = data[side+' Price 1'].shift(1).fillna(0)
@@ -715,7 +715,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
             dataOrig = data.copy()
-            for d, side in zip([1,-1],['Ask', 'Bid']):
+            for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
                 # data['mid'] = (data['Ask Price 1'] + data['Bid Price 1'])*0.5
                 data['topPrev'] = data[side+' Price 1'].shift(1).fillna(0)
@@ -748,7 +748,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         uncondProb = uncondCounts/uncondCounts.sum()
         leverage = condProb/uncondProb
         leverage = leverage.reset_index()
-        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverageIS_top", "wb") as f:
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverageIS_truetop", "wb") as f:
             pickle.dump({'condCounts' : condCounts,'uncondCounts' :  uncondCounts , 'condProb' : condProb,'uncondProb' : uncondProb, 'leverage': leverage}, f)
 
 main( sys.argv[1] , edaspread = eval(sys.argv[2]), edashape = eval(sys.argv[3]), edasparse = eval(sys.argv[4]), edarest = eval(sys.argv[5]), edaqd = eval(sys.argv[6]), edashapemaxima = eval(sys.argv[7]), edashapesparsity  = eval(sys.argv[8]), edaleverage  = eval(sys.argv[9]), edaleverage_top  = eval(sys.argv[10]), edaleverageIS  = eval(sys.argv[11]))
