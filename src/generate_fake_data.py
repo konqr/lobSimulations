@@ -10,6 +10,7 @@ file_source = os.path.dirname(__file__)
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--model_name", type=str, default="simulation-hawkes", help="Model name")
+parser.add_argument("--kernel_type", type=str, default="powerlaw", help="Kernel type : 'exp' or 'powerlaw'")
 parser.add_argument("--seed", type=int, default=2, help="Random seed")
 parser.add_argument("--n_sims", type=int, default=10, help="Number of simulations")
 parser.add_argument("--T", type=int, default=100, help="Time horizon")
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     seed = args.seed
     n_sims = args.n_sims
     T = args.T
+    kernel_type = args.kernel_type
     cols = [
         "lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
         "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid"
@@ -56,21 +58,35 @@ if __name__ == '__main__':
 
     # Create fake power law kernel params from the above norm matrix
     paramsFake = {}
-    for i in range(n_cols):
-        paramsFake[cols[i]] = 0.1*np.random.choice([0.3,0.4,0.5,0.6,0.7])
-        for j in range(n_cols):
-            maxTOD = np.max(list(faketod[cols[j]].values()))
-            beta = np.random.choice([1.5,1.6,1.7,1.8,1.9])
-            gamma = (1+np.random.rand())*5e3
-            alpha = np.abs(mat[i][j])*gamma*(beta-1)/maxTOD
-            paramsFake[cols[i]+"->"+cols[j]] = (np.sign(mat[i][j]), np.array([alpha, beta, gamma]))
+    if kernel_type == 'powerlaw':
+        for i in range(n_cols):
+            paramsFake[cols[i]] = 0.1*np.random.choice([0.3,0.4,0.5,0.6,0.7])
+            for j in range(n_cols):
+                maxTOD = np.max(list(faketod[cols[j]].values()))
+                beta = np.random.choice([1.5,1.6,1.7,1.8,1.9])
+                gamma = (1+np.random.rand())*5e3
+                alpha = np.abs(mat[i][j])*gamma*(beta-1)/maxTOD
+                paramsFake[cols[i]+"->"+cols[j]] = (np.sign(mat[i][j]), np.array([alpha, beta, gamma]))
+    elif kernel_type == 'exp':
+        for i in range(n_cols):
+            paramsFake[cols[i]] = 0.1*np.random.choice([0.3,0.4,0.5,0.6,0.7])
+            for j in range(n_cols):
+                maxTOD = np.max(list(faketod[cols[j]].values()))
+                beta = np.random.choice([1.5,1.6,1.7,1.8,1.9])
+                alpha = np.abs(mat[i][j])*beta/maxTOD
+                paramsFake[cols[i]+"->"+cols[j]] = (np.sign(mat[i][j]), np.array([alpha, beta]))
+    else:
+        raise Exception('kernel_type must be one of exp or powerlaw')
 
     mat = np.zeros((n_cols,n_cols))
     for i in range(len(cols)):
         for j in range(len(cols)):
             kernelParams = paramsFake.get(cols[j]+"->"+cols[i], None)
             if kernelParams is None: continue
-            mat[i][j] = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+            if kernel_type == 'powerlaw':
+                mat[i][j] = kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+            elif kernel_type == 'exp':
+                mat[i][j] = kernelParams[0]*kernelParams[1][0]/kernelParams[1][1]
 
     with open(os.path.join(args.inputs_path, model_name, "fake_ParamsInferredWCutoff_sod_eod_true"), "wb") as f:
         pickle.dump(paramsFake, f)
@@ -92,7 +108,8 @@ if __name__ == '__main__':
                                     avgSpread=.01, 
                                     spread0=5, 
                                     price0=45,
-                                    verbose=True)
+                                    verbose=True,
+                                    kernel = kernel_type)
         
         if len(pd.DataFrame(Ts[1:])[0].unique()) != len(cols):
             raise ValueError(f"Some columns are missing in the data 'T' for id = {i}")
