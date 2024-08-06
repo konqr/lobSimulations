@@ -10,7 +10,7 @@ file_source = os.path.dirname(__file__)
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--model_name", type=str, default="simulation-hawkes", help="Model name")
-parser.add_argument("--kernel_type", type=str, default="powerlaw", help="Kernel type : 'exp' or 'powerlaw'")
+parser.add_argument("--kernel_type", type=str, default="exp", help="Kernel type", choices=['powerlaw', 'exp'])
 parser.add_argument("--seed", type=int, default=2, help="Random seed")
 parser.add_argument("--n_sims", type=int, default=10, help="Number of simulations")
 parser.add_argument("--T", type=int, default=100, help="Time horizon")
@@ -102,14 +102,14 @@ if __name__ == '__main__':
     #### WARNING: THIS PIECE OF CODE TAKES A LONG TIME ####
     for i in range(n_sims):
         Ts, lob, lobL3 = simulate.run(T=T, # 6.5*3600
-                                    paramsPath=paramsPath, 
-                                    todPath=todPath, 
-                                    beta=1., 
-                                    avgSpread=.01, 
-                                    spread0=5, 
-                                    price0=45,
-                                    verbose=True,
-                                    kernel = kernel_type)
+                                      paramsPath=paramsPath, 
+                                      todPath=todPath, 
+                                      beta=1., 
+                                      avgSpread=.01, 
+                                      spread0=5, 
+                                      price0=45,
+                                      verbose=True,
+                                      kernel = kernel_type)
         
         if len(pd.DataFrame(Ts[1:])[0].unique()) != len(cols):
             raise ValueError(f"Some columns are missing in the data 'T' for id = {i}")
