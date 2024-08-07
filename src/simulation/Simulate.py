@@ -515,7 +515,7 @@ class Simulate:
                     return s, n, Ts, tau, lamb, timeseries, left
         return s, n, Ts, -1, lamb, timeseries, left
 
-    def preprocessdata(self, paramsPath: str, todPath: str):
+    def preprocessdata(self, paramsPath: str, todPath: str, kernel = 'powerlaw'):
         """Takes in params and todpath and spits out corresponding vectorised numpy arrays
 
         Returns:
@@ -542,24 +542,33 @@ class Simulate:
             baselines[i]=data[cols[i]]
             #baselines[i]=data.pop(cols[i], None)
 
-
-        #params=[mask, alpha, beta, gamma] where each is a 12x12 matrix
-        mask, alpha, beta, gamma=[np.zeros(shape=(12, 12)) for _ in range(4)]
-        for i in range(self.num_nodes):
-            for j in range(self.num_nodes):
-                kernelParams = data.get(cols[i] + "->" + cols[j], None)
-                mask[i][j]=kernelParams[0]
-                alpha[i][j]=kernelParams[1][0]
-                beta[i][j]=kernelParams[1][1]
-                gamma[i][j]=kernelParams[1][2]
-        kernelparams=[mask, alpha, beta, gamma]
+        if kernel == 'powerlaw':
+            #params=[mask, alpha, beta, gamma] where each is a 12x12 matrix
+            mask, alpha, beta, gamma=[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(4)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(cols[i] + "->" + cols[j], None)
+                    mask[i][j]=kernelParams[0]
+                    alpha[i][j]=kernelParams[1][0]
+                    beta[i][j]=kernelParams[1][1]
+                    gamma[i][j]=kernelParams[1][2]
+            kernelparams=[mask, alpha, beta, gamma]
+        elif kernel == 'exp':
+            mask, alpha, beta =[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(3)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(cols[i] + "->" + cols[j], None)
+                    mask[i][j]=kernelParams[0]
+                    alpha[i][j]=kernelParams[1][0]
+                    beta[i][j]=kernelParams[1][1]
+            kernelparams=[mask, alpha, beta]
         params=[kernelparams, baselines]
         return tod, params
     
     def run(self, T, paramsPath, todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260, verbose = False, kernel = 'powerlaw'):
 
 
-        tod, params=self.preprocessdata(paramsPath=paramsPath, todPath=todPath)
+        tod, params=self.preprocessdata(paramsPath=paramsPath, todPath=todPath, kernel = kernel)
         cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                 "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         if Pis == None:

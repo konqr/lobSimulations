@@ -94,6 +94,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_SpreadDistri.png")
 
 
+
     # In[4]:
 
 
@@ -750,5 +751,75 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         leverage = leverage.reset_index()
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverageIS_truetop", "wb") as f:
             pickle.dump({'condCounts' : condCounts,'uncondCounts' :  uncondCounts , 'condProb' : condProb,'uncondProb' : uncondProb, 'leverage': leverage}, f)
+
+def plotLeverage(stocks):
+    for s in stocks:
+        with open('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_leverageIS_truetop', 'rb') as f:
+            dict_res = pickle.load(f)
+    condCounts, uncondCounts = dict_res['condCounts'], dict_res['uncondCounts']
+    df = uncondCounts/uncondCounts.sum()
+    df = df[df>1e-4].reset_index()
+    df['depth'] = df['TypeDepth'].apply(lambda x: int(x[2:]))
+    depthMax = df.depth.max()
+    #depthMax = 100
+    categories = np.append(-1*np.logspace(np.log(depthMax)/np.log(10),0,50), np.append([0],np.logspace(0,np.log(depthMax)/np.log(10), 50)))
+    categories =np.unique(categories.astype(int))
+    print(categories)
+    condCounts_categorized = condCounts.reset_index().copy()
+    condCounts_categorized['cat'] = condCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+    condCounts_categorized['cat_1'] = condCounts_categorized['TypeDepth_1'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+    uncondCounts_categorized = uncondCounts.reset_index().copy()
+    uncondCounts_categorized['cat'] = uncondCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+    condCounts_categorized = condCounts_categorized.groupby(['cat','cat_1'])['Time'].sum()
+    uncondCounts_categorized = uncondCounts_categorized.groupby('cat')['Time'].sum()
+    condProb_categorized = condCounts_categorized/uncondCounts_categorized
+    uncondProb_categorized = uncondCounts_categorized/uncondCounts_categorized.sum()
+    leverage_categorized = condProb_categorized/uncondProb_categorized
+    leverage_categorized = leverage_categorized.reset_index()
+    leverage_categorized[['Type','cat']]= np.stack(leverage_categorized['cat'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
+    leverage_categorized[['Type_1','cat_1']]= np.stack(leverage_categorized['cat_1'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
+    # depthMax = int(np.max(leverage_categorized.Depth.apply(np.abs)))
+    leverage_categorized = leverage_categorized.set_index(['Type_1','cat_1','Type', 'cat'])
+    matrix = np.zeros((int(len(categories)*4), int(len(categories)*4)))
+    converter ={  0: 10, 1:11, 2: 30,  3: 41}
+    for i in range(int(len(categories)*4)):
+        type_i = converter[i//len(categories)]
+        depth_i = (-len(categories)//2) + i%len(categories)
+        for j in range(len(categories)*4):
+            type_j = converter[j//len(categories)]
+            depth_j =(-len(categories)//2) +  j%len(categories)
+            if (int(type_i), int(depth_i), int(type_j), int(depth_j)) in leverage_categorized.index:
+                matrix[i, j] = leverage_categorized.loc[(int(type_i), int(depth_i), int(type_j), int(depth_j))]['Time']
+
+    fig, axs = plt.subplots(1, 2, figsize=(10,10), gridspec_kw={'width_ratios': [1, 5]})
+    im = axs[1].imshow(matrix,norm='log', cmap='seismic', aspect="auto")
+    plt.colorbar(im, fraction=0.046, pad=0.04)
+    locs = np.linspace(0, len(matrix), num = 41)
+    labels = []
+    for x, y in zip( np.array(["LO"]*10 + ['IS']*10 + ["CO"]*10 + ["MO"]*10) , np.array([" " + str(int(x)) for x in np.array(list(categories)*4)[[int(x) for x in (locs[:-1])]]])):
+        labels.append(x+y)
+    axs[1].set_xticks(ticks = -0.5+locs[:-1], labels = labels, rotation=90)
+    axs[1].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
+    df = uncondProb_categorized.reset_index()
+    df['Type'] = df['cat'].apply(lambda x: int(x[:2]))
+    df['Depth'] = df['cat'].apply(lambda x: int(x[2:]))
+    df = df.sort_values(['Type','Depth'])
+    df = df.set_index(['Type','Depth'])
+    mat = np.zeros(len(categories)*4)
+    for i in range(int(len(categories)*4)):
+        type_i = converter[i//len(categories)]
+        depth_i = (-len(categories)//2) + i%len(categories)
+        if (int(type_i), int(depth_i)) in df.index:
+            mat[i] = df.loc[(int(type_i), int(depth_i))]['Time']
+    im2 = axs[0].imshow(1e-7+mat.reshape((len(mat), 1)), norm='log', cmap = 'cool')
+    plt.colorbar(im2, location='left', pad=0.5)
+    axs[0].set_xticks(ticks = [])
+    axs[0].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
+    fig.tight_layout()
+    axs[0].set_title('Unconditional Prob.')
+    axs[1].set_title('Leverage : Conditional Prob.')
+    fig.suptitle('Leverage : '+s)
+    fig.subplots_adjust(top=0.9)
+    plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
 
 main( sys.argv[1] , edaspread = eval(sys.argv[2]), edashape = eval(sys.argv[3]), edasparse = eval(sys.argv[4]), edarest = eval(sys.argv[5]), edaqd = eval(sys.argv[6]), edashapemaxima = eval(sys.argv[7]), edashapesparsity  = eval(sys.argv[8]), edaleverage  = eval(sys.argv[9]), edaleverage_top  = eval(sys.argv[10]), edaleverageIS  = eval(sys.argv[11]))
