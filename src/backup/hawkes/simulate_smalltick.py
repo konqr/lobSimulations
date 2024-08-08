@@ -1,4 +1,4 @@
-from hawkes import simulate_optimized
+from src.backup.hawkes import simulate_optimized
 import pickle
 import pandas as pd
 import time
