@@ -3,14 +3,22 @@ import numpy as np
 from RLenv.Stochastic_Processes.Stochastic_Models import StochasticModel
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
 import logging
-from RLenv import logging_config
+from RLenv.Utils import logging_config
 logger = logging.getLogger(__name__)
-class ArrivalModel(StochasticModel):
+class ArrivalModel(StochasticModel, ABC):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
     """
-    def __init__(self, params: Dict[str, Any]):
-        super().__init__(params=params)
+    @abstractmethod
+    def reset(self):
+        pass
     
+    @abstractmethod
+    def update(self):
+        pass
+    
+    @abstractmethod
+    def seed(self):
+        pass
     @abstractmethod
     def get_nextarrival(self):
         pass

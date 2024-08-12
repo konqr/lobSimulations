@@ -3,10 +3,12 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, ClassVar, List, Dict
 import pandas as pd
 import logging
+import copy
 from RLenv.logging_config import *
 from RLenv.Orders import *
 from RLenv.Messages.Message import *
 from RLenv.Messages.ExchangeMessages import *
+from RLenv.Messages.AgentMessages import *
 from RLenv.SimulationEntities.Entity import Entity
 from RLenv.Exceptions import *
 logger = logging.getLogger(__name__)
@@ -33,15 +35,18 @@ class TradingAgent(Entity):
         action_freq: what is the time period betweeen an agent's actions in seconds
         on_trade: decides whether agent gets suscribed to new information every time a trade happens
         """
-    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: int=Dict[str, Any], cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
+    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
         
         self.strategy=strategy #string that describes what strategy the agent has
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
-        self.positions: Dict[str,List[Order]]={} #A Dictionary that describes an agent's active orders in the market
+        self.positions: Dict[str: List[Order]]={} #A Dictionary that describes an agent's active orders in the market
+        self.cash=cash
+        self.profit=0
+        self.statelog=[(0, self.cash, self.profit, Inventory, {})] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
-            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+            "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid", None]
         self.actionsToLevels = {
             "lo_deep_Ask" : "Ask_L2",
             "lo_top_Ask" : "Ask_L1",
@@ -54,22 +59,19 @@ class TradingAgent(Entity):
         }
         # Simulation attributes
         
-        self.kernel=None
         self.exchange=None
         self.isterminated=False
         #What time does the agent think it is?
         self.current_time: int = 0 
         
         #Agents will maintain a log of their activities, events will likely be stored in the format of (time, event_type, eventname, size)
-        self.log: List[Tuple[int, Order, Dict[str, int], int]] #Tuple(time, order, inventory, cash)
+        self.log: List[Tuple[int, Order, Dict[str, int], int]]=[] #Tuple(time, order, inventory, cash)
         super().__init__(type=type, seed=seed, log_events=log_events, log_to_file=log_to_file)
         
     def kernel_start(self, start_time: float) -> None:
         assert self.kernel is not None, f"Kernel not linked to TradingAgent: {self.id}"
-        assert start_time is not None, f"Start time not provided to Trading Agent"
-        logger.debug(
-            "Trading Agent {} requesting kernel wakeup at time {}".format(self.id, start_time))
         wakeuptime=self.current_time + self.action_freq
+        logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")
         self.set_wakeup(requested_time= wakeuptime)
         
     
@@ -79,19 +81,37 @@ class TradingAgent(Entity):
             self.write_log(df_log)
             
     
-    def submitorder(self, order: Order):
+    def submitorder(self, order: Optional[Order]) -> int:
         """
         Converts an action k into an order object and submits it
         """
-        pass
+        assert self.exchange is not None, f"Agent {self.id} is not linked to an Exchange"
+        if order is None:
+            self.sendmessage(recipientID=self.exchange.id, message=DoNothing())
+            return -1
+        else:
+            if isinstance(order, LimitOrder):
+                message=LimitOrderMsg(order=order)
+                self.sendmessage(recipientID=self.exchange.id, message=message)
+            elif isinstance(order, MarketOrder):
+                message=MarketOrderMsg(order=order)
+                self.sendmessage(recipientID=self.exchange.id, message=message)
+            else:
+                message=CancelOrderMsg(order=order)
+                self.sendmessage(recipientID=self.exchange.id, message=message)
+            return 0
         
-    def action_to_order(self, action: Tuple[int, int], symbol: str=None, cancelID: Optional[int]=None) -> Order:
+    def action_to_order(self, action: Optional[Tuple[int, int]]=None, symbol: str=None) -> Optional[Order]:
         """
         Converts an action to an order object
-        Action is a (k, size) tuple where k refers to the event.
+        Action is a (k, size) tuple where k refers to the event, or None.
         Symbol is the stock symbol
         cancelID takes on non-none values when the event is a cancel order.
         """
+        if action is None:
+            
+            
+            return None
         k=action[0]
         size=action[1]
         if k<0 or k>11:
@@ -113,27 +133,26 @@ class TradingAgent(Entity):
                     price=lob[level][0]
                 else:
                     price=lob[level][0]
-            order=LimitOrder(time_placed=self.current_time, event_type=k, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, event_type=k, price=price, loblevel=level)
+            order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, price=price, loblevel=level)
             
         elif self.actions[k][0:2]=="mo":
             #marketorder
-            order=MarketOrder(time_placed=self.current_time, side=side,  event_type=k, size=size, symbol=symbol, agent_id=self.id, event_type=k, )
+            order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id)
         else:
+            
             #cancelorder
-            assert cancelID is not None, f"CancelID not provided to agent {self.id}"
             level=self.actionsToLevels[self.actions[k]]
             if side=="Ask":
                 price=lob[level][0]
             else:
                 price=lob[level][0]
-            order=CancelOrder(time_placed=self.current_time,  event_type=k, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  event_type=k, cancelID=cancelID)
+            positions=[j for j in self.positions[self.exchange.symbol] if j.side==side and j.price==price]
+            if len(positions)==0:
+                raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
+            else:
+                tocancel: LimitOrder=np.random.choice(positions)
+            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  event_type=k, cancelID=tocancel.order_id)
         return order
-    
-    
-    def peakLOB(self) -> Dict[str, Tuple[float, int]]:
-        assert self.exchange is not None, f"Trading Agent: {self.id} is not linked to an exchange"
-        
-        return self.exchange.lob0()
     
     
     def receivemessage(self, current_time: float, senderID: int, message: Message):
@@ -155,18 +174,18 @@ class TradingAgent(Entity):
             if isinstance(order, MarketOrder):
                 if order.side=="Ask":
                     self.cash+=order.fill_price
-                    self.inventory[order.symbol]-=order.size
+                    self.Inventory[order.symbol]-=order.size
                 else:
                     self.cash-=order.fill_price
                     self.Inventory[order.symbol]+=order.size
                     pass
-                pass
+                
             elif isinstance(order, LimitOrder):
                 if order.side=="Ask":
-                    self.inventory[order.symbol]-=order.size
+                    self.Inventory[order.symbol]-=order.size
                     self.cash+=order.price*order.size    
                 else:
-                    self.inventory[order.symbol]+=order.size
+                    self.Inventory[order.symbol]+=order.size
                     self.cash-=order.price*order.size
                 self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
             elif isinstance(order, CancelOrder):
@@ -174,6 +193,8 @@ class TradingAgent(Entity):
             else:
                 raise UnexpectedMessageType(f"Agent {self.id} received uenxpected message type from Exchange {self.id}")
                 pass
+            self.profit=self.cash-self.statelog[0][1]
+            self.updatestatelog()
         elif isinstance(message, WakeAgentMsg):
             
             action=self.get_action()
@@ -191,6 +212,8 @@ class TradingAgent(Entity):
                 self.cash-=order.price*(order.size-newsize)
                 self.Inventory[order.symbol]+=(order.size-newsize)
             order.size=newsize
+            self.profit=self.cash-self.statelog[0][1]
+            self.updatestatelog()
         elif isinstance(message, OrderAutoCancelledMsg):
             self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
         else:
@@ -219,21 +242,17 @@ class TradingAgent(Entity):
                     current_time, self.id
                 )
             )
-         
-
-          
-    @abstractmethod        
-    def update_state(self, kernelmessage): #update internal state given a kernel message
-        pass
-    
-    @abstractmethod
-    def resetseed(self, seed):
-        np.random.seed(1)
-        return None
-    
-    @abstractmethod
-    def get_action(self, data) -> Tuple[int, int]:
-        pass
-    
+    def peakLOB(self) -> Dict[str, Tuple[float, int]]:
+        assert self.exchange is not None, f"Trading Agent: {self.id} is not linked to an exchange"
         
+        return self.exchange.lob0()
+    
+    def countInventory(self):
+        return sum([len(self.Inventory[j]) for j in self.Inventory.keys()])     
+    
+    def reset(self) -> None:
+        pass
+
+    def updatestatelog(self):
+        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy()))
     

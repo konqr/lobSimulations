@@ -8,7 +8,7 @@ import random
 import logging
 from typing import Any, List, Optional, Tuple, ClassVar
 from RLenv.SimulationEntities.Entity import Entity
-from RLenv.Exceptions import *
+from RLenv.Utils.Exceptions import *
 from RLenv.SimulationEntities.TradingAgent import TradingAgent
 from RLenv.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from RLenv.Orders import *
@@ -17,42 +17,71 @@ from RLenv.Messages.ExchangeMessages import *
 logger=logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 class Exchange(Entity):
-    def __init__(self, symbol: str ="AAPL", ticksize: float =0.01, LOBlevels: int=2, numOrdersPerLevel: int =10, Arrival_model: ArrivalModel=None, agents: List[TradingAgent]=None):
-        super().__init__(type="Exchange", seed=1, log_events=True, log_to_file=False)
+    """Arguments:
+        symbol
+        ticksize
+        LOBlevels
+        numOrdersPerLevel"""
+    def __init__(self, symbol: str ="AAPL", ticksize: float =0.01, LOBlevels: int=2, numOrdersPerLevel: int =10, seed: int=1 ):
+        
+        super().__init__(type="Exchange", seed=seed, log_events=True, log_to_file=True)
         self.ticksize=ticksize
         self.LOBlevels=LOBlevels
+        self.symbol=symbol
+        self.levels = [f"Ask_L{i}" for i in range(1, self.LOBlevels + 1)]+[f"Bid_L{i}" for i in range(1, self.LOBlevels + 1)]
+        self.LOBhistory=[] #History of an order book is an array of the form (t, LOB, spread)
+        self.numOrdersPerLevel=numOrdersPerLevel
+        
+        #Empty Attributes:
+        self.kernel=None
+        self.agentcount=None
+        self.agentIDs=None
+        self.agents=None
+        self.agentswithTradeNotifs=None
+        self.Arrival_model=None
+        self.priceMid=None
+        self.spread=None
+        self.askprices={}
+        self.bidprices={}
+        self.bids={}
+        self.asks={}
+        self.askprice=None
+        self.bidprice=None
+    
+    def initialize_exchange(self, priceMid0: int=20, spread0: int =4, agents: Optional[List[TradingAgent]]=None, kernel=None, Arrival_model: ArrivalModel=None):
+        """
+        The initialize_exchange method is called by the simulation kernel.
+        """
+        if kernel is None:
+            raise ValueError("Exchange is initialized but is not linked to a simulation kernel")
+        else:
+            self.kernel=kernel
+            if type(kernel).__name__ =="Kernel":
+                pass
+            else:
+                raise TypeError(f"Expected Kernel object to be passed into kernel parameter, received {type(kernel).__name__}")
+        if agents is None:
+            raise ValueError("Please provide a list of Trading Agents")
+        else:
+            for agent in agents:
+                if isinstance(agent, TradingAgent):
+                    pass
+                else:
+                    raise TypeError(f"Expected list of TradingAgent objects, received {type(agent).__name__}")
+            self.agentIDs=[j.id for j in agents]
+            self.agents={j.id: j for j in agents}
+            self.agentcount=len(self.agentIDs)
+            #Keep a registry of which agents have a subscription to trade notifs
+            self.agentswithTradeNotifs=[j.id for j in agents if j.on_trade==True]
         if Arrival_model is None:
             raise ValueError("Please specify Arrival_model for Exchange")
         else:
             logger.debug(f"Arrival_model of Exchange specified as {self.Arrival_model.__class__.__name__}")
             self.Arrival_model=Arrival_model
-        if not agents:
-            raise ValueError("Please provide a list of Trading Agents")
-        else:
-            self.agentIDs=[j.id for j in agents]
-            self.agents={j.id: j for j in agents}
-            self.agentcount=len(agents)
-            #Keep a registry of which agents have a subscription to trade notifs
-            self.agentswithTradeNotifs=[j.id for j in agents if j.on_trade==True]
-        self.kernel=None
-        self.symbol=symbol
         
-        self.levels = [f"Ask_L{i}" for i in range(1, self.LOBlevels + 1)]+[f"Bid_L{i}" for i in range(1, self.LOBlevels + 1)]
-        self.LOBhistory=[] #History of an order book is an array of the form (t, LOB, spread)
-        self.numOrdersPerLevel=numOrdersPerLevel
-    
-    def initialize_exchange(self, priceMid0: int=20, spread0: int =4): 
-        """
-        The initialize_exchange method is called by the simulation kernel. By this time, the exchange should be linked to the kernel.
-        """
-        if self.kernel is None:
-            raise ValueError("Exchange is initialized but is not linked to a simulation kernel")
         #Initialize prices
         self.priceMid=priceMid0
         self.spread=spread0
-
-        self.askprices={}
-        self.bidprices={}
         for i in range(self.LOBlevels):
             key="Ask_L"+str(i+1)
             val=self.priceMid+np.floor(self.spread/2)*self.ticksize + i*self.ticksize
@@ -353,7 +382,7 @@ class Exchange(Entity):
         tocancel: Order=Order._get_order_by_id(cancelID)
         side=tocancel.side
         price=tocancel.price 
-        public_cancel_flag=0   
+        public_cancel_flag=False   
         tocancel.cancelled=True
         if tocancel.agent_id==-1:
             public_cancel_flag=True

@@ -57,7 +57,7 @@ class Entity:
         """
         Sends a message to a specific recipient. If the recipient is -1 then it is aimed at the kernel
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, "Kernel not linked to entity {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} sent: {} to entity {}".format(self.current_time, self.id, message, recipientID))
         self.kernel.sendmessage(self.id, recipientID, message)
@@ -66,7 +66,7 @@ class Entity:
         """
         Sends a batch message to multiple recipients at the same time
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, "Kernel not linked to entity {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} sent: {} to entities {}".format(self.current_time, self.id, message))
         self.kernel.sendbatchmessage(self.id, recipientIDs, message)
@@ -142,10 +142,7 @@ class Entity:
         self.kernel.write_log(self.id, df_log, filename)
     
     
-          
-    @abstractmethod        
-    def update_state(self): #update internal state 
-        pass
+
     @abstractmethod
     def reset(self):
         pass
