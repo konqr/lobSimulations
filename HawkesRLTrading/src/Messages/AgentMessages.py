@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from RLenv.Messages.Message import Message
-from RLenv.Orders import Order, LimitOrder,MarketOrder, CancelOrder
+from src.Messages.Message import Message
+from src.Orders import Order, LimitOrder,MarketOrder, CancelOrder
 
 @dataclass
 class AgentMsg(Message):

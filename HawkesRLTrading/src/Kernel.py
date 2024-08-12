@@ -3,14 +3,14 @@ import os
 import datetime
 import numpy as np
 import pandas as pd
-from RLenv.SimulationEntities.Entity import Entity
-from RLenv.SimulationEntities.TradingAgent import TradingAgent
-from RLenv.SimulationEntities.GymTradingAgent import GymTradingAgent
-from RLenv.SimulationEntities.Exchange import Exchange
-from RLenv.Messages.Message import *
-from RLenv.Messages.AgentMessages import *
-from RLenv.Messages.ExchangeMessages import *
-from RLenv.Exceptions import *
+from src.SimulationEntities.Entity import Entity
+from src.SimulationEntities.TradingAgent import TradingAgent
+from src.SimulationEntities.GymTradingAgent import GymTradingAgent
+from src.SimulationEntities.Exchange import Exchange
+from src.Messages.Message import *
+from src.Messages.AgentMessages import *
+from src.Messages.ExchangeMessages import *
+from src.Utils.Exceptions import *
 from typing import Any, Dict, List, Optional, Tuple
 
 logger=logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class Kernel:
     Note that the simulation timefloor is in microseconds
     
     """
-    def __init__(self, agents: List[TradingAgent], exchange: Exchange, seed: int=1, kernel_name: str="Alpha", stop_time: int=100, wall_time_limit: int=600, log_to_file: bool=True, parameters: Dict[str, Any]=None) -> None:
+    def __init__(self, agents: List[TradingAgent], exchange: Exchange, seed: int=1, kernel_name: str="Alpha", stop_time: int=100, wall_time_limit: int=600, log_to_file: bool=True, **parameters) -> None:
         self.kernel_name=kernel_name
         self.agents: List[TradingAgent]=agents
         self.gymagents= [agent for agent in self.agents if isinstance(agent, GymTradingAgent)]
@@ -95,22 +95,24 @@ class Kernel:
 
         return self.terminate()
     
-    def getparameter(self, type, name):
+    def getparameter(self, name):
         try:
-            rtn=self.parameters[type][name]
+            rtn=self.parameters[name]
         except:
-            raise ValueError(f"Expected parameter of name {name} and type {type}. Received None")
+            raise ValueError(f"Expected parameter -- {name}. Received None")
     
-    def begin(self) -> None:
+    def initialize_kernel(self) -> None:
         """This initalizes the simulation first by linking all the relevant entity objects together"""
-        self.isrunning=True
-        
-        self.exchange.initialize_exchange(priceMid0=self.getparameter(type="Exchange", name="priceMid0"), spread0=self.getparameter(type="Exchange", name="spread0"), agents=self.agents, kernel=self, Arrival_model=self.getparameter(type="Exchange", name="Arrival_model")) 
+        self.exchange.initialize_exchange( agents=self.agents, kernel=self, Arrival_model=self.getparameter(name="Arrival_model")) 
         
         for agent in self.agents:
             agent.kernel=self 
             agent.exchange=self.exchange
             agent.kernel_start(current_time=0)
+    
+    def begin(self)-> None:
+        """This begins the simulation"""
+        self.isrunning=True
     
     def run(self, actions: Optional[Tuple[int, Tuple[int, int]]]=None) -> Dict[str, any]:
         """

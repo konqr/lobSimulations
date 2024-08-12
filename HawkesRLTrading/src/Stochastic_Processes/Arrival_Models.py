@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from RLenv.Stochastic_Processes.Stochastic_Models import StochasticModel
+from src.Stochastic_Processes.Stochastic_Models import StochasticModel
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
 import logging
-from RLenv.Utils import logging_config
+from src.Utils import logging_config
 logger = logging.getLogger(__name__)
 class ArrivalModel(StochasticModel, ABC):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
@@ -33,14 +33,16 @@ class ArrivalModel(StochasticModel, ABC):
     
     
 class HawkesArrival(ArrivalModel):
-    def __init__(self, params: Dict[str, Any], seed=1):
+    def __init__(self, spread0: float, seed=1, **params):
         """
-        T: Simulation time_limit, which should be passed on by the kernel
-        Params Dictionary consists of all the necessary parameters for the Hawkes arrival model: 
-            parameters:"kernelparams", "tod", "Pis", "beta", "avgSpread", "spread", "price0", "Pi_Q0"
+        params:"kernelparams", "tod", "Pis", "beta", "avgSpread", "spread", "Pi_Q0"
             
         
         """
+        assert spread0, "ArrivalModel requires spread for construction"
+        self.spread=spread0
+        if not params:
+            params={}
         self.cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         self.coltolevel={0: "Ask_L2",
@@ -55,17 +57,18 @@ class HawkesArrival(ArrivalModel):
                          9: "Bid_L1",
                          10: "Bid_L2",
                          11: "Bid_L2"}
-        required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "spread0", "price0", "Pi_Q0"]
+        required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "Pi_Q0"]
         missing_keys = [key for key in required_keys if (key not in params.keys()) or params.get(key) is None]
         if len(missing_keys)>0:
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
-            logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming generating default values: {missing_with_defaults}")
+            logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
             params.update(missing_with_defaults)
         else:
             pass
         self.num_nodes=len(self.cols)  
-        super().__init__(params=params)
+        for key, value in params.items():
+            setattr(self, key, value)
         
         #Initializing storage variables for thinning simulation    
         self.todmult=None
@@ -106,7 +109,7 @@ class HawkesArrival(ArrivalModel):
                             (100, 0.03136813097471952),
                             (500, 0.06869444491232923),
                             (1000, 0.04298980350337664)]]}
-        defaultparams={"Pis": None, "beta": 0.7479, "avgSpread": 0.0169, "spread": 3, "price0": 260, "Pi_Q0": Pi_Q0}
+        defaultparams={"Pis": None, "beta": 1, "avgSpread": 0.01, "Pi_Q0": Pi_Q0}
         #generating faketod
         faketod = {}
         for k in self.cols:
@@ -152,7 +155,7 @@ class HawkesArrival(ArrivalModel):
                 beta[i][j]=kernelParams[1][1]
                 gamma[i][j]=kernelParams[1][2]
         fakekernelparams=[mask, alpha, beta, gamma] 
-        defaultparams["kernelparams": fakekernelparams]
+        defaultparams["kernelparams"]=fakekernelparams
         return defaultparams  
     
     def generate_ordersize(self, loblevel) -> int:

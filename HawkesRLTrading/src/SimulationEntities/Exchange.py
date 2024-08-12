@@ -7,12 +7,12 @@ import os
 import random
 import logging
 from typing import Any, List, Optional, Tuple, ClassVar
-from RLenv.SimulationEntities.Entity import Entity
-from RLenv.Utils.Exceptions import *
-from RLenv.SimulationEntities.TradingAgent import TradingAgent
-from RLenv.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
-from RLenv.Orders import *
-from RLenv.Messages.ExchangeMessages import *
+from src.SimulationEntities.Entity import Entity
+from src.Utils.Exceptions import *
+from src.SimulationEntities.TradingAgent import TradingAgent
+from src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
+from src.Orders import *
+from src.Messages.ExchangeMessages import *
 
 logger=logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -22,15 +22,27 @@ class Exchange(Entity):
         ticksize
         LOBlevels
         numOrdersPerLevel"""
-    def __init__(self, symbol: str ="AAPL", ticksize: float =0.01, LOBlevels: int=2, numOrdersPerLevel: int =10, seed: int=1 ):
+    def __init__(self, seed: int=1, log_events=True, log_to_file=True, **kwargs):
         
-        super().__init__(type="Exchange", seed=seed, log_events=True, log_to_file=True)
-        self.ticksize=ticksize
-        self.LOBlevels=LOBlevels
-        self.symbol=symbol
+        super().__init__(type="Exchange", seed=seed, log_events=log_events, log_to_file=log_to_file)
+        #symbol: str ="XYZ", ticksize: float =0.01, LOBlevels: int=2, numOrdersPerLevel: int =10, 
+        defaults={  "symbol": "XYZ",
+                    "ticksize": 0.01,
+                    "LOBlevels": 2,
+                    "numOrdersPerLevel": 10,
+                    "PriceMid0": 45,
+                    "spread0": 5
+                    }
+        defaults.update(kwargs)
+        self.ticksize=defaults["ticksize"]
+        self.LOBlevels=defaults["LOBlevels"]
+        self.symbol=defaults["symbol"]
+        self.numOrdersPerLevel=defaults["numOrdersPerLevel"]
+        self.priceMid=defaults["PriceMid0"]
+        self.spread=defaults["spread0"]
+        
         self.levels = [f"Ask_L{i}" for i in range(1, self.LOBlevels + 1)]+[f"Bid_L{i}" for i in range(1, self.LOBlevels + 1)]
         self.LOBhistory=[] #History of an order book is an array of the form (t, LOB, spread)
-        self.numOrdersPerLevel=numOrdersPerLevel
         
         #Empty Attributes:
         self.kernel=None
@@ -48,7 +60,7 @@ class Exchange(Entity):
         self.askprice=None
         self.bidprice=None
     
-    def initialize_exchange(self, priceMid0: int=20, spread0: int =4, agents: Optional[List[TradingAgent]]=None, kernel=None, Arrival_model: ArrivalModel=None):
+    def initialize_exchange(self, agents: Optional[List[TradingAgent]]=None, kernel=None, Arrival_model: ArrivalModel=None):
         """
         The initialize_exchange method is called by the simulation kernel.
         """
@@ -77,11 +89,11 @@ class Exchange(Entity):
             raise ValueError("Please specify Arrival_model for Exchange")
         else:
             logger.debug(f"Arrival_model of Exchange specified as {self.Arrival_model.__class__.__name__}")
-            self.Arrival_model=Arrival_model
+            self.Arrival_model: ArrivalModel=Arrival_model
+            #Check that Arrival model spread matches exchange spread
+            assert self.Arrival_model.spread==self.spread, "Arrival model spread is not the same as Exchange spread"
         
         #Initialize prices
-        self.priceMid=priceMid0
-        self.spread=spread0
         for i in range(self.LOBlevels):
             key="Ask_L"+str(i+1)
             val=self.priceMid+np.floor(self.spread/2)*self.ticksize + i*self.ticksize
@@ -91,6 +103,7 @@ class Exchange(Entity):
             self.bidprices[key]=val   
         self.askprice=self.askprices["Ask_L1"]
         self.bidprice=self.bidprices["Bid_L1"]
+        assert self.askprice-self.bidprice==self.spread
         self.bids={} #holding list of pricelevels which are in the form of (key, value)=(price, [list of orders])
         self.asks={} 
         #Initialize order sizes

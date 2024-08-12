@@ -4,13 +4,13 @@ from typing import Any, List, Optional, Tuple, ClassVar, List, Dict
 import pandas as pd
 import logging
 import copy
-from RLenv.logging_config import *
-from RLenv.Orders import *
-from RLenv.Messages.Message import *
-from RLenv.Messages.ExchangeMessages import *
-from RLenv.Messages.AgentMessages import *
-from RLenv.SimulationEntities.Entity import Entity
-from RLenv.Exceptions import *
+from src.Utils.logging_config import *
+from src.Orders import *
+from src.Messages.Message import *
+from src.Messages.ExchangeMessages import *
+from src.Messages.AgentMessages import *
+from src.SimulationEntities.Entity import Entity
+from src.Utils.Exceptions import *
 logger = logging.getLogger(__name__)
 
 class TradingAgent(Entity):
@@ -19,7 +19,6 @@ class TradingAgent(Entity):
 
     Entity Attributes:
         id: Must be a unique number (usually autoincremented) belonging to the subclass.
-        type: is it a trading agent or exchange?
         seed: Every entity is given a random seed for stochastic purposes.
         log_events: flag to log or not the events during the simulation 
             Logging format:
@@ -35,9 +34,10 @@ class TradingAgent(Entity):
         action_freq: what is the time period betweeen an agent's actions in seconds
         on_trade: decides whether agent gets suscribed to new information every time a trade happens
         """
-    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
         
         self.strategy=strategy #string that describes what strategy the agent has
+        assert Inventory is not None, f"Agent needs inventory for initialisation"
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
@@ -68,7 +68,7 @@ class TradingAgent(Entity):
         self.log: List[Tuple[int, Order, Dict[str, int], int]]=[] #Tuple(time, order, inventory, cash)
         super().__init__(type=type, seed=seed, log_events=log_events, log_to_file=log_to_file)
         
-    def kernel_start(self, start_time: float) -> None:
+    def kernel_start(self, current_time: int=0) -> None:
         assert self.kernel is not None, f"Kernel not linked to TradingAgent: {self.id}"
         wakeuptime=self.current_time + self.action_freq
         logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")

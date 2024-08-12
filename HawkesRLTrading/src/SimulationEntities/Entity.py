@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, ClassVar
 import pandas as pd
 import logging
-from RLenv.Messages.Message import Message
+from src.Messages.Message import Message
 
 logger = logging.getLogger(__name__)
 class Entity:

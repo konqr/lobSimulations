@@ -1,11 +1,11 @@
-from RLenv.SimulationEntities.Entity import Entity
-from RLenv.SimulationEntities.TradingAgent import TradingAgent
+from src.SimulationEntities.Entity import Entity
+from src.SimulationEntities.TradingAgent import TradingAgent
 from typing import List, Tuple, Dict, Optional, Any
 from abc import abstractmethod, ABC
 import numpy as np
 
 class GymTradingAgent(TradingAgent, ABC):
-    """Abstract class to inherit from to create usable specific ABIDES Gym Experiemental Agents """
+    """Abstract class to inherit from to create usable specific Gym Experiemental Agents """
 
     @abstractmethod
     def get_action(self, data) -> Optional[Tuple[int, int]]:
@@ -21,11 +21,11 @@ class GymTradingAgent(TradingAgent, ABC):
 
 
 class RandomGymTradingAgent(GymTradingAgent):
-    def __init__(self, type: str = "TradingAgent", seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: int=Dict[str, Any], cash: int=5000, action_freq: float =0.5, on_trade: bool=True, rewardpenalty: Optional[float]=None):
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=True, rewardpenalty: float=0.4):
         """
         Rewardpenalty: absolute value of lambda ratio for the quadratic inventory penalty
         """
-        super().__init__(type=type, seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade)
+        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade)
         if rewardpenalty is None:
             raise ValueError(f"Rewardpenalty value for agent {self.id} not specified")
         self.rewardpenalty=abs(rewardpenalty)
