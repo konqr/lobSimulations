@@ -4,13 +4,13 @@ from typing import Any, List, Optional, Tuple, ClassVar, List, Dict
 import pandas as pd
 import logging
 import copy
-from src.Utils.logging_config import *
-from src.Orders import *
-from src.Messages.Message import *
-from src.Messages.ExchangeMessages import *
-from src.Messages.AgentMessages import *
-from src.SimulationEntities.Entity import Entity
-from src.Utils.Exceptions import *
+from HawkesRLTrading.src.Utils.logging_config import *
+from HawkesRLTrading.src.Orders import *
+from HawkesRLTrading.src.Messages.Message import *
+from HawkesRLTrading.src.Messages.ExchangeMessages import *
+from HawkesRLTrading.src.Messages.AgentMessages import *
+from HawkesRLTrading.src.SimulationEntities.Entity import Entity
+from HawkesRLTrading.src.Utils.Exceptions import *
 logger = logging.getLogger(__name__)
 
 class TradingAgent(Entity):
@@ -35,16 +35,16 @@ class TradingAgent(Entity):
         on_trade: decides whether agent gets suscribed to new information every time a trade happens
         """
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
-        
+        super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
-        self.positions: Dict[str: List[Order]]={} #A Dictionary that describes an agent's active orders in the market
+        self.positions: Dict[str: List[Order]]={key: [] for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
         self.cash=cash
         self.profit=0
-        self.statelog=[(0, self.cash, self.profit, Inventory, {})] #List of [timecode, cash, #realized profit, inventory, positions]
+        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid", None]
         self.actionsToLevels = {
@@ -55,7 +55,11 @@ class TradingAgent(Entity):
             "co_deep_Ask" : "Ask_L2",
             "co_top_Ask" : "Ask_L1",
             "co_top_Bid" : "Bid_L1",
-            "co_deep_Bid" : "Bid_L2"
+            "co_deep_Bid" : "Bid_L2",
+            "mo_Ask": "Ask_MO",
+            "mo_Bid": "Bid_MO",
+            "lo_inspread_Ask": "Ask_inspread",
+            "lo_inspread_Bid": "Bid_inspread"
         }
         # Simulation attributes
         
@@ -66,7 +70,6 @@ class TradingAgent(Entity):
         
         #Agents will maintain a log of their activities, events will likely be stored in the format of (time, event_type, eventname, size)
         self.log: List[Tuple[int, Order, Dict[str, int], int]]=[] #Tuple(time, order, inventory, cash)
-        super().__init__(type=type, seed=seed, log_events=log_events, log_to_file=log_to_file)
         
     def kernel_start(self, current_time: int=0) -> None:
         assert self.kernel is not None, f"Kernel not linked to TradingAgent: {self.id}"
@@ -87,7 +90,7 @@ class TradingAgent(Entity):
         """
         assert self.exchange is not None, f"Agent {self.id} is not linked to an Exchange"
         if order is None:
-            self.sendmessage(recipientID=self.exchange.id, message=DoNothing())
+            self.sendmessage(recipientID=self.exchange.id, message=DoNothing(time_placed=self.current_time))
             return -1
         else:
             if isinstance(order, LimitOrder):
@@ -108,9 +111,9 @@ class TradingAgent(Entity):
         Symbol is the stock symbol
         cancelID takes on non-none values when the event is a cancel order.
         """
-        if action is None:
-            
-            
+        if action==None:
+            raise ValueError("Action should not be none")
+        if action[0]==12:
             return None
         k=action[0]
         size=action[1]
@@ -133,11 +136,12 @@ class TradingAgent(Entity):
                     price=lob[level][0]
                 else:
                     price=lob[level][0]
-            order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, price=price, loblevel=level)
+            order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, price=price, _level=level)
             
         elif self.actions[k][0:2]=="mo":
             #marketorder
-            order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id)
+            level=self.actionsToLevels[self.actions[k]]
+            order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, _level=level)
         else:
             
             #cancelorder
@@ -151,7 +155,7 @@ class TradingAgent(Entity):
                 raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
             else:
                 tocancel: LimitOrder=np.random.choice(positions)
-            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  event_type=k, cancelID=tocancel.order_id)
+            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  event_type=k, cancelID=tocancel.order_id, _level=level)
         return order
     
     
@@ -187,7 +191,7 @@ class TradingAgent(Entity):
                 else:
                     self.Inventory[order.symbol]+=order.size
                     self.cash-=order.price*order.size
-                self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.id]
+                self.positions[order.symbol].append(order)
             elif isinstance(order, CancelOrder):
                 self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
             else:
@@ -245,14 +249,22 @@ class TradingAgent(Entity):
     def peakLOB(self) -> Dict[str, Tuple[float, int]]:
         assert self.exchange is not None, f"Trading Agent: {self.id} is not linked to an exchange"
         
-        return self.exchange.lob0()
+        return self.exchange.lob0
     
     def countInventory(self):
-        return sum([len(self.Inventory[j]) for j in self.Inventory.keys()])     
+        return sum([self.Inventory[j] for j in self.Inventory.keys()])     
     
     def reset(self) -> None:
         pass
 
     def updatestatelog(self):
+        if self.statelog[-1][0]==self.current_time:
+            logger.info(f"Last agent LOG is {self.statelog[-1]} and new log to be appended is {(self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy())}")
+            return False
         self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy()))
     
+    def getobservations(self):
+        rtn={"Cash":self.cash,
+             "Inventory": self.Inventory[self.exchange.symbol],
+             "Positions": self.positions[self.exchange.symbol]}
+        return rtn

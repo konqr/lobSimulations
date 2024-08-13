@@ -1,7 +1,0 @@
-README.md
-setup.cfg
-setup.py
-HawkesRLTrading.egg-info/PKG-INFO
-HawkesRLTrading.egg-info/SOURCES.txt
-HawkesRLTrading.egg-info/dependency_links.txt
-HawkesRLTrading.egg-info/top_level.txt

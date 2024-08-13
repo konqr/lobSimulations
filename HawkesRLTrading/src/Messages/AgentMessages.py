@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from src.Messages.Message import Message
-from src.Orders import Order, LimitOrder,MarketOrder, CancelOrder
+from HawkesRLTrading.src.Messages.Message import Message
+from HawkesRLTrading.src.Orders import Order, LimitOrder,MarketOrder, CancelOrder
 
 @dataclass
 class AgentMsg(Message):
@@ -22,9 +22,5 @@ class CancelOrderMsg(AgentMsg):
 
 @dataclass
 class DoNothing(AgentMsg):
-    pass
+    time_placed: float
 
-@dataclass
-class WakeUpRequestMsg(AgentMsg):
-    agentID: int
-    pass

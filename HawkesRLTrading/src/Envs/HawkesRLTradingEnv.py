@@ -1,12 +1,12 @@
 import gymnasium as gym 
-from gymnasium import spaces
+from gymnasium.spaces import *
 import numpy as np
-from typing import Any, Dict, List, Optional, Tuple
-from src.SimulationEntities.TradingAgent import TradingAgent
-from src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
-from src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
-from src.SimulationEntities.Exchange import Exchange
-from src.Kernel import Kernel
+from typing import Any, Dict, List, Optional
+from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
+from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
+from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
+from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
+from HawkesRLTrading.src.Kernel import Kernel
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
@@ -22,21 +22,21 @@ class tradingEnv(gym.Env):
         log_to_file
         kwargs -- Simulation default parameters specified as following:
             Dictionary{
-                "TradingAgent": None,
+                "TradingAgent": [],
                 "GymTradingAgent": [{"cash": 5000, 
                                     "strategy": "Random",
-                                    "action_freq": 0.5
-                                    "rewardpenalty": 0.4
-                                    "Inventory": {"XYZ": 1000}
+                                    "action_freq": 2,
+                                    "rewardpenalty": 0.4,
+                                    "Inventory": {"XYZ": 1000},
                                     "log_to_file": True}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
                 "numOrdersPerLevel": 10,
-                "PriceMid0": 45
-                "spread0": 5},
+                "PriceMid0": 45,
+                "spread0": 0.05},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters"={"kernelparams": None, 
+                                  "parameters": {"kernelparams": None, 
                                             "tod": None, 
                                             "Pis": None, 
                                             "beta": None, 
@@ -46,23 +46,23 @@ class tradingEnv(gym.Env):
             }
 
         """               
-        self.observation_space=spaces.Dict({
-            "Cash": spaces.Box(low=0),
-            "Inventory": spaces.Box(low=0),
-            "LOB_State": spaces.Dict({
-                "Ask_L2": spaces.Tuple(spaces.Box(low=0), spaces.Sequence(spaces.Box(low=0))),
-                "Ask_L1": spaces.Tuple(spaces.Box(low=0), spaces.Sequence(spaces.Box(low=0))),
-                "Bid_L1": spaces.Tuple(spaces.Box(low=0), spaces.Sequence(spaces.Box(low=0))),
-                "Bid_L2": spaces.Tuple(spaces.Box(low=0), spaces.Sequence(spaces.Box(low=0)))}),
-            "Current_Positions": spaces.Sequence(spaces.Tuple(spaces.Text(), spaces.Box(low=0), spaces.Box(low=0)))
-        })
-        self.action_space=spaces.Tuple(spaces.Discrete(13), spaces.Box(0, 5000))
+        # self.observation_space=Dict({
+        #     "Cash": Box(low=0, high=100000),
+        #     "Inventory": Box(low=0, high=10000),
+        #     "LOB_State": Dict({
+        #         "Ask_L2": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
+        #         "Ask_L1": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
+        #         "Bid_L1": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
+        #         "Bid_L2": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000)))}),
+        #     "Current_Positions": Sequence(Tuple(Text(), Box(low=0), Box(low=0)))
+        # })
+        # self.action_space=Tuple(Discrete(13), Box(0, 5000))
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Render mode must be None, human or rgb_array or text"
         self.seed=seed
         
         #Construct agents: Right now only compatible with 1 trading agent
-        assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"]==0), "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
-        agents=[]
+        assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
+        self.agents=[]
         if len(kwargs["TradingAgent"])>0:
             pass
         if len(kwargs["GymTradingAgent"])>0:
@@ -72,29 +72,28 @@ class tradingEnv(gym.Env):
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True)
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
-                agents.append(new_agent)
-        
+                self.agents.append(new_agent)
+        print("Agent IDs: " + str([agent.id for agent in self.agents]))
         #Construct Exchange:
-        ExchangeKwargs={}
-        for j in [ "symbol", "ticksize", "LOBlevels", "numOrdersPerLevel", "PriceMid0", "spread0"]:
-            rtn=kwargs.get(j)
-            ExchangeKwargs[j]=rtn
+        ExchangeKwargs=kwargs.get("Exchange")
         exchange=Exchange(**ExchangeKwargs)
+        print("Exchange ID: "+ str(exchange.id))
         #Arrival Model setup
         Arrival_model=None
         if kwargs.get("Arrival_model"):
             if kwargs["Arrival_model"].get("name") == "Hawkes":
                 params = kwargs["Arrival_model"]["parameters"]
-                Arrival_model: HawkesArrival=HawkesArrival(spread0=exchange.spread, seed=self.seed, **params)
+                Arrival_model=HawkesArrival(spread0=exchange.spread, seed=self.seed, **params)
             else:
                 raise Exception("Program currently only supports Hawkes Arrival model")
         else:
-            raise ValueError("Please specify Arrival model")
+            raise ValueError("Please specify Arrival model for exchange")
             
                
         
-        self.kernel=Kernel(agents=agents, exchange=exchange, seed=seed, kernel_name=kernel_name, stop_time=stop_time, wall_time_limit=wall_time_limit, log_to_file=log_to_file, Arrival_model=Arrival_model)
+        self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, kernel_name=kernel_name, stop_time=stop_time, wall_time_limit=wall_time_limit, log_to_file=log_to_file, Arrival_model=Arrival_model)
         self.kernel.initialize_kernel()
+        np.random.seed(1)
             
     def step(self, action: Optional[Any]):
         """
@@ -102,16 +101,17 @@ class tradingEnv(gym.Env):
         Input: Action
         Output: Observations, Rewards, termination, truncation, Logging info+metrics 
         """
-        if self.kernel.isrunning==False:
-            self.kernel.begin()
         #Observations=cash, inventory, LOB state, current positions
-        simstate=self.kernel.run(action)
+        simstate=self.kernel.run(action=action)
         Observations=self.getobservations()
-        rewards=self.calculaterewards()
-        termination=self.isterminated()
-        truncation=self.istruncated()
-        info=self.getinfo()
-        return Observations, rewards, termination, truncation
+        # rewards=self.calculaterewards()
+        # termination=self.isterminated()
+        # truncation=self.istruncated()
+        done=simstate["Done"]
+        timecode=simstate["TimeCode"]
+        infos=simstate["Infos"]
+        return simstate, Observations
+        # return Observations, rewards, termination, truncation
         #return observations, rewards, dones, infos    
         
         
@@ -139,9 +139,11 @@ class tradingEnv(gym.Env):
         self.kernel.terminate()
     
     #Wrappers
-    def getobservation(self):
-        
-        return self.kernel.getobservations()
+    def getobservations(self):
+        """
+        Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
+        """
+        return self.kernel.getobservations(agentID=self.agents[0].id)
     def calculaterewards(self):
         rewards={}
         for gymagent in self.kernel.gymagents:
@@ -156,7 +158,70 @@ class tradingEnv(gym.Env):
         Returns auxiliary info: 
         """
         return None
+    def getAgent(self, ID):
+        return self.kernel.entity_registry[ID]
 
 if __name__=="__main__":
     print("compiles")
-    env=tradingEnv()
+    kwargs={
+                "TradingAgent": [],
+                "GymTradingAgent": [{"cash": 5000, 
+                                    "strategy": "Random",
+                                    "action_freq": 2,
+                                    "rewardpenalty": 0.4,
+                                    "Inventory": {"XYZ": 1000},
+                                    "log_to_file": True}],
+                "Exchange": {"symbol": "XYZ",
+                "ticksize":0.01,
+                "LOBlevels": 2,
+                "numOrdersPerLevel": 10,
+                "PriceMid0": 45,
+                "spread0": 0.05},
+                "Arrival_model": {"name": "Hawkes",
+                                  "parameters": {"kernelparams": None, 
+                                            "tod": None, 
+                                            "Pis": None, 
+                                            "beta": None, 
+                                            "avgSpread": None, 
+                                            "Pi_Q0": None}}
+
+            }
+    env=tradingEnv(**kwargs)
+    print("Initial Observations"+ str(env.getobservations()))
+    Simstate, observations=env.step(action=None)
+    AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+    print(f"Agents with IDs {AgentsIDs} have an action available")
+    if len(AgentsIDs)>1:
+        raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
+    else:
+        pass
+    
+    agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+    assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+    action=(agent.id, agent.get_action(data=observations))
+    print(f"Limit Order Book: {observations['LOB0']}")
+    print(f"Action: {action}")
+    while Simstate["Done"]==False:
+        Simstate, observatoins=env.step(action=action)
+        AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+        if len(AgentsIDs)>1:
+            raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
+        agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+        action=(agent.id, agent.get_action(data=observations))    
+        break
+    
+    """
+    done = False
+    observation, info = env.reset()
+    while not done:
+        action = agent.get_action(obs)
+        next_obs, reward, terminated, truncated, info = env.step(action)
+
+        # update the agent
+        agent.update(obs, action, reward, terminated, next_obs)
+
+        # update if the environment is done and the current obs
+        done = terminated or truncated
+        obs = next_obs
+    
+    """

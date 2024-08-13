@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from src.Stochastic_Processes.Stochastic_Models import StochasticModel
+from HawkesRLTrading.src.Stochastic_Processes.Stochastic_Models import StochasticModel
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
 import logging
-from src.Utils import logging_config
+from HawkesRLTrading.src.Utils import logging_config
 logger = logging.getLogger(__name__)
 class ArrivalModel(StochasticModel, ABC):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
@@ -24,7 +24,7 @@ class ArrivalModel(StochasticModel, ABC):
         pass
 
     @abstractmethod
-    def generate_ordersize(self):
+    def generate_queuesize(self):
         pass
     @abstractmethod
     def generate_orders_in_queue(self):
@@ -62,13 +62,15 @@ class HawkesArrival(ArrivalModel):
         if len(missing_keys)>0:
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
-            logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
+            #logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
+            logger.info(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. Assuming default values")
             params.update(missing_with_defaults)
         else:
             pass
         self.num_nodes=len(self.cols)  
         for key, value in params.items():
             setattr(self, key, value)
+            
         
         #Initializing storage variables for thinning simulation    
         self.todmult=None
@@ -85,6 +87,31 @@ class HawkesArrival(ArrivalModel):
         """
         Generates all the necessary default/fake parameters for the Hawkes Simulation model. 
         """
+        Pis={'Bid_L2': [0.0028405540014542,
+                              [(1, 0.012527718976326372),
+                               (10, 0.13008130053050898),
+                               (50, 0.01432529704009695),
+                               (100, 0.7405118066127269)]],
+                'Bid_inspread': [0.001930457915114691,
+                                    [(1, 0.03065295587464324),
+                                     (10, 0.18510015294680732),
+                                     (50, 0.021069809772740915),
+                                     (100, 2.594573929265402)]],
+                'Bid_L1': [0.0028207493506166507,
+                               [(1, 0.05839080241927479),
+                                (10, 0.17259077005977103),
+                                (50, 0.011272365769158578),
+                                (100, 2.225254050790496)]],
+                'Bid_MO': [0.008810527626617248,
+                           [(1, 0.13607245009890734),
+                            (10, 0.07035276109045323),
+                            (50, 0.041795348623102815),
+                            (100, 1.0584893799948996),
+                            (200, 0.10656843768185977)]]}
+        Pis["Ask_MO"] = Pis["Bid_MO"]
+        Pis["Ask_L1"] = Pis["Bid_L1"]
+        Pis["Ask_inspread"] = Pis["Bid_inspread"]
+        Pis["Ask_L2"] = Pis["Bid_L2"]
         Pi_Q0= {'Ask_L1': [0.0018287411983379015,
                             [(1, 0.007050802017724003),
                             (10, 0.009434048841996959),
@@ -109,7 +136,7 @@ class HawkesArrival(ArrivalModel):
                             (100, 0.03136813097471952),
                             (500, 0.06869444491232923),
                             (1000, 0.04298980350337664)]]}
-        defaultparams={"Pis": None, "beta": 1, "avgSpread": 0.01, "Pi_Q0": Pi_Q0}
+        defaultparams={"Pis": Pis, "beta": 1, "avgSpread": 0.01, "Pi_Q0": Pi_Q0}
         #generating faketod
         faketod = {}
         for k in self.cols:
@@ -119,7 +146,7 @@ class HawkesArrival(ArrivalModel):
         tod=np.zeros(shape=(len(self.cols), 13))
         for i in range(len(self.cols)):
             tod[i]=[faketod[self.cols[i]][k] for k in range(13)]
-        defaultparams["tod": tod]
+        defaultparams["tod"]= tod
         
         #generating fakekernelparams        
         mat = np.zeros((12,12))
@@ -155,12 +182,26 @@ class HawkesArrival(ArrivalModel):
                 beta[i][j]=kernelParams[1][1]
                 gamma[i][j]=kernelParams[1][2]
         fakekernelparams=[mask, alpha, beta, gamma] 
-        defaultparams["kernelparams"]=fakekernelparams
+        defaultparams["kernelparams"]=[fakekernelparams, baselines]
         return defaultparams  
     
-    def generate_ordersize(self, loblevel) -> int:
+    def generate_actionsize(self, actionlevel) -> int:
+        pi = self.Pis[actionlevel] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
+        p = pi[0]
+        dd = pi[1]
+        pi = np.array([p*(1-p)**k for k in range(1,10000)])
+        # pi = pi*(1-sum([d[1] for d in dd]))/sum(pi)
+        for i, p_i in dd:
+            pi[i-1] = p_i + pi[i-1]
+        pi = pi/sum(pi)
+        cdf = np.cumsum(pi)
+        a = np.random.uniform(0, 1)
+        size = np.argmax(cdf>=a)+1
+        return size
+    
+    def generate_queuesize(self, loblevel) -> int:
         """
-        generate ordersize based on diracdeltas
+        generate queue size based on diracdeltas
         loblevel: one of the 4 possible levels in the LOB
         Returns: qsize the size of the order
         """
@@ -178,6 +219,7 @@ class HawkesArrival(ArrivalModel):
         cdf = np.cumsum(pi)
         a = np.random.uniform(0, 1)
         qSize = np.argmax(cdf>=a) + 1
+        print("first qsize: " + str(qSize))
         return qSize
 
     def generate_orders_in_queue(self, loblevel, numorders=10) -> List[int]:
@@ -189,7 +231,7 @@ class HawkesArrival(ArrivalModel):
         Returns: queue -- a list of orders[ints]
         """
         
-        total=self.generate_ordersize(loblevel)
+        total=self.generate_queuesize(loblevel)
         tmp=(numorders-1)*[np.floor(total/numorders)]
         if tmp!=0:
             queue=[total-sum(tmp)]+tmp
@@ -208,6 +250,8 @@ class HawkesArrival(ArrivalModel):
         Returns:
         pointcount: counts the number of new points that have been added to the timeseries
         """
+        if T is None:
+            raise ValueError("Expected 'float' for Thinning Ogata time limit, received 'NoneType'")
         if self.n is None: self.n = self.num_nodes*[0]
         if self.baselines is None: self.baselines=self.num_nodes*[0]
         if self.Ts is None: self.Ts = self.num_nodes*[()]
@@ -246,10 +290,13 @@ class HawkesArrival(ArrivalModel):
             """generate random u"""
             u=np.random.uniform(0, 1)
             if lamb_bar==0:
-                s+=0.1  # wait for some time
+                self.s+=0.1  # wait for some time
             else:
                 w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
-                s+=w  
+                self.s+=w  
+            print(f"S: {self.s}")
+            if(self.s>T):
+                return pointcount
             """Recalculating baseline lambdas sum with new candidate"""
             hourIndex = min(12,int(self.s//1800))
             self.todmult=self.tod[:, hourIndex].reshape((12, 1)) * (0.99/specRad)
@@ -280,6 +327,7 @@ class HawkesArrival(ArrivalModel):
             """Testing candidate point"""
             D=np.random.uniform(0, 1)
             #print("Candidate D: ", D)
+            print(f"Candidate: {self.s}")
             if D*lamb_bar<=self.lamb:
                 pointcount+=1
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
@@ -313,13 +361,13 @@ class HawkesArrival(ArrivalModel):
                 decays = decays*(self.s-T_Minus1)
                 
                 """Updating history and returns"""
-                self.Ts[k]+=(s,)
+                self.Ts[k]+=(self.s,)
                 tau = decays[k][0]
                 self.n[k]+=1
-                self.timeseries.append((s, k)) #(time, event)
+                self.timeseries.append((self.s, k)) #(time, event)
                 self.pointcount+=pointcount
                 return pointcount
-                
+        return pointcount        
     def orderwrapper(self, time:float, k: int, size: int):
         """
         Takes in an event tuple of (time, event) and wraps it into information compatible with the exchange
@@ -382,15 +430,17 @@ class HawkesArrival(ArrivalModel):
             
     
     
-    def get_nextarrival(self, timelimit):
+    def get_nextarrival(self, timelimit=None):
         """Returns None if no arrivals before the timelimit. Otherwise, 
         Returns: time, side, order_type, level, size"""
-        tmp=self.thinningOgataIS2()
+        tmp=self.thinningOgataIS2(T=timelimit)
+        print("Pointcount is: " + str(tmp))
         if tmp==0:
             return None
         #Newest point
+        print(f"Arrival Model time series {self.timeseries}")
         t, k=self.timeseries[-1][0], self.timeseries[-1][1]
-        size=self.generate_ordersize[self.colstolevel[k]]
+        size=self.generate_actionsize(self.coltolevel[k])
         return self.orderwrapper(time=t, k=k, size=size)
         
             

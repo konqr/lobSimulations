@@ -1,12 +1,11 @@
-from src.SimulationEntities.Entity import Entity
-from src.SimulationEntities.TradingAgent import TradingAgent
+from HawkesRLTrading.src.SimulationEntities.Entity import Entity
+from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
 from typing import List, Tuple, Dict, Optional, Any
 from abc import abstractmethod, ABC
 import numpy as np
 
-class GymTradingAgent(TradingAgent, ABC):
+class GymTradingAgent(TradingAgent):
     """Abstract class to inherit from to create usable specific Gym Experiemental Agents """
-
     @abstractmethod
     def get_action(self, data) -> Optional[Tuple[int, int]]:
         pass
@@ -35,6 +34,7 @@ class RandomGymTradingAgent(GymTradingAgent):
         """
         Action is a (k, size) tuple where 0<=k<=12 refers to the event. If k=12, then it refers to the NoneAction
         """
+        
         action=np.random.choice(range(13))
         size=np.random.choice([50,75,100,125])
         return action, size
@@ -45,6 +45,7 @@ class RandomGymTradingAgent(GymTradingAgent):
     
     def calculaterewards(self) -> Any:
         penalty= self.rewardpenalty * self.countInventory()
-        deltaPNL=self.statelog[0][1]
-        #deltaPNL=self.profitlog[-1] - self.profitlog[-2]
+        self.profit=self.cash - self.statelog[0][1]
+        self.updatestatelog()
+        deltaPNL=self.statelog[-1][2] - self.statelog[-2][2]
         return deltaPNL - penalty
