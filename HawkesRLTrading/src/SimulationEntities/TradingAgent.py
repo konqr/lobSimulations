@@ -177,10 +177,10 @@ class TradingAgent(Entity):
             order=message.order
             if isinstance(order, MarketOrder):
                 if order.side=="Ask":
-                    self.cash+=order.fill_price
+                    self.cash+=order.total_value
                     self.Inventory[order.symbol]-=order.size
                 else:
-                    self.cash-=order.fill_price
+                    self.cash-=order.total_value
                     self.Inventory[order.symbol]+=order.size
                     pass
                 
@@ -235,17 +235,8 @@ class TradingAgent(Entity):
             current_time: The simulation time at which the kernel is delivering this
                 message -- the agent should treat this as "now".
         """
-
-        assert self.kernel is not None
-
-        self.current_time = current_time
-
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "At {}, agent {} received wakeup.".format(
-                    current_time, self.id
-                )
-            )
+        super().wakeup(current_time)
+        
     def peakLOB(self) -> Dict[str, Tuple[float, int]]:
         assert self.exchange is not None, f"Trading Agent: {self.id} is not linked to an exchange"
         

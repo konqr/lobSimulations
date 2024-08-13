@@ -164,9 +164,9 @@ class Exchange(Entity):
                 price=self.askprices[level]
             else:
                 price=self.bidprices[level]
-            order=CancelOrder(time_placed=time, side=side, size=-1, symbol=self.symbol, agent_id=-1, loblevel=level)
+            order=CancelOrder(time_placed=time, side=side, price=price, size=-1, symbol=self.symbol, agent_id=-1)
         order._level=level
-        print(f"\nNon-Agent {order}")
+        print(f"\nNon-Agent placed: {order}")
         self.processorder(order=order)
         return True
         
@@ -175,6 +175,7 @@ class Exchange(Entity):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """
+        logger.debug(f"Processing Order {order.order_id}")
         self.current_time=order.time_placed
         #process the order
         order_type=None
@@ -192,6 +193,10 @@ class Exchange(Entity):
                 self.sendbatchmessage(recipientIDs=self.agentswithTradeNotifs, message=tmp)
             else:
                 #Agent doesn't get a chance to trade again
+                recipientIDs=[j for j in self.agentswithTradeNotifs if j!=order.agent_id]
+                if len(recipientIDs)>0:
+                    tmp=TradeNotificationMsg(time=self.current_time)
+                    self.sendbatchmessage(recipientIDs=recipientIDs, message=tmp)
                 notif=OrderExecutedMsg(order=order)
                 self.sendmessage(recipientID=order.agent_id, message=notif)
             trade_happened=True
@@ -296,10 +301,11 @@ class Exchange(Entity):
         remainingsize=order.size
         totalvalue=0
         if side=="Ask":
+            side="Bid"
             level=1
             while remainingsize>0:
                 pricelvl=self.bidprices[side+"_L"+str(level)]
-                while len(self.bids)>0:
+                while len(self.bids[pricelvl])>0:
                     item: LimitOrder=self.bids[pricelvl][0]
                     if remainingsize<item.size:
                         totalvalue+=pricelvl*remainingsize
@@ -319,11 +325,14 @@ class Exchange(Entity):
                         totalvalue+=filled_order.size*pricelvl
                         filled_order.fill_time=self.current_time
                         filled_order.filled=True
-                        notif=OrderExecutedMsg(order=filled_order)
-                        self.sendmessage(recipientID=filled_order.agent_id, message=notif)
+                        if filled_order.agent_id==-1:
+                            pass
+                        else:
+                            notif=OrderExecutedMsg(order=filled_order)
+                            self.sendmessage(recipientID=filled_order.agent_id, message=notif)
                 #Touch level has been depleted
-                del self.bids[self.bidprices[pricelvl]]
-                del self.bidprices[pricelvl]
+                del self.bids[pricelvl]
+                del self.bidprices["Bid_L1"]
                 new_bidprices = {}
                 new_bids = {}  
                 for i in range(1, self.LOBlevels):
@@ -337,11 +346,13 @@ class Exchange(Entity):
                 self.bids = new_bids  
                 self.bidprice=self.bidprices["Bid_L1"]
         else:
+            side="Ask"
             level=1
             while remainingsize>0:
                 pricelvl=self.askprices[side+"_L"+str(level)]
-                while len(self.asks)>0:
+                while len(self.asks[pricelvl])>0:
                     item: LimitOrder=self.asks[pricelvl][0]
+                    print(f"Remaining size: {remainingsize}, item size: {item.size}")
                     if remainingsize<item.size:
                         newsize=item.size-remainingsize
                         totalvalue+=pricelvl*remainingsize
@@ -353,22 +364,24 @@ class Exchange(Entity):
                         else:
                             notif=PartialOrderFill(order=item, newsize=newsize)
                             self.sendmessage(recipientID=item.agent_id, message=notif)
-                        if order.agent_id==-1:
-                            pass
-                        else:
-                            notif=OrderExecutedMsg(order=order)
-                            self.sendmessage(recipientID=order.agent_id, message=notif)
+                        return totalvalue
                     else:
                         filled_order: Order=self.asks[pricelvl].pop(0)
+                        #print(f"Filled Order: {filled_order}")
                         remainingsize-=filled_order.size
                         totalvalue+=filled_order.size*pricelvl
+                        #print(f"totalvalue: {totalvalue}")
                         filled_order.fill_time=self.current_time
                         filled_order.filled=True
-                        notif=OrderExecutedMsg(order=filled_order)
-                        self.sendmessage(recipientID=filled_order.agent_id, message=notif)
+                        if filled_order.agent_id==-1:
+                            pass
+                        else:
+                            notif=OrderExecutedMsg(order=filled_order)
+                            self.sendmessage(recipientID=filled_order.agent_id, message=notif)
                 #Touch level has been depleted
-                del self.asks[self.askprices[pricelvl]]
-                del self.askprices[pricelvl]
+                print(self.asks)
+                del self.asks[pricelvl]
+                del self.askprices["Ask_L1"]
                 new_askprices = {}
                 new_asks = {}  
                 for i in range(1, self.LOBlevels):
@@ -383,48 +396,40 @@ class Exchange(Entity):
                 self.askprice=self.askprices["Ask_L1"]
         return totalvalue
     def processCancelOrder(self, order: CancelOrder):
-        cancelID=order.cancelID
-        tocancel: Order=Order._get_order_by_id(cancelID)
-        side=tocancel.side
-        price=tocancel.price 
-        public_cancel_flag=False   
-        tocancel.cancelled=True
-        if tocancel.agent_id==-1:
+        if order.agent_id==-1:
             public_cancel_flag=True
         else:
             public_cancel_flag=False
             #test if it's a valid agent_id
-            if tocancel.agent_id in self.agentIDs:
+            if order.agent_id in self.agentIDs:
                 pass
             else:
                 raise AgentNotFoundError(f"Agent ID {order.agent_ID} is not listed in Exchange book")
             #Check that the cancel order came from the same agent who placed the order
-            if tocancel.agent_id==order.agent_id:
-                pass
-            else:
-                raise InvalidOrderType(f"Agent {order.agent_id} wants to cancel order {order.cancelID} but order was placed by {tocancel.agent_id}")
+        side=order.side
+        price=order.price
         queue=[]        
         if side=="Ask":
             queue=self.asks[price]
         else:
             queue=self.bids[price]
         validcancels=[]
+        cancelled=None
         if public_cancel_flag==True:
             validcancels=[item for item in queue if item.agent_id==-1]
-            if len(validcancels)==0:
-                logger.info(f"Random cancel order issued, but only existing orders in queue are private agent orders so cancel order at time {order.time_placed} ignored.")  
-            else:
-                cancelled=validcancels.pop(random.randrange(0, len(validcancels)))
-                queue=[item for item in queue if item.order_id != cancelled.order_id]
         else: #Cancel order from an agent
-            queue=[item for item in queue if item.order_id!=cancelID]
-            assert len(queue)>0, f"Agent {order.agent_id} attemptd to place cancel orders wihout pre-existing limit orders in the book at the same price"
-        #non-empty queue for order cancellation, public and private           
+            validcancels=[item for item in queue if item.agent_id==order.agent_id]
+        if len(validcancels)==0:
+            logger.info(f"Cancel order issued, but no eligible orders in queue at time {order.time_placed} ignored.")  
+            return
+        cancelled=validcancels.pop(random.randrange(0, len(validcancels)))
+        queue=[item for item in queue if item.order_id != cancelled.order_id]
+    #non-empty queue for order cancellation, public and private           
         if order.side=="Ask":
             self.asks[price]=queue
         else:
             self.bids[price]=queue
-        tocancel.cancelled=True
+        cancelled.cancelled=True
         if public_cancel_flag==False:
             notif=OrderExecutedMsg(order=order)
             self.sendmessage(recipientID=order.agent_id, message=notif)

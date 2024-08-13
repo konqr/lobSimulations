@@ -57,16 +57,16 @@ class Entity:
         """
         Sends a message to a specific recipient. If the recipient is -1 then it is aimed at the kernel
         """
-        assert self.kernel is not None, "Kernel not linked to entity {self.id}"
+        assert self.kernel is not None, f"Kernel not linked to {type(self).__name__} {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("At {}, entity {} sent: {} to entity {}".format(self.current_time, self.id, message, recipientID))
+            logger.debug(f"At {self.current_time}, {type(self).__name__} {self.id} sent: {message} to {type(Entity.get_entity_by_id(recipientID)).__name__} {recipientID}")
         self.kernel.sendmessage(self.current_time, senderID=self.id, recipientID=recipientID, message=message)
         
     def sendbatchmessage(self, recipientIDs: List[int], message: Message) -> None:
         """
         Sends a batch message to multiple recipients at the same time
         """
-        assert self.kernel is not None, "Kernel not linked to entity {self.id}"
+        assert self.kernel is not None, f"Kernel not linked to {type(self).__name__} {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} sent batch message: {} to entities {}".format(self.current_time, self.id, message, recipientIDs))
         self.kernel.sendbatchmessage(self.current_time, self.id, recipientIDs, message)
@@ -88,7 +88,7 @@ class Entity:
             logger.debug("At {}, entity {} received: {}".format(self.current_time, self.id, message))
         
         
-    def wakeup(self, current_time: int) -> None:
+    def wakeup(self, current_time: float, delay: float=0) -> None:
         """
         Entities can request a wakeup call at a future simulation time using
         the Entity.set_wakeup(time) method
@@ -102,12 +102,12 @@ class Entity:
 
         assert self.kernel is not None
 
-        self.current_time = current_time
+        self.current_time = current_time+delay
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
                 "At {}, entity {} received wakeup.".format(
-                    current_time, self.id
+                    self.current_time, self.id
                 )
             )
     

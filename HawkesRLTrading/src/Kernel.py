@@ -122,7 +122,7 @@ class Kernel:
                     #print("terminating early, skipping to next action time")
                     return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(self.gymagents)}
                 elif rtn==True:
-                    print(f"Queue looks like {self.queue}")
+                    print(f"Message Queue looks like {self.queue}")
                 else:
                     raise Exception("This segment should be unreachable") 
             else:
@@ -134,36 +134,35 @@ class Kernel:
             size=action[1][1]
             agent: GymTradingAgent=self.entity_registry[agentID]
             assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
-            if event==12: #None action
-                pass
-            else:
-                order=agent.action_to_order(action=(event, size))
-                print(f"Gym Agent {agent.id} has put in {order}\n")
-                agent.submitorder(order)
+            order=agent.action_to_order(action=(event, size))
+            agent.submitorder(order)
         #While there are still items in the queue or time limit is not up yet and simulation has started, process a message.
-        while (self.head < len(self.queue)) and (self.current_time<=self.stop_time):  
-            item=self.queue[self.head]
-            if self.isbatchmessage(item=item):
-                interrupt=self.processbatchmessage(item=item)
+        while (self.current_time<self.stop_time) and (self.nearest_action_time<self.stop_time):  
+            if self.head<len(self.queue):
+                item=self.queue[self.head]
                 self.head+=1
-                if all(v is None for v in interrupt):
-                    pass
+                if self.isbatchmessage(item=item):
+                    interrupt=self.processbatchmessage(item=item)
+                    print(interrupt)
+                    if all([v is None for k,v in interrupt.items()]):
+                        print("true")
+                        pass
+                    else:
+                        print("exiting kernel run batch")
+                        return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
                 else:
-                    print("exiting kernel run batch")
-                    return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
-            else:
-                interrupt=self.processmessage(item=item)
-                self.head+=1
-                if interrupt is not None:
-                    print("exiting kernel run")
-                    return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
-        
-        if self.head==len(self.queue):
+                    interrupt=self.processmessage(item=item)
+                    if interrupt is not None:
+                        print("exiting kernel run")
+                        return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
+            print(f"Nearest action time is: {self.nearest_action_time}")
+            rtn=self.exchange.nextarrival(timelimit=self.nearest_action_time)
+        if self.head==len(self.queue) and self.nearest_action_time>self.stop_time:
             logger.debug("---Kernel Message queue empty. Terminating now ---")
         if self.current_time and (self.current_time > self.stop_time):
             logger.debug("---Kernel Stop Time surpassed---")
         
-        return {"Done": True, "TimeCode": self.current_time, "Result": self.getinfo()}   
+        return {"Done": True, "TimeCode": self.current_time, "Infos": self.getinfo()}   
 
     
     def terminate(self)-> None:
@@ -258,7 +257,7 @@ class Kernel:
         recipientID=item[1][1]
         senderID=item[1][0]
         timesent=item[0]
-        logger.debug(f"Processing message with ID {message.message_id} from sender {senderID}")
+        logger.debug(f"Processing {type(message).__name__}message with ID {message.message_id} from sender {senderID}")
         if isinstance(message, ExchangeMsg):
             self.current_time=timesent
             if isinstance(message, PartialOrderFill):
@@ -376,7 +375,8 @@ class Kernel:
         if agent:
             if agentID in self.entity_registry.keys():
                 self.agents_current_times[agentID]=requested_time
-                self.nearest_action_time=min(requested_time, self.nearest_action_time) if self.nearest_action_time!=0 else requested_time 
+                self.nearest_action_time=min(self.agents_current_times.values())
+                logger.debug(f"Agent {agentID} wake-up time set to {requested_time}")
                 return True
             else:
                 raise KeyError(f"Agent {agentID} is valid but is not registered in Kernel {self.kernel_name} registry")
@@ -385,12 +385,13 @@ class Kernel:
             raise KeyError(f"No agent exists with ID {agentID}")       
         
         
-    def wakeup(self, agentID: int) -> None:
+    def wakeup(self, agentID: int, delay=0.000001) -> None:
         #Wake a specific agent up
 
 
         if self.current_time==self.agents_current_times[agentID]:
             agent=self.entity_registry[agentID]
+            self.current_time+=delay
             agent.wakeup(self.current_time)
             
         else:

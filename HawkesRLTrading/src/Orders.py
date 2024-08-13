@@ -36,5 +36,6 @@ class MarketOrder(Order):
     pass
 @dataclass
 class CancelOrder(Order):
+    price: int=0
     cancelID: int=0
 

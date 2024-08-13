@@ -57,6 +57,7 @@ class tradingEnv(gym.Env):
         #     "Current_Positions": Sequence(Tuple(Text(), Box(low=0), Box(low=0)))
         # })
         # self.action_space=Tuple(Discrete(13), Box(0, 5000))
+        
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Render mode must be None, human or rgb_array or text"
         self.seed=seed
         
@@ -186,29 +187,24 @@ if __name__=="__main__":
                                             "Pi_Q0": None}}
 
             }
-    env=tradingEnv(**kwargs)
+    env=tradingEnv(stop_time=300, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations=env.step(action=None)
-    AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-    print(f"Agents with IDs {AgentsIDs} have an action available")
-    if len(AgentsIDs)>1:
-        raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
-    else:
-        pass
-    
-    agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-    assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-    action=(agent.id, agent.get_action(data=observations))
-    print(f"Limit Order Book: {observations['LOB0']}")
-    print(f"Action: {action}")
-    while Simstate["Done"]==False:
-        Simstate, observatoins=env.step(action=action)
+    i=0
+    while Simstate["Done"]==False and i<10:
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+        print(f"Agents with IDs {AgentsIDs} have an action available")
         if len(AgentsIDs)>1:
             raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
         agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-        action=(agent.id, agent.get_action(data=observations))    
-        break
+        assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+        action=(agent.id, agent.get_action(data=observations))   
+        print(f"Limit Order Book: {observations['LOB0']}")
+        print(f"Action: {action}")
+        Simstate, observations=env.step(action=action) 
+        print(f"\nSimstate: {Simstate}\nObservations: {observations}")
+        i+=1
+        print(f"DONEDONE{i}")
     
     """
     done = False
