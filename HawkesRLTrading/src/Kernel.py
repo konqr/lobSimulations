@@ -120,7 +120,8 @@ class Kernel:
                 if rtn is None:
                     self.current_time=self.nearest_action_time
                     #print("terminating early, skipping to next action time")
-                    return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(self.gymagents)}
+                    done=True if all(self.isterminated()) or self.istruncated else False
+                    return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(self.gymagents)}
                 elif rtn==True:
                     print(f"Message Queue looks like {self.queue}")
                 else:
@@ -149,20 +150,23 @@ class Kernel:
                         pass
                     else:
                         print("exiting kernel run batch")
-                        return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
+                        done=True if all(self.isterminated()) or self.istruncated() else False
+                        return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
                 else:
                     interrupt=self.processmessage(item=item)
                     if interrupt is not None:
                         print("exiting kernel run")
-                        return {"Done": False, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
+                        done=True if all(self.isterminated()) or self.istruncated else False
+                        return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
             print(f"Nearest action time is: {self.nearest_action_time}")
             rtn=self.exchange.nextarrival(timelimit=self.nearest_action_time)
+        
         if self.head==len(self.queue) and self.nearest_action_time>self.stop_time:
-            logger.debug("---Kernel Message queue empty. Terminating now ---")
+            logger.debug("---Kernel Message queue empty ---")
         if self.current_time and (self.current_time > self.stop_time):
             logger.debug("---Kernel Stop Time surpassed---")
-        
-        return {"Done": True, "TimeCode": self.current_time, "Infos": self.getinfo()}   
+        done=True if all(self.isterminated()) or self.istruncated else False
+        return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo()}   
 
     
     def terminate(self)-> None:
@@ -440,7 +444,8 @@ class Kernel:
         rtn["Positions"]=agentobs["Positions"]
         return rtn
     
-    def getinfo(self, data=None):
+    def getinfo(self, data: Dict={}):
+        data["Terminated"]=self.isterminated()
         return data
 
 if __name__ == "__main__":

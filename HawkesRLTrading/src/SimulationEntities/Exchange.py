@@ -175,7 +175,8 @@ class Exchange(Entity):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """
-        print(f"LOB PRINT: {self.printlob()}\n")
+        print("\n")
+        print(self.printlob())
         logger.debug(f"Processing Order {order.order_id}")
         self.current_time=order.time_placed
         #process the order
@@ -234,10 +235,10 @@ class Exchange(Entity):
             logger.debug("LOB Valid test passed")
             pass
         else:
-            print(self.asks)
-            print(self.bids)
-            print(self.askprices)
-            print(self.bidprices)
+            # print(self.asks)
+            # print(self.bids)
+            # print(self.askprices)
+            # print(self.bidprices)
             raise LOBProcessingError("LOB in Exchange processed incorrectly")
         #log event:
         self._logevent(event=[order.time_placed, order.ordertype(), order.agent_id, order.order_id])
@@ -248,6 +249,7 @@ class Exchange(Entity):
         #Limit_order
         side=order.side
         price=order.price
+        queue=None
         if side=="Ask":
             queue=self.asks.get(price)
         else:
@@ -256,6 +258,7 @@ class Exchange(Entity):
             queue.append(order)
         else: #Inspread
             lastlvl=side+"_L"+str(self.LOBlevels)
+            todelete=[]
             if side=="Ask":
                 if order.price==self.askprice-self.ticksize:
                     assert(np.round(self.bidprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
@@ -300,7 +303,9 @@ class Exchange(Entity):
                     old_key=f"Bid_L{i-1}"
                     new_bidprices[new_key]=self.bidprices[old_key]
                     new_bids[new_bidprices[new_key]]=self.bids[new_bidprices[new_key]]
+                self.bids=new_bids
                 self.bidprices = new_bidprices      
+                print(f"Post inspread bids: {self.bids}")
     def processMarketOrder(self, order: MarketOrder)-> int:
         side=order.side
         remainingsize=order.size
@@ -384,7 +389,7 @@ class Exchange(Entity):
                             notif=OrderExecutedMsg(order=filled_order)
                             self.sendmessage(recipientID=filled_order.agent_id, message=notif)
                 #Touch level has been depleted
-                print(self.asks)
+                #print(self.asks)
                 del self.asks[pricelvl]
                 del self.askprices["Ask_L1"]
                 new_askprices = {}
