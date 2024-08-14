@@ -175,6 +175,7 @@ class Exchange(Entity):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """
+        print(f"LOB PRINT: {self.printlob()}\n")
         logger.debug(f"Processing Order {order.order_id}")
         self.current_time=order.time_placed
         #process the order
@@ -233,6 +234,10 @@ class Exchange(Entity):
             logger.debug("LOB Valid test passed")
             pass
         else:
+            print(self.asks)
+            print(self.bids)
+            print(self.askprices)
+            print(self.bidprices)
             raise LOBProcessingError("LOB in Exchange processed incorrectly")
         #log event:
         self._logevent(event=[order.time_placed, order.ordertype(), order.agent_id, order.order_id])
@@ -253,14 +258,14 @@ class Exchange(Entity):
             lastlvl=side+"_L"+str(self.LOBlevels)
             if side=="Ask":
                 if order.price==self.askprice-self.ticksize:
-                    pass
+                    assert(np.round(self.bidprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
                 else:
                     raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
                 
                 todelete=self.asks[self.askprices[lastlvl]]
             else:
                 if order.price==self.bidprice+self.ticksize:
-                    pass
+                    assert(np.round(self.askprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
                 else:
                     raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
                 todelete=self.bids[self.bidprices[lastlvl]]
@@ -288,11 +293,11 @@ class Exchange(Entity):
                 self.bidprice=order.price
                 new_bidprices = {}
                 new_bids = {}  
-                new_bidprices["Ask_L1"]=self.bidprice
-                new_bids[self.askprice]=[order]
+                new_bidprices["Bid_L1"]=self.bidprice
+                new_bids[self.bidprice]=[order]
                 for i in range(2, self.LOBlevels + 1):
-                    new_key= f"Ask_L{i}"
-                    old_key=f"Ask_L{i-1}"
+                    new_key= f"Bid_L{i}"
+                    old_key=f"Bid_L{i-1}"
                     new_bidprices[new_key]=self.bidprices[old_key]
                     new_bids[new_bidprices[new_key]]=self.bids[new_bidprices[new_key]]
                 self.bidprices = new_bidprices      

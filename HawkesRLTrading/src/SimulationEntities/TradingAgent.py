@@ -126,12 +126,12 @@ class TradingAgent(Entity):
         else:
             side="Bid"
         if self.actions[k][0:2]=="lo":
+            level=self.actionsToLevels[self.actions[k]]
             if k==5: #inspread ask
                 price=lob["Ask_L1"][0]+self.exchange.ticksize
             elif k==6: #inspread bid
                 price=lob["Bid_L1"][0]+self.exchange.ticksize
             else:    
-                level=self.actionsToLevels[self.actions[k]]
                 if side=="Ask":
                     price=lob[level][0]
                 else:

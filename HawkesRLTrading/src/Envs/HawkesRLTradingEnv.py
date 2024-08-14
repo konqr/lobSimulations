@@ -10,7 +10,7 @@ from HawkesRLTrading.src.Kernel import Kernel
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
-    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=1, log_to_file=True,**kwargs):
+    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=4, log_to_file=True,**kwargs):
         """
         Initiates a trading environment. Arrivalmodel contains the simulation of the trading orders and params contains all other relevant information
         Relevant arguments:
@@ -94,7 +94,7 @@ class tradingEnv(gym.Env):
         
         self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, kernel_name=kernel_name, stop_time=stop_time, wall_time_limit=wall_time_limit, log_to_file=log_to_file, Arrival_model=Arrival_model)
         self.kernel.initialize_kernel()
-        np.random.seed(1)
+        np.random.seed(self.seed)
             
     def step(self, action: Optional[Any]):
         """
