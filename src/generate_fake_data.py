@@ -101,15 +101,15 @@ if __name__ == '__main__':
 
     #### WARNING: THIS PIECE OF CODE TAKES A LONG TIME ####
     for i in range(n_sims):
-        Ts, lob, lobL3 = simulate.run(T=T, # 6.5*3600
-                                      paramsPath=paramsPath, 
-                                      todPath=todPath, 
-                                      beta=1., 
-                                      avgSpread=.01, 
-                                      spread0=5, 
-                                      price0=45,
-                                      verbose=True,
-                                      kernel = kernel_type)
+        Ts, lob, lobL3, thinningtime = simulate.run(T=T, # 6.5*3600
+                                                    paramsPath=paramsPath, 
+                                                    todPath=todPath, 
+                                                    beta=1., 
+                                                    avgSpread=.01, 
+                                                    spread0=5, 
+                                                    price0=45,
+                                                    verbose=True,
+                                                    kernel = kernel_type)
         
         if len(pd.DataFrame(Ts[1:])[0].unique()) != len(cols):
             raise ValueError(f"Some columns are missing in the data 'T' for id = {i}")
