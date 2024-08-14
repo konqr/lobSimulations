@@ -1,3 +1,1 @@
-Text
-To be completed
-Test
+HawkesRLTrading is an entity-based discrete event reinforcement-learning simulation environment for equities trading. Currently, it only supports one independent reinforcement learning agent, alongside multiple other non-intelligent random noise agents that can be configured. Further support will be implemented for multi-agent trading. 
