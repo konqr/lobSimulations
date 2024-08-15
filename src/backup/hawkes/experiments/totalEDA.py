@@ -11,7 +11,7 @@ from IPython import get_ipython
 import itertools
 import pickle
 
-def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, widthHP = False):
+def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False):
 
 
     # # Spread
@@ -752,12 +752,11 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverageIS_truetop", "wb") as f:
             pickle.dump({'condCounts' : condCounts,'uncondCounts' :  uncondCounts , 'condProb' : condProb,'uncondProb' : uncondProb, 'leverage': leverage}, f)
 
-    if widthHP:
+    if assumptions:
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
-        condCounts_mT, condCounts_mD = [], []
-        uncondCounts_mT, uncondCounts_mD = [], []
+        condCounts_mT, condCounts_mD, condCounts_q_LO, condCounts_q_MO, condCounts_eta_IS = [], [], [] , [], []
+        uncondCounts_mT, uncondCounts_mD, uncondCounts_q_LO, uncondCounts_q_MO, uncondCounts_eta_IS = [], [], [], [] ,[]
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
-            condProb = []
             if j == dt.date(2019,1,9): continue
             l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
@@ -768,6 +767,23 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             # events wrt distance from mid in ticks
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
+            data['sec'] = data['Time'].astype(int)
+            intensityPerSec = data.groupby([['sec','Type','Direction']])['Time'].count()
+            data['q_LO'] = np.nan
+            data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
+            data['q_MO'] = np.nan
+            data['q_MO'].loc[data['Type'] == 4] = data['Size'].loc[data['Type'] == 1]
+            #
+            data['is'] = 0
+            data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
+            data['is'].loc[data['diff'] > 0]  = 1
+            data['diff'] = data['Bid Price 1'] - data['Bid Price 1'].shift(1)
+            data['is'].loc[data['diff'] > 0]  = 1
+            #
+            data['eta_is'] = np.nan
+            data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
+            varsPerSec = data.groupby([['sec','Type','Direction']])[['q_LO','q_MO','eta_is']].apply(np.nanmedian)
+            perSecDF = intensityPerSec.merge(varsPerSec)
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
@@ -778,21 +794,35 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[x]
                 data['m_D'] = data['M_0.5'] - data[side + ' Price 2']
                 data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
-                data['is'] = 0
-                data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
-                data['is'].loc[data['diff'] > 0]  = 1
-                data['diff'] = data['Bid Price 1'] - data['Bid Price 1'].shift(1)
-                data['is'].loc[data['diff'] > 0]  = 1
+
+                data['q_LO'] = data['q_LO'].fillna(method='ffill')
+
+                data['q_MO'] = data['q_MO'].fillna(method='ffill')
+
+                data['eta_is'] = data['eta_is'].fillna(method='ffill')
+                #
                 data['Type_mT'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['m_T'].astype(int).astype(str)
                 data['Type_mT_1'] = data['Type_mT'].shift(1)
                 data['Type_mD'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['m_D'].astype(int).astype(str)
                 data['Type_mD_1'] = data['Type_mD'].shift(1)
+                data['Type_q_LO'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['q_LO'].astype(int).astype(str)
+                data['Type_q_LO_1'] = data['Type_q_LO'].shift(1)
+                data['Type_q_MO'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['q_MO'].astype(int).astype(str)
+                data['Type_q_MO_1'] = data['Type_q_MO'].shift(1)
+                data['Type_eta_is'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['eta_is'].astype(int).astype(str)
+                data['Type_eta_is_1'] = data['Type_eta_is'].shift(1)
                 # data.head()
                 if len(condCounts_mT)==0:
                     condCounts_mT = data.groupby(['Type_mT','Type_mT_1'])['Time'].count()
                     uncondCounts_mT = data.groupby(['Type_mT'])['Time'].count()
                     condCounts_mD = data.groupby(['Type_mD','Type_mD_1'])['Time'].count()
                     uncondCounts_mD = data.groupby(['Type_mD'])['Time'].count()
+                    condCounts_q_LO = data.groupby(['Type_q_LO','Type_q_LO_1'])['Time'].count()
+                    uncondCounts_q_LO = data.groupby(['Type_q_LO'])['Time'].count()
+                    condCounts_q_MO = data.groupby(['Type_q_MO','Type_q_MO_1'])['Time'].count()
+                    uncondCounts_q_MO = data.groupby(['Type_q_MO'])['Time'].count()
+                    condCounts_eta_is = data.groupby(['Type_eta_is','Type_eta_is_1'])['Time'].count()
+                    uncondCounts_eta_is = data.groupby(['Type_eta_is'])['Time'].count()
                 else:
                     tmp = data.groupby(['Type_mT','Type_mT_1'])['Time'].count()
                     condCounts_mT = condCounts_mT.add(tmp, fill_value=0)
@@ -802,9 +832,21 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                     condCounts_mD = condCounts_mD.add(tmp, fill_value=0)
                     tmp= data.groupby(['Type_mD'])['Time'].count()
                     uncondCounts_mD = uncondCounts_mD.add(tmp, fill_value=0)
+                    tmp = data.groupby(['Type_q_LO','Type_q_LO_1'])['Time'].count()
+                    condCounts_q_LO = condCounts_q_LO.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_q_LO'])['Time'].count()
+                    uncondCounts_q_LO = uncondCounts_q_LO.add(tmp, fill_value=0)
+                    tmp = data.groupby(['Type_q_MO','Type_q_MO_1'])['Time'].count()
+                    condCounts_q_MO = condCounts_q_MO.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_q_MO'])['Time'].count()
+                    uncondCounts_q_MO = uncondCounts_q_MO.add(tmp, fill_value=0)
+                    tmp = data.groupby(['Type_eta_is','Type_eta_is_1'])['Time'].count()
+                    condCounts_eta_is = condCounts_eta_is.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_eta_is'])['Time'].count()
+                    uncondCounts_eta_is = uncondCounts_eta_is.add(tmp, fill_value=0)
 
-        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_width_leverage", "wb") as f:
-            pickle.dump({'condCounts_mT' : condCounts_mT,'uncondCounts_mT' :  uncondCounts_mT, 'condCounts_mD' : condCounts_mD,'uncondCounts_mD' :  uncondCounts_mD }, f)
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_assumptions", "wb") as f:
+            pickle.dump({'perSecDF' : perSecDF, 'condCounts_mT' : condCounts_mT,'uncondCounts_mT' :  uncondCounts_mT, 'condCounts_mD' : condCounts_mD,'uncondCounts_mD' :  uncondCounts_mD, 'condCounts_q_LO' : condCounts_q_LO,'uncondCounts_q_LO' :  uncondCounts_q_LO, 'condCounts_q_MO' : condCounts_q_MO,'uncondCounts_q_MO' :  uncondCounts_q_MO, 'condCounts_eta_is' : condCounts_eta_is,'uncondCounts_eta_is' :  uncondCounts_eta_is }, f)
 
 def plotLeverage(stocks):
     for s in stocks:
@@ -876,4 +918,4 @@ def plotLeverage(stocks):
     fig.subplots_adjust(top=0.9)
     plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
 
-main( sys.argv[1] , widthHP= sys.argv[2])
+main( sys.argv[1] , assumptions= sys.argv[2])
