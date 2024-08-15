@@ -783,7 +783,8 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['eta_is'] = np.nan
             data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
             varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(np.nanmedian)
-            perSecDF = intensityPerSec.merge(varsPerSec)
+            perSecDF = varsPerSec.merge(intensityPerSec)
+            print(perSecDF)
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
