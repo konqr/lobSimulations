@@ -19,12 +19,6 @@ def nanmed(data):
     return pd.Series(d)
 
 def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False):
-
-
-    # # Spread
-
-    # In[64]:
-
     ric = ric
     samplingTime = 60
     if edaspread:
@@ -100,16 +94,8 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         plt.title("Spread density : " + ric)
         plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_SpreadDistri.png")
 
-
-
-    # In[4]:
-
-
     import gc
     gc.collect()
-
-
-
 
     if edashape:
         # # Shape of the book
@@ -534,7 +520,6 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_shapeMaxima", "wb") as f:
             pickle.dump(dict_res, f)
 
-
     if edashapesparsity:
         #avg shape calc
 
@@ -798,7 +783,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['m_T'] = data[side + ' Price 2'] - data[side + ' Price 1']
                 data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
                 arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
-                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
+                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=0)
                 data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[x]
                 data['m_D'] = data['M_0.5'] - data[side + ' Price 2']
                 data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
