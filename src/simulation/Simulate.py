@@ -408,7 +408,10 @@ class Simulate:
         hourIndex = min(12,int(s//1800)) #1800 seconds in 30 minutes
         todmult=tod[:, hourIndex].reshape((12, 1))
         #todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
-        mat=todmult*params[0][0]*params[0][1]/((params[0][2]-1) *params[0][3])
+        if kernel=='powerlaw':
+            mat=todmult*params[0][0]*params[0][1]/((params[0][2]-1) *params[0][3])
+        elif kernel == 'exp':
+            mat= todmult*params[0][0]*params[0][1]/params[0][2]
         baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
         baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
         specRad = np.max(np.linalg.eig(mat)[0])

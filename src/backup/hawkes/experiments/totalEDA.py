@@ -11,7 +11,7 @@ from IPython import get_ipython
 import itertools
 import pickle
 
-def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False):
+def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, widthHP = False):
 
 
     # # Spread
@@ -752,6 +752,60 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_leverageIS_truetop", "wb") as f:
             pickle.dump({'condCounts' : condCounts,'uncondCounts' :  uncondCounts , 'condProb' : condProb,'uncondProb' : uncondProb, 'leverage': leverage}, f)
 
+    if widthHP:
+        orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
+        condCounts_mT, condCounts_mD = [], []
+        uncondCounts_mT, uncondCounts_mD = [], []
+        for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+            condProb = []
+            if j == dt.date(2019,1,9): continue
+            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            data = l.load()
+            if len(data):
+                data = data[0]
+            else:
+                continue
+            # events wrt distance from mid in ticks
+            data = data.loc[data['Type'] < 5]
+            data = data.loc[data['Type'] !=2]
+            dataOrig = data.copy()
+            for d, side in zip([-1,1],['Ask', 'Bid']):
+                data = dataOrig.loc[dataOrig['TradeDirection'] == d]
+                data['m_T'] = data[side + ' Price 2'] - data[side + ' Price 1']
+                data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
+                arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
+                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
+                data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[x]
+                data['m_D'] = data['M_0.5'] - data[side + ' Price 2']
+                data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
+                data['is'] = 0
+                data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
+                data['is'].loc[data['diff'] > 0]  = 1
+                data['diff'] = data['Bid Price 1'] - data['Bid Price 1'].shift(1)
+                data['is'].loc[data['diff'] > 0]  = 1
+                data['Type_mT'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['m_T'].astype(int).astype(str)
+                data['Type_mT_1'] = data['Type_mT'].shift(1)
+                data['Type_mD'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['m_D'].astype(int).astype(str)
+                data['Type_mD_1'] = data['Type_mD'].shift(1)
+                # data.head()
+                if len(condCounts_mT)==0:
+                    condCounts_mT = data.groupby(['Type_mT','Type_mT_1'])['Time'].count()
+                    uncondCounts_mT = data.groupby(['Type_mT'])['Time'].count()
+                    condCounts_mD = data.groupby(['Type_mD','Type_mD_1'])['Time'].count()
+                    uncondCounts_mD = data.groupby(['Type_mD'])['Time'].count()
+                else:
+                    tmp = data.groupby(['Type_mT','Type_mT_1'])['Time'].count()
+                    condCounts_mT = condCounts_mT.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_mT'])['Time'].count()
+                    uncondCounts_mT = uncondCounts_mT.add(tmp, fill_value=0)
+                    tmp = data.groupby(['Type_mD','Type_mD_1'])['Time'].count()
+                    condCounts_mD = condCounts_mD.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_mD'])['Time'].count()
+                    uncondCounts_mD = uncondCounts_mD.add(tmp, fill_value=0)
+
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_width_leverage", "wb") as f:
+            pickle.dump({'condCounts_mT' : condCounts_mT,'uncondCounts_mT' :  uncondCounts_mT, 'condCounts_mD' : condCounts_mD,'uncondCounts_mD' :  uncondCounts_mD }, f)
+
 def plotLeverage(stocks):
     for s in stocks:
         with open('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_leverageIS_truetop', 'rb') as f:
@@ -822,4 +876,4 @@ def plotLeverage(stocks):
     fig.subplots_adjust(top=0.9)
     plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
 
-main( sys.argv[1] , edaspread = eval(sys.argv[2]), edashape = eval(sys.argv[3]), edasparse = eval(sys.argv[4]), edarest = eval(sys.argv[5]), edaqd = eval(sys.argv[6]), edashapemaxima = eval(sys.argv[7]), edashapesparsity  = eval(sys.argv[8]), edaleverage  = eval(sys.argv[9]), edaleverage_top  = eval(sys.argv[10]), edaleverageIS  = eval(sys.argv[11]))
+main( sys.argv[1] , widthHP= sys.argv[2])
