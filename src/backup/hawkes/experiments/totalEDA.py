@@ -748,6 +748,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
         condCounts_mT, condCounts_mD, condCounts_q_LO, condCounts_q_MO, condCounts_eta_IS = [], [], [] , [], []
         uncondCounts_mT, uncondCounts_mD, uncondCounts_q_LO, uncondCounts_q_MO, uncondCounts_eta_IS = [], [], [], [] ,[]
+        perSecDF = pd.DataFrame()
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
             l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
@@ -775,7 +776,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['eta_is'] = np.nan
             data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
             varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(nanmed)
-            perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
+            perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
             print(perSecDF)
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
