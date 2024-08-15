@@ -789,10 +789,11 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
 
                 data['q_LO'] = data['q_LO'].fillna(method='ffill')
-
+                data['q_LO'] = data['q_LO'].fillna(0)
                 data['q_MO'] = data['q_MO'].fillna(method='ffill')
-
+                data['q_MO'] = data['q_MO'].fillna(0)
                 data['eta_is'] = data['eta_is'].fillna(method='ffill')
+                data['eta_is'] = data['eta_is'].fillna(0)
                 #
                 data['Type_mT'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['m_T'].astype(int).astype(str)
                 data['Type_mT_1'] = data['Type_mT'].shift(1)
