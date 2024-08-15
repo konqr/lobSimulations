@@ -783,8 +783,8 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['m_T'] = data[side + ' Price 2'] - data[side + ' Price 1']
                 data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
                 arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
-                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=0)
-                data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[x]
+                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
+                data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[np.arange(len(data)),x]
                 data['m_D'] = data['M_0.5'] - data[side + ' Price 2']
                 data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
 
