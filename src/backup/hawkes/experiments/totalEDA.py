@@ -15,7 +15,7 @@ def nanmed(data):
     d = {}
     d['q_LO'] = np.nanmedian(data['q_LO'])
     d['q_MO'] = np.nanmedian(data['q_MO'])
-    d['eta_IS'] = np.nanmedian(data['eta_IS'])
+    d['eta_is'] = np.nanmedian(data['eta_is'])
     return pd.Series(d)
 
 def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False):
