@@ -768,7 +768,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
             data['sec'] = data['Time'].astype(int)
-            intensityPerSec = data.groupby([['sec','Type','Direction']])['Time'].count()
+            intensityPerSec = data.groupby(['sec','Type','Direction'])['Time'].count()
             data['q_LO'] = np.nan
             data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
             data['q_MO'] = np.nan
@@ -782,7 +782,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             #
             data['eta_is'] = np.nan
             data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
-            varsPerSec = data.groupby([['sec','Type','Direction']])[['q_LO','q_MO','eta_is']].apply(np.nanmedian)
+            varsPerSec = data.groupby(['sec','Type','Direction'])[['q_LO','q_MO','eta_is']].apply(np.nanmedian)
             perSecDF = intensityPerSec.merge(varsPerSec)
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
