@@ -11,6 +11,12 @@ from IPython import get_ipython
 import itertools
 import pickle
 
+def nanmed(data):
+    d = {}
+    d['Ask_m_T'] = np.nanmedian(data['Ask_m_T'])
+    d['Ask_m_D'] = np.nanmedian(data['Ask_m_D'])
+    return pd.Series(d)
+
 def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False):
 
 
@@ -782,7 +788,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             #
             data['eta_is'] = np.nan
             data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
-            varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(np.nanmedian)
+            varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(nanmed)
             perSecDF = varsPerSec.merge(intensityPerSec)
             print(perSecDF)
             dataOrig = data.copy()
