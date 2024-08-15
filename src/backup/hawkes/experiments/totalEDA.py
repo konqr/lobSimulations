@@ -776,7 +776,10 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['eta_is'] = np.nan
             data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
             varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(nanmed)
-            perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
+            if len(perSecDF):
+                perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
+            else:
+                perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
             print(perSecDF)
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
