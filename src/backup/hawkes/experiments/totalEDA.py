@@ -765,7 +765,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['q_LO'] = np.nan
             data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
             data['q_MO'] = np.nan
-            data['q_MO'].loc[data['Type'] == 4] = data['Size'].loc[data['Type'] == 1]
+            data['q_MO'].loc[data['Type'] == 4] = data['Size'].loc[data['Type'] == 4]
             #
             data['is'] = 0
             data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
@@ -774,7 +774,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['is'].loc[data['diff'] > 0]  = 1
             #
             data['eta_is'] = np.nan
-            data['eta_is'].loc[data['is'] == 1] = data['diff'].loc[data['is'] == 1]
+            data['eta_is'].loc[data['is'] == 1] = 100*data['diff'].loc[data['is'] == 1]
             varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is']].apply(nanmed)
             if len(perSecDF):
                 perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
@@ -784,13 +784,13 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             dataOrig = data.copy()
             for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
-                data['m_T'] = data[side + ' Price 2'] - data[side + ' Price 1']
-                data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
+                data['m_T'] = (data[side + ' Price 2'] - data[side + ' Price 1']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
+                data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
                 arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
                 x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
                 data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[np.arange(len(data)),x]
-                data['m_D'] = data['M_0.5'] - data[side + ' Price 2']
-                data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(np.round(x,decimals=2)))
+                data['m_D'] = (data['M_0.5'] - data[side + ' Price 2']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
+                data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
 
                 data['q_LO'] = data['q_LO'].fillna(method='ffill')
                 data['q_LO'] = data['q_LO'].fillna(0)
