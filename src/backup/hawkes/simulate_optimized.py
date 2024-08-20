@@ -56,10 +56,11 @@ def preprocessdata(paramsPath: str, todPath: str):
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = data.get(cols[i] + "->" + cols[j], None)
-            mask[i][j]=kernelParams[0]
-            alpha[i][j]=kernelParams[1][0]
-            beta[i][j]=kernelParams[1][1]
-            gamma[i][j]=kernelParams[1][2]
+            if kernelParams is not None:
+                mask[i][j]=kernelParams[0]
+                alpha[i][j]=kernelParams[1][0]
+                beta[i][j]=kernelParams[1][1]
+                gamma[i][j]=kernelParams[1][2]
     kernelparams=[mask, alpha, beta, gamma] 
     params=[kernelparams, baselines] 
     return tod, params
