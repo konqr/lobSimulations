@@ -891,7 +891,13 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
 
             varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is','m_T_Ask','m_T_Bid','m_D_Ask','m_D_Bid']].apply(nanmed)
             if len(perSecDF):
-                perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
+                df1 = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
+                df2 = perSecDF
+                if len(df1) > len(df2):
+                    df2 = df2.reindex(index=df1.index).applymap(lambda d: d if isinstance(d, list) else [])
+                else:
+                    df1 = df1.reindex(index=df2.index).applymap(lambda d: d if isinstance(d, list) else [])
+                perSecDF = df2.add(df1)
             else:
                 perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_persecDF", "wb") as f:
