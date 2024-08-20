@@ -12,13 +12,22 @@ import itertools
 import pickle
 
 def nanmed(data):
+    def nm(d):
+        l = np.nanmedian(d)
+        if np.isnan(l):
+            return []
+        return [l]
     d = {}
-    d['q_LO'] = np.nanmedian(data['q_LO'])
-    d['q_MO'] = np.nanmedian(data['q_MO'])
-    d['eta_is'] = np.nanmedian(data['eta_is'])
+    d['q_LO'] = nm(data['q_LO'])
+    d['q_MO'] = nm(data['q_MO'])
+    d['eta_is'] =nm(data['eta_is'])
+    d['m_T_Ask'] =nm(data['m_T_Ask'])
+    d['m_T_Bid'] =nm(data['m_T_Bid'])
+    d['m_D_Ask'] = nm(data['m_D_Ask'])
+    d['m_D_Bid'] = nm(data['m_D_Bid'])
     return pd.Series(d)
 
-def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False):
+def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False, assumptions2 = False):
     ric = ric
     samplingTime = 60
     if edaspread:
@@ -785,12 +794,10 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             for d, side in zip([-1,1],['Ask', 'Bid']):
                 data = dataOrig.loc[dataOrig['TradeDirection'] == d]
                 data['m_T'] = (data[side + ' Price 2'] - data[side + ' Price 1']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
-                data['m_T_prev'] = data['m_T'].shift(1).fillna(0).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
                 arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
                 x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
                 data['M_0.5'] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[np.arange(len(data)),x]
                 data['m_D'] = (data['M_0.5'] - data[side + ' Price 2']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
-                data['m_D_prev'] = data['m_D'].shift(1).fillna(0).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
 
                 data['q_LO'] = data['q_LO'].fillna(method='ffill')
                 data['q_LO'] = data['q_LO'].fillna(0)
@@ -846,74 +853,118 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_assumptions", "wb") as f:
             pickle.dump({'perSecDF' : perSecDF, 'condCounts_mT' : condCounts_mT,'uncondCounts_mT' :  uncondCounts_mT, 'condCounts_mD' : condCounts_mD,'uncondCounts_mD' :  uncondCounts_mD, 'condCounts_q_LO' : condCounts_q_LO,'uncondCounts_q_LO' :  uncondCounts_q_LO, 'condCounts_q_MO' : condCounts_q_MO,'uncondCounts_q_MO' :  uncondCounts_q_MO, 'condCounts_eta_is' : condCounts_eta_is,'uncondCounts_eta_is' :  uncondCounts_eta_is }, f)
 
+    if assumptions2:
+        perSecDF = pd.DataFrame()
+        for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+            if j == dt.date(2019,1,9): continue
+            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            data = l.load()
+            if len(data):
+                data = data[0]
+            else:
+                continue
+            # events wrt distance from mid in ticks
+            data = data.loc[data['Type'] < 5]
+            data = data.loc[data['Type'] !=2]
+            data['sec'] = data['Time'].astype(int)
+            intensityPerSec = data.groupby(['sec','Type','TradeDirection'])['Time'].count()
+            data['q_LO'] = np.nan
+            data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
+            data['q_MO'] = np.nan
+            data['q_MO'].loc[data['Type'] == 4] = data['Size'].loc[data['Type'] == 4]
+            #
+            data['is'] = 0
+            data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
+            data['is'].loc[data['diff'] > 0]  = 1
+            data['diff'] = data['Bid Price 1'] - data['Bid Price 1'].shift(1)
+            data['is'].loc[data['diff'] > 0]  = 1
+            #
+            data['eta_is'] = np.nan
+            data['eta_is'].loc[data['is'] == 1] = 100*data['diff'].loc[data['is'] == 1]
+
+            for side in ['Ask','Bid']:
+                data['m_T_'+ side] = (data[side + ' Price 2'] - data[side + ' Price 1']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
+                arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
+                x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
+                data['M_0.5_'+ side] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[np.arange(len(data)),x]
+                data['m_D_'+ side] = (data['M_0.5_'+ side] - data[side + ' Price 2']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
+
+            varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is','m_T_'+ side,'m_D_'+ side]].apply(nanmed)
+            if len(perSecDF):
+                perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
+            else:
+                perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_persecDF", "wb") as f:
+            pickle.dump(perSecDF )
+
 def plotLeverage(stocks):
     for s in stocks:
         with open('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_leverageIS_truetop', 'rb') as f:
             dict_res = pickle.load(f)
-    condCounts, uncondCounts = dict_res['condCounts'], dict_res['uncondCounts']
-    df = uncondCounts/uncondCounts.sum()
-    df = df[df>1e-4].reset_index()
-    df['depth'] = df['TypeDepth'].apply(lambda x: int(x[2:]))
-    depthMax = df.depth.max()
-    #depthMax = 100
-    categories = np.append(-1*np.logspace(np.log(depthMax)/np.log(10),0,50), np.append([0],np.logspace(0,np.log(depthMax)/np.log(10), 50)))
-    categories =np.unique(categories.astype(int))
-    print(categories)
-    condCounts_categorized = condCounts.reset_index().copy()
-    condCounts_categorized['cat'] = condCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
-    condCounts_categorized['cat_1'] = condCounts_categorized['TypeDepth_1'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
-    uncondCounts_categorized = uncondCounts.reset_index().copy()
-    uncondCounts_categorized['cat'] = uncondCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
-    condCounts_categorized = condCounts_categorized.groupby(['cat','cat_1'])['Time'].sum()
-    uncondCounts_categorized = uncondCounts_categorized.groupby('cat')['Time'].sum()
-    condProb_categorized = condCounts_categorized/uncondCounts_categorized
-    uncondProb_categorized = uncondCounts_categorized/uncondCounts_categorized.sum()
-    leverage_categorized = condProb_categorized/uncondProb_categorized
-    leverage_categorized = leverage_categorized.reset_index()
-    leverage_categorized[['Type','cat']]= np.stack(leverage_categorized['cat'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
-    leverage_categorized[['Type_1','cat_1']]= np.stack(leverage_categorized['cat_1'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
-    # depthMax = int(np.max(leverage_categorized.Depth.apply(np.abs)))
-    leverage_categorized = leverage_categorized.set_index(['Type_1','cat_1','Type', 'cat'])
-    matrix = np.zeros((int(len(categories)*4), int(len(categories)*4)))
-    converter ={  0: 10, 1:11, 2: 30,  3: 41}
-    for i in range(int(len(categories)*4)):
-        type_i = converter[i//len(categories)]
-        depth_i = (-len(categories)//2) + i%len(categories)
-        for j in range(len(categories)*4):
-            type_j = converter[j//len(categories)]
-            depth_j =(-len(categories)//2) +  j%len(categories)
-            if (int(type_i), int(depth_i), int(type_j), int(depth_j)) in leverage_categorized.index:
-                matrix[i, j] = leverage_categorized.loc[(int(type_i), int(depth_i), int(type_j), int(depth_j))]['Time']
+        condCounts, uncondCounts = dict_res['condCounts'], dict_res['uncondCounts']
+        df = uncondCounts/uncondCounts.sum()
+        df = df[df>1e-4].reset_index()
+        df['depth'] = df['TypeDepth'].apply(lambda x: int(x[2:]))
+        depthMax = df.depth.max()
+        #depthMax = 100
+        categories = np.append(-1*np.logspace(np.log(depthMax)/np.log(10),0,50), np.append([0],np.logspace(0,np.log(depthMax)/np.log(10), 50)))
+        categories =np.unique(categories.astype(int))
+        print(categories)
+        condCounts_categorized = condCounts.reset_index().copy()
+        condCounts_categorized['cat'] = condCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+        condCounts_categorized['cat_1'] = condCounts_categorized['TypeDepth_1'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+        uncondCounts_categorized = uncondCounts.reset_index().copy()
+        uncondCounts_categorized['cat'] = uncondCounts_categorized['TypeDepth'].apply(lambda x : x[:2]+ str((-len(categories)//2) + np.searchsorted(categories, int(x[2:]))))
+        condCounts_categorized = condCounts_categorized.groupby(['cat','cat_1'])['Time'].sum()
+        uncondCounts_categorized = uncondCounts_categorized.groupby('cat')['Time'].sum()
+        condProb_categorized = condCounts_categorized/uncondCounts_categorized
+        uncondProb_categorized = uncondCounts_categorized/uncondCounts_categorized.sum()
+        leverage_categorized = condProb_categorized/uncondProb_categorized
+        leverage_categorized = leverage_categorized.reset_index()
+        leverage_categorized[['Type','cat']]= np.stack(leverage_categorized['cat'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
+        leverage_categorized[['Type_1','cat_1']]= np.stack(leverage_categorized['cat_1'].apply(lambda x: np.array([int(x[:2]) , int(x[2:])])).values)
+        # depthMax = int(np.max(leverage_categorized.Depth.apply(np.abs)))
+        leverage_categorized = leverage_categorized.set_index(['Type_1','cat_1','Type', 'cat'])
+        matrix = np.zeros((int(len(categories)*4), int(len(categories)*4)))
+        converter ={  0: 10, 1:11, 2: 30,  3: 41}
+        for i in range(int(len(categories)*4)):
+            type_i = converter[i//len(categories)]
+            depth_i = (-len(categories)//2) + i%len(categories)
+            for j in range(len(categories)*4):
+                type_j = converter[j//len(categories)]
+                depth_j =(-len(categories)//2) +  j%len(categories)
+                if (int(type_i), int(depth_i), int(type_j), int(depth_j)) in leverage_categorized.index:
+                    matrix[i, j] = leverage_categorized.loc[(int(type_i), int(depth_i), int(type_j), int(depth_j))]['Time']
 
-    fig, axs = plt.subplots(1, 2, figsize=(10,10), gridspec_kw={'width_ratios': [1, 5]})
-    im = axs[1].imshow(matrix,norm='log', cmap='seismic', aspect="auto")
-    plt.colorbar(im, fraction=0.046, pad=0.04)
-    locs = np.linspace(0, len(matrix), num = 41)
-    labels = []
-    for x, y in zip( np.array(["LO"]*10 + ['IS']*10 + ["CO"]*10 + ["MO"]*10) , np.array([" " + str(int(x)) for x in np.array(list(categories)*4)[[int(x) for x in (locs[:-1])]]])):
-        labels.append(x+y)
-    axs[1].set_xticks(ticks = -0.5+locs[:-1], labels = labels, rotation=90)
-    axs[1].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
-    df = uncondProb_categorized.reset_index()
-    df['Type'] = df['cat'].apply(lambda x: int(x[:2]))
-    df['Depth'] = df['cat'].apply(lambda x: int(x[2:]))
-    df = df.sort_values(['Type','Depth'])
-    df = df.set_index(['Type','Depth'])
-    mat = np.zeros(len(categories)*4)
-    for i in range(int(len(categories)*4)):
-        type_i = converter[i//len(categories)]
-        depth_i = (-len(categories)//2) + i%len(categories)
-        if (int(type_i), int(depth_i)) in df.index:
-            mat[i] = df.loc[(int(type_i), int(depth_i))]['Time']
-    im2 = axs[0].imshow(1e-7+mat.reshape((len(mat), 1)), norm='log', cmap = 'cool')
-    plt.colorbar(im2, location='left', pad=0.5)
-    axs[0].set_xticks(ticks = [])
-    axs[0].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
-    fig.tight_layout()
-    axs[0].set_title('Unconditional Prob.')
-    axs[1].set_title('Leverage : Conditional Prob.')
-    fig.suptitle('Leverage : '+s)
-    fig.subplots_adjust(top=0.9)
-    plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
+        fig, axs = plt.subplots(1, 2, figsize=(10,10), gridspec_kw={'width_ratios': [1, 5]})
+        im = axs[1].imshow(matrix,norm='log', cmap='seismic', aspect="auto")
+        plt.colorbar(im, fraction=0.046, pad=0.04)
+        locs = np.linspace(0, len(matrix), num = 41)
+        labels = []
+        for x, y in zip( np.array(["LO"]*10 + ['IS']*10 + ["CO"]*10 + ["MO"]*10) , np.array([" " + str(int(x)) for x in np.array(list(categories)*4)[[int(x) for x in (locs[:-1])]]])):
+            labels.append(x+y)
+        axs[1].set_xticks(ticks = -0.5+locs[:-1], labels = labels, rotation=90)
+        axs[1].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
+        df = uncondProb_categorized.reset_index()
+        df['Type'] = df['cat'].apply(lambda x: int(x[:2]))
+        df['Depth'] = df['cat'].apply(lambda x: int(x[2:]))
+        df = df.sort_values(['Type','Depth'])
+        df = df.set_index(['Type','Depth'])
+        mat = np.zeros(len(categories)*4)
+        for i in range(int(len(categories)*4)):
+            type_i = converter[i//len(categories)]
+            depth_i = (-len(categories)//2) + i%len(categories)
+            if (int(type_i), int(depth_i)) in df.index:
+                mat[i] = df.loc[(int(type_i), int(depth_i))]['Time']
+        im2 = axs[0].imshow(1e-7+mat.reshape((len(mat), 1)), norm='log', cmap = 'cool')
+        plt.colorbar(im2, location='left', pad=0.5)
+        axs[0].set_xticks(ticks = [])
+        axs[0].set_yticks(ticks = -0.5+locs[:-1] ,labels = labels)
+        fig.tight_layout()
+        axs[0].set_title('Unconditional Prob.')
+        axs[1].set_title('Leverage : Conditional Prob.')
+        fig.suptitle('Leverage : '+s)
+        fig.subplots_adjust(top=0.9)
+        plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
 
-main( sys.argv[1] , assumptions= sys.argv[2])
+main( sys.argv[1] , assumptions2= sys.argv[2])
