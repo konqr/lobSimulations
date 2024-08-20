@@ -857,7 +857,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         perSecDF = pd.DataFrame()
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load12DTimestamps_smallTick()
             if len(data):
                 data = data[0]
