@@ -37,7 +37,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
 
         spreads = []
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
-            l = dataLoader.Loader(ric, j, j, nlevels = 1, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 1, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -117,7 +117,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         final_res_far = {}
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             master_dict, master_dict_far = {}, {}
             if len(data):
@@ -262,7 +262,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         res, res_distr, wts_distr = {}, {}, {}
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,5,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -353,7 +353,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         bests, advs = [], []
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -397,7 +397,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         ratios , wts = [], []
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -436,7 +436,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         final_res= {}
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             master_dict = {}
             if len(data):
@@ -488,7 +488,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         wts , chgs = [], []
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -507,7 +507,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         dict_res = {}
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -556,7 +556,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         wassDistances_mean, wassDistances_var = [], []
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -613,7 +613,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             condProb = []
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -658,7 +658,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             condProb = []
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -707,7 +707,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             condProb = []
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
@@ -760,7 +760,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         perSecDF = pd.DataFrame()
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
             data = l.load()
             if len(data):
                 data = data[0]
