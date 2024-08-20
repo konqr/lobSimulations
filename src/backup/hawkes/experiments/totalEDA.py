@@ -857,12 +857,16 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         perSecDF = pd.DataFrame()
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
-            l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
-            _ = l.load12DTimestamps_smallTick()
-            if len(_):
+
+            if os.path.isfile("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv'):
                 data= pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv')
             else:
-                continue
+                l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+                _ = l.load12DTimestamps_smallTick()
+                if len(_) :
+                    data= pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv')
+                else:
+                    continue
             # events wrt distance from mid in ticks
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
@@ -901,7 +905,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             else:
                 perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_persecDF", "wb") as f:
-            pickle.dump(perSecDF )
+            pickle.dump(perSecDF, f)
 
 def plotLeverage(stocks):
     for s in stocks:
