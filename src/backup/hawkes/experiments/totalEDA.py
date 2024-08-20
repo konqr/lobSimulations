@@ -889,7 +889,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['M_0.5_'+ side] = (data[[side + ' Price ' + str(i) for i in range(1,11)]].values)[np.arange(len(data)),x]
                 data['m_D_'+ side] = (data['M_0.5_'+ side] - data[side + ' Price 2']).apply(lambda x: np.abs(100*np.round(x,decimals=2)))
 
-            varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is','m_T_'+ side,'m_D_'+ side]].apply(nanmed)
+            varsPerSec = data.groupby(['sec','Type','TradeDirection'])[['q_LO','q_MO','eta_is','m_T_Ask','m_T_Bid','m_D_Ask','m_D_Bid']].apply(nanmed)
             if len(perSecDF):
                 perSecDF = perSecDF.add(varsPerSec.merge(intensityPerSec, left_index=True, right_index=True), fill_value=0)
             else:
