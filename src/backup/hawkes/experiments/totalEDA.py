@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 import os
 import sys
 sys.path.append("/home/konajain/code/lobSimulations")
-from src.backup.hawkes import dataLoader
+from src.data.dataLoader import dataLoader
 import numpy as np
 import time
 from IPython import get_ipython
@@ -858,7 +858,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
             l = dataLoader.Loader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
-            data = l.load()
+            data = l.load12DTimestamps_smallTick()
             if len(data):
                 data = data[0]
             else:
@@ -867,7 +867,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
             data['sec'] = data['Time'].astype(int)
-            intensityPerSec = data.groupby(['sec','Type','TradeDirection'])['Time'].count()
+            intensityPerSec = data.groupby(['sec','Type','TradeDirection'])['Time'].count().apply(lambda x: [x])
             data['q_LO'] = np.nan
             data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
             data['q_MO'] = np.nan

@@ -255,5 +255,54 @@ class dataLoader():
 
         return res
 
+    def load12DTimestamps_smallTick(self):
+        """
+
+        :return:
+        """
+        data = self.load()
+        if len(data) == 0: return []
+        offset = 9.5*3600
+        orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
+        res = {}
+        for df in data:
+            df['Time'] = df['Time'] - offset
+            df['BidDiff'] = df['Bid Price 1'].diff()
+            df['AskDiff'] = df['Ask Price 1'].diff()
+            df['BidDiff2']= df['Bid Price 2'].diff()
+            df['AskDiff2']= df['Ask Price 2'].diff()
+            arr = df[[side + ' Size ' + str(i) for i in range(1,11)]].values
+            x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
+            df['M_0.5'] = arr[np.arange(len(df)),x]
+            arr = []
+            df_res_l = []
+            for s in [1, -1]:
+                side = "Bid" if s == 1 else "Ask"
+                lo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['limit']))&(df.TradeDirection == s)]
+                lo_deep = lo.loc[lo.apply(lambda x: (s*x.Price/10000 > s*x['M_0.5'])&(s*x.Price/10000 <= s*x[side + " Price 2"]), axis =1)]
+                lo_deep['event'] = "lo_deep_" + side
+                co = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['cancel']))&(df.TradeDirection == s)]
+                co_deep = co.loc[co.apply(lambda x: (s*x.Price/10000 > s*x['M_0.5'])&(s*x.Price/10000 <= s*x[side + " Price 2"]), axis =1)|(((co['BidDiff2'] < 0)&(co['BidDiff'] == 0))|((co['AskDiff2'] > 0)&(co['AskDiff'] == 0)))]
+                co_deep['event'] = "co_deep_" + side
+                lo_inspread = lo.loc[((lo['BidDiff'] > 0)|(lo['AskDiff'] < 0))]
+                lo_inspread['event'] = "lo_inspread_" + side
+                lo_top = lo.loc[(lo.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1))]
+                lo_top = lo_top.loc[lo_top[side+"Diff"]==0]
+                lo_top['event'] = "lo_top_" + side
+                co_top = co.loc[(co.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1))]
+                co_top['event'] = "co_top_" + side
+                mo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['market']))&(df.TradeDirection == s)]
+                mo['event'] = 'mo_' + side
+                df_res = pd.concat([lo_deep, co_deep, lo_top, co_top, mo, lo_inspread])
+                df_res_l += [df_res]
+                l = [lo_deep.Time.values, co_deep.Time.values, lo_top.Time.values, co_top.Time.values, mo.Time.values, lo_inspread.Time.values]
+                if s == 1: l.reverse()
+                arr += l
+            df_res_l = pd.concat(df_res_l)
+            df_res_l.to_csv(self.dataPath + self.ric + "_" + df.Date.iloc[0] +"_12D.csv")
+            res[df.Date.iloc[0]] = arr
+
+        return res
+
 
 
