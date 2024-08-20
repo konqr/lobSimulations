@@ -858,11 +858,8 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
             if j == dt.date(2019,1,9): continue
             l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
-            data = l.load12DTimestamps_smallTick()
-            if len(data):
-                data = data[0]
-            else:
-                continue
+            _ = l.load12DTimestamps_smallTick()
+            data= pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv')
             # events wrt distance from mid in ticks
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
