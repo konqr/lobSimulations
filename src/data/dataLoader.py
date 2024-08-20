@@ -271,13 +271,14 @@ class dataLoader():
             df['AskDiff'] = df['Ask Price 1'].diff()
             df['BidDiff2']= df['Bid Price 2'].diff()
             df['AskDiff2']= df['Ask Price 2'].diff()
-            arr = df[[side + ' Size ' + str(i) for i in range(1,11)]].values
-            x = abs(arr.cumsum(axis=1) - (arr.sum(axis=1)/2).reshape((len(arr),1))).argmin(axis=1)
-            df['M_0.5'] = arr[np.arange(len(df)),x]
+
             arr = []
             df_res_l = []
             for s in [1, -1]:
                 side = "Bid" if s == 1 else "Ask"
+                arr2 = df[[side + ' Size ' + str(i) for i in range(1,11)]].values
+                x = abs(arr2.cumsum(axis=1) - (arr2.sum(axis=1)/2).reshape((len(arr2),1))).argmin(axis=1)
+                df['M_0.5'] = arr2[np.arange(len(df)),x]
                 lo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['limit']))&(df.TradeDirection == s)]
                 lo_deep = lo.loc[lo.apply(lambda x: (s*x.Price/10000 > s*x['M_0.5'])&(s*x.Price/10000 <= s*x[side + " Price 2"]), axis =1)]
                 lo_deep['event'] = "lo_deep_" + side
