@@ -420,5 +420,4 @@ def run_poisson(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M
     print(id)
     simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/poisson_"+str(id), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
 
-run_poisson( sys.argv[1] )
 run(sys.argv[1])
