@@ -944,7 +944,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 data['Type_qD'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['qD'].astype(int).astype(str)
                 data['Type_qD_1'] = data['Type_qD'].shift(1)
                 # data.head()
-                if len(condCounts_mT)==0:
+                if len(condCounts_qT)==0:
                     condCounts_qT = data.groupby(['Type_qT','Type_qT_1'])['Time'].count()
                     uncondCounts_qT = data.groupby(['Type_qT'])['Time'].count()
                     condCounts_qD = data.groupby(['Type_qD','Type_qD_1'])['Time'].count()
