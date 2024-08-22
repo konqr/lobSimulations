@@ -112,39 +112,40 @@ def runQQInterArrival(ric, sDate, eDate, resultsPath, delta = 1e-1, inputDataPat
         #     fig.savefig(resultsPath + "/"+ric + "_" + d.strftime("%Y-%m-%d") + "_qq_" + k + ".png")
     return
 
-def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted"):
+def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/SAN/fca/Konark_PhD_Experiments/extracted", emp= False):
     rvs = {}
-    count = 0
-    if os.path.isfile(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical"):
-        with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "rb") as f:
-            rvs = pickle.load(f)
-        count = len(rvs[1])//(23400 -2 -1)
-    else:
-        for d in pd.date_range(sDate,eDate):
+    count = 0#
+    if emp:
+        if os.path.isfile(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical"):
+            with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "rb") as f:
+                rvs = pickle.load(f)
+            count = len(rvs[1])//(23400 -2 -1)
+        else:
+            for d in pd.date_range(sDate,eDate):
 
-            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-            data = l.load()
-            if len(data): data = data[0]
-            else: continue
-            count +=1
-            data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-            times = data.Time.values - 34200
-            mid = data.mid.values
-            # rv = []
-            for t in range(1,2001):
-                sample_x = np.linspace(0, 23400, int(23400/t))
-                idxs = np.searchsorted(times, sample_x)[1:-1] - 1
-                # print(idxs)
-                sample_y = mid[idxs]
-                rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.exp(np.diff(np.log(sample_y))) - 1)])
-        with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
-            pickle.dump(rvs, f)
-    fig = plt.figure()
-    plt.title(ric + " signature plot")
-    plt.xlabel("Sampling Frequency (seconds)")
-    plt.ylabel("Realized Variance")
-    plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
-    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
+                l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+                data = l.load()
+                if len(data): data = data[0]
+                else: continue
+                count +=1
+                data['mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+                times = data.Time.values - 34200
+                mid = data.mid.values
+                # rv = []
+                for t in range(1,2001):
+                    sample_x = np.linspace(0, 23400, int(23400/t))
+                    idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+                    # print(idxs)
+                    sample_y = mid[idxs]
+                    rvs[t] =  np.hstack([rvs.get(t, np.array([])), np.square(np.exp(np.diff(np.log(sample_y))) - 1)])
+            with open(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureDictEmpirical", "wb") as f:
+                pickle.dump(rvs, f)
+        fig = plt.figure()
+        plt.title(ric + " signature plot")
+        plt.xlabel("Sampling Frequency (seconds)")
+        plt.ylabel("Realized Variance")
+        plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2)
+        fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterEmpirical.png")
     rvsSim = {}
     countSim = 0
     for path in paths:
@@ -175,13 +176,14 @@ def runSignaturePlots(paths, resultsPath, ric, sDate, eDate, inputDataPath = "/S
     plt.title(ric + " signature plot")
     plt.xlabel("Sampling Frequency (seconds)")
     plt.ylabel("Realized Variance")
-    plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
+    if emp:
+        plt.scatter(list(rvs.keys()), [np.sum(l)/(count*23400) for l in list(rvs.values())], s = 2, label = "Empirical")
     plt.scatter(list(rvsSim.keys()), [np.sum(l)/(countSim*23400) for l in list(rvsSim.values())], s = 2, label = "Simulated")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_signatureScatterSimulated.png")
     return
 
-def runDistribution(paths, resultsPath, sDate, eDate, ric):
+def runDistribution(paths, resultsPath, sDate, eDate, ric, emp=False):
     simRets = []
     simSpreads =[]
     simTimes = []
@@ -216,36 +218,38 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 
     empRets = []
     empSpreads = []
-    for d in pd.date_range(sDate,eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-        data = l.load()
-        if len(data): data = data[0]
-        else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        data['Spread'] = (data['Ask Price 1'] - data['Bid Price 1'])
-        mid = data.Mid.values
-        times = data.Time.values - 34200
-        # sample_x = np.linspace(0, 23400, int(23400/t))
-        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
-        sample_y = mid[idxs]
-        ret =  np.exp(np.diff(np.log(sample_y))) - 1
-        empRets.append(ret)
-        empSpreads.append(data.Spread.values)
-        # print(data.Spread.values)
+    if emp:
+        for d in pd.date_range(sDate,eDate):
+            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+            data = l.load()
+            if len(data): data = data[0]
+            else: continue
+            data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+            data['Spread'] = (data['Ask Price 1'] - data['Bid Price 1'])
+            mid = data.Mid.values
+            times = data.Time.values - 34200
+            # sample_x = np.linspace(0, 23400, int(23400/t))
+            idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+            sample_y = mid[idxs]
+            ret =  np.exp(np.diff(np.log(sample_y))) - 1
+            empRets.append(ret)
+            empSpreads.append(data.Spread.values)
+            # print(data.Spread.values)
 
     fig = plt.figure()
     plt.title(ric + " returns distribution")
     plt.xlabel("Returns")
     plt.ylabel("Frequency")
-    plt.hist(np.hstack(empRets), bins = 100, label = "Empirical", alpha = 0.5, density = True)
+    if emp: plt.hist(np.hstack(empRets), bins = 100, label = "Empirical", alpha = 0.5, density = True)
     plt.hist(np.hstack(simRets), bins = 100, label = "Simulated", alpha = 0.5, density = True)
     plt.yscale("log")
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_returnsDistribution.png")
 
     # Get histogram
-    bins, freq = np.unique(np.round(100*np.hstack(empSpreads)), return_counts = True)
-    histEmp = freq/sum(freq)
+    if emp:
+        bins, freq = np.unique(np.round(100*np.hstack(empSpreads)), return_counts = True)
+        histEmp = freq/sum(freq)
     simTimeIds = np.hstack([(i[1:] - 34200)//(1800) for i in simTimes])
     ids, counts = np.unique(simTimeIds, return_counts =True)
     counts = counts/sum(counts)
@@ -259,10 +263,12 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     freq = 1e-4
 
     # Zero out low values
-    histEmp[np.where(histEmp <= freq)] = 0
+    if emp:
+        histEmp[np.where(histEmp <= freq)] = 0
+
+        bins = bins[np.append(np.where(histEmp > 0)[0], [np.where(histEmp > 0)[0][-1]+1])]
+        histEmp = histEmp[np.where(histEmp > 0)]
     histSim[np.where(histSim <= freq)] = 0
-    bins = bins[np.append(np.where(histEmp > 0)[0], [np.where(histEmp > 0)[0][-1]+1])]
-    histEmp = histEmp[np.where(histEmp > 0)]
     binsSim = binsSim[np.append(np.where(histSim > 0)[0], [np.where(histSim > 0)[0][-1]+1])]
     histSim = histSim[np.where(histSim > 0)]
     # Plot
@@ -272,7 +278,8 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
-    plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
+    if emp:
+        plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
 
     widthSim = 0.99 * (binsSim[1] - binsSim[0])
     centerSim = binsSim[:-1]
@@ -283,7 +290,7 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric):
 
     return
 
-def runACF(paths, resultsPath, sDate, eDate, ric):
+def runACF(paths, resultsPath, sDate, eDate, ric, emp=False):
 
     simRets = []
     t = .01
@@ -312,27 +319,29 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
         ret =  np.exp(np.diff(np.log(sample_y))) - 1
         simRets.append(ret)
     empRets = []
-    for d in pd.date_range(sDate,eDate):
-        if d == dt.date(2019,1,9): continue
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-        data = l.load()
-        if len(data): data = data[0]
-        else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        mid = data.Mid.values
-        times = data.Time.values - 34200
-        # sample_x = np.linspace(0, 23400, int(23400/t))
-        idxs = np.searchsorted(times, sample_x)[1:-1] - 1
-        sample_y = mid[idxs]
-        ret =  np.exp(np.diff(np.log(sample_y))) - 1
-        empRets.append(ret)
+    if emp:
+        for d in pd.date_range(sDate,eDate):
+            if d == dt.date(2019,1,9): continue
+            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+            data = l.load()
+            if len(data): data = data[0]
+            else: continue
+            data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+            mid = data.Mid.values
+            times = data.Time.values - 34200
+            # sample_x = np.linspace(0, 23400, int(23400/t))
+            idxs = np.searchsorted(times, sample_x)[1:-1] - 1
+            sample_y = mid[idxs]
+            ret =  np.exp(np.diff(np.log(sample_y))) - 1
+            empRets.append(ret)
 
     fig = plt.figure()
     plt.title(ric + " absolute returns ACF")
     plt.xlabel("Lags")
     plt.ylabel("Autocorrelation")
-    for r in empRets:
-        emps = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "blue", alpha=0.5)
+    if emp:
+        for r in empRets:
+            emps = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "blue", alpha=0.5)
     for r in simRets:
         sims = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "orange", alpha=0.5)
     # plt.yscale("log")
@@ -340,7 +349,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric):
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_absReturnsACF.png")
     return
 
-def runPricePaths(paths, resultsPath, sDate, eDate, ric):
+def runPricePaths(paths, resultsPath, sDate, eDate, ric, emp = False):
 
     simMids = []
     simTimes = []
@@ -365,16 +374,17 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
         simTimes.append(np.append([0], np.array(results[0][1:])[:,1]).astype(float) + 9.5*3600)
     empMids = []
     empTimes = []
-    for d in pd.date_range(sDate,eDate):
-        if d == dt.date(2019,1,9): continue
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-        data = l.load()
-        if len(data): data = data[0]
-        else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        mid = data.Mid.values
-        empMids.append(mid*160/mid[0])
-        empTimes.append(data.Time.values.astype(float))
+    if emp:
+        for d in pd.date_range(sDate,eDate):
+            if d == dt.date(2019,1,9): continue
+            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+            data = l.load()
+            if len(data): data = data[0]
+            else: continue
+            data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+            mid = data.Mid.values
+            empMids.append(mid*160/mid[0])
+            empTimes.append(data.Time.values.astype(float))
 
     fig = plt.figure()
     plt.title(ric + " Price Paths (Simulated)")
@@ -390,20 +400,21 @@ def runPricePaths(paths, resultsPath, sDate, eDate, ric):
     count = 23400
     plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_simulatedMidPrices.png")
-    fig = plt.figure()
-    plt.title(ric + " Price Paths (Empirical)")
-    plt.xlabel("Price")
-    plt.ylabel("Time")
-    alpha = 0.1
-    count = 0
-    for r, t in zip(empMids, empTimes):
-        if (count < 10)&(np.random.uniform() < 0.01):
-            alpha = 0.5
-            count += 1
-        plt.plot(t, r, color = "blue", alpha=alpha)
-    count = 23400
-    plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
-    fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_empiricalMidPrices.png")
+    if emp:
+        fig = plt.figure()
+        plt.title(ric + " Price Paths (Empirical)")
+        plt.xlabel("Price")
+        plt.ylabel("Time")
+        alpha = 0.1
+        count = 0
+        for r, t in zip(empMids, empTimes):
+            if (count < 10)&(np.random.uniform() < 0.01):
+                alpha = 0.5
+                count += 1
+            plt.plot(t, r, color = "blue", alpha=alpha)
+        count = 23400
+        plt.xticks(ticks = 9.5*3600 + np.arange(0, count, 2340), labels = [time.strftime('%H:%M:%S', time.gmtime(x)) for x in 9.5*3600 + np.arange(0, count, 2340)], rotation = 20)
+        fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_empiricalMidPrices.png")
     return
 
 def runTODCheck(paths, resultsPath, sDate, eDate,ric):
@@ -529,7 +540,7 @@ def runQQInterArrivalTrapezoid(ric, sDate, eDate, resultsPath, delta = 1e-1, inp
 
     return
 
-def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
+def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric, emp=False):
     cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
     simPriceChangeTimes = []
@@ -564,40 +575,40 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
     for i, c in zip(ids, counts):
         dictNorm[i] = 1/(13*c)
     wts = [dictNorm[i] for i in simTimeIds]
-
-    empPriceChangeTimes = []
-    for d in pd.date_range(sDate,eDate):
-        l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
-        data = l.load()
-        if len(data): data = data[0]
-        else: continue
-        data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
-        mid = data.Mid.values
-        times = data.Time.values - 34200
-        ts = np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float))
-        empPriceChangeTimes += [np.log(ts[ts>0])/np.log(10)]
-        # print(data.Spread.values)
+    if emp:
+        empPriceChangeTimes = []
+        for d in pd.date_range(sDate,eDate):
+            l = dataLoader.Loader(ric, d, d, nlevels = 2, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/")
+            data = l.load()
+            if len(data): data = data[0]
+            else: continue
+            data['Mid'] = 0.5*(data['Ask Price 1'] + data['Bid Price 1'])
+            mid = data.Mid.values
+            times = data.Time.values - 34200
+            ts = np.diff(times[np.append([0], np.diff(mid)) !=0].astype(float))
+            empPriceChangeTimes += [np.log(ts[ts>0])/np.log(10)]
+            # print(data.Spread.values)
 
     fig = plt.figure()
     plt.title(ric + " PriceChangeTime distribution")
     plt.xlabel("Times (log10)")
     plt.ylabel("Frequency")
-    plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
+    if emp: plt.hist(np.hstack(empPriceChangeTimes), bins = 100, label = "Empirical", alpha = 0.5, density = True)
     plt.hist(np.hstack(simPriceChangeTimes), bins = 100, label = "Simulated", alpha = 0.5, density = True, weights = wts)
     plt.legend()
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_priceChangeTimeDistribution.png")
-
-    times = {}
-    for d in pd.date_range(sDate, eDate):
-        try:
-            data = pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/"+ric+"_"+ d.strftime("%Y-%m-%d") +"_12D.csv")
-        except:
-            continue
-        # data = data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
-        data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
-        for k in data_times:
-            tmp = times.get(k, [])
-            times[k]=np.append(tmp, np.diff(data_times[k]) )
+    if emp:
+        times = {}
+        for d in pd.date_range(sDate, eDate):
+            try:
+                data = pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/"+ric+"_"+ d.strftime("%Y-%m-%d") +"_12D.csv")
+            except:
+                continue
+            # data = data.loc[(data.Time < 3*3600)&(data.Time > 2.5*3600)]
+            data_times = data.groupby("event").Time.apply(lambda x: np.array(x)).to_dict()
+            for k in data_times:
+                tmp = times.get(k, [])
+                times[k]=np.append(tmp, np.diff(data_times[k]) )
 
     times_Sim = {}
     times_Sim_wts = {}
@@ -630,7 +641,7 @@ def runInterArrivalTimes(paths, resultsPath, sDate, eDate, ric):
             dictNorm[i] = 1/(13*j)
         wts = [dictNorm[i] for i in simTimeIds]
         fig = plt.figure()
-        plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
+        if emp: plt.hist(np.log(times[c][times[c]>0])/np.log(10), bins = 100,alpha=.5, density = True, label = "Empirical")
         plt.hist(np.log(times_Sim[c])/np.log(10), bins = 100, density = True, alpha=.5, label = "Simulated", weights = wts)
         plt.legend()
         plt.title(c + " : Inter-arrival time")
