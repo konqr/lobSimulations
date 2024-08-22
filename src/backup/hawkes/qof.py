@@ -272,13 +272,14 @@ def runDistribution(paths, resultsPath, sDate, eDate, ric, emp=False):
     binsSim = binsSim[np.append(np.where(histSim > 0)[0], [np.where(histSim > 0)[0][-1]+1])]
     histSim = histSim[np.where(histSim > 0)]
     # Plot
-    width = 0.99 * (bins[1] - bins[0])
-    center = bins[:-1]
+
     fig = plt.figure()
     plt.title(ric + " spreads distribution")
     plt.xlabel("Spread-in-ticks")
     plt.ylabel("Frequency")
     if emp:
+        width = 0.99 * (bins[1] - bins[0])
+        center = bins[:-1]
         plt.bar(center, histEmp, align='center', width=width, label = "Empirical", alpha = 0.5)
 
     widthSim = 0.99 * (binsSim[1] - binsSim[0])

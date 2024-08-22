@@ -870,7 +870,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             # events wrt distance from mid in ticks
             data = data.loc[data['Type'] < 5]
             data = data.loc[data['Type'] !=2]
-            data['sec'] = data['Time'].astype(int)
+            data['sec'] = (100*data['Time']).astype(int)
             intensityPerSec = data.groupby(['sec','Type','TradeDirection'])['Time'].count().apply(lambda x: [x])
             data['q_LO'] = np.nan
             data['q_LO'].loc[data['Type'] == 1] = data['Size'].loc[data['Type'] == 1]
@@ -904,7 +904,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                 perSecDF = df2.add(df1)
             else:
                 perSecDF = varsPerSec.merge(intensityPerSec, left_index=True, right_index=True)
-        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_persecDF", "wb") as f:
+        with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_percentisecDF", "wb") as f:
             pickle.dump(perSecDF, f)
 
 def plotLeverage(stocks):
