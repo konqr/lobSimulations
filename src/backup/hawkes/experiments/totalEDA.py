@@ -27,7 +27,7 @@ def nanmed(data):
     d['m_D_Bid'] = nm(data['m_D_Bid'])
     return pd.Series(d)
 
-def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False, assumptions2 = False):
+def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = False, edaqd = False, edashapemaxima = False, edashapesparsity = False, edaleverage = False, edaleverage_top = False,edaleverageIS=False, assumptions = False, assumptions2 = False, assumptions3 = False):
     ric = ric
     samplingTime = 60
     if edaspread:
@@ -907,6 +907,65 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
         with open("/SAN/fca/Konark_PhD_Experiments/smallTick/"+ric+"_EDA_percentisecDF", "wb") as f:
             pickle.dump(perSecDF, f)
 
+    if assumptions3:
+        orderTypeDict = {'limit' : [1], 'cancel': [2,3], 'market' : [4]}
+        condCounts_qT, condCounts_qD = [], []
+        uncondCounts_qT, uncondCounts_qD = [], []
+        for j in pd.date_range(dt.date(2019,1,2), dt.date(2019,12,31)):
+            if j == dt.date(2019,1,9): continue
+            if os.path.isfile("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv'):
+                data= pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv')
+            else:
+                l = dataLoader(ric, j, j, nlevels = 10, dataPath = "/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/")
+                _ = l.load12DTimestamps_smallTick()
+                if len(_) :
+                    data= pd.read_csv("/SAN/fca/Konark_PhD_Experiments/extracted/GOOG/"+ric+'_'+j.strftime('%Y-%m-%d')+'_12D.csv')
+                else:
+                    continue
+            # events wrt distance from mid in ticks
+            data = data.loc[data['Type'] < 5]
+            data = data.loc[data['Type'] !=2]
+            #
+            data['is'] = 0
+            data['diff'] = data['Ask Price 1'].shift(1) - data['Ask Price 1']
+            data['is'].loc[data['diff'] > 0]  = 1
+            data['diff'] = data['Bid Price 1'] - data['Bid Price 1'].shift(1)
+            data['is'].loc[data['diff'] > 0]  = 1
+            #
+
+            dataOrig = data.copy()
+            for d, side in zip([-1,1],['Ask', 'Bid']):
+                data = dataOrig.loc[dataOrig['TradeDirection'] == d]
+                arr = data[[side + ' Size ' + str(i) for i in range(1,11)]].values
+                data['qD'] = arr.sum(axis=1) - data[side + ' Size 1'].values
+                #
+                data['Type_qT'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data[side +' Size 1'].astype(int).astype(str)
+                data['Type_qT_1'] = data['Type_qT'].shift(1)
+                data['Type_qD'] = data['Type'].astype(int).astype(str) +  data['is'].astype(int).astype(str) +  data['qD'].astype(int).astype(str)
+                data['Type_qD_1'] = data['Type_qD'].shift(1)
+                # data.head()
+                if len(condCounts_mT)==0:
+                    condCounts_qT = data.groupby(['Type_qT','Type_qT_1'])['Time'].count()
+                    uncondCounts_qT = data.groupby(['Type_qT'])['Time'].count()
+                    condCounts_qD = data.groupby(['Type_qD','Type_qD_1'])['Time'].count()
+                    uncondCounts_qD = data.groupby(['Type_qD'])['Time'].count()
+                else:
+                    tmp = data.groupby(['Type_qT','Type_qT_1'])['Time'].count()
+                    condCounts_qT = condCounts_qT.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_qT'])['Time'].count()
+                    uncondCounts_qT = uncondCounts_qT.add(tmp, fill_value=0)
+                    tmp = data.groupby(['Type_qD','Type_qD_1'])['Time'].count()
+                    condCounts_qD = condCounts_qD.add(tmp, fill_value=0)
+                    tmp= data.groupby(['Type_qD'])['Time'].count()
+                    uncondCounts_mD = uncondCounts_qD.add(tmp, fill_value=0)
+
+        condCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_condCounts_qT.csv')
+        uncondCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_uncondCounts_qT.csv')
+        condCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_condCounts_qD.csv')
+        uncondCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_uncondCounts_qD.csv')
+        return
+
+
 def plotLeverage(stocks):
     for s in stocks:
         with open('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_leverageIS_truetop', 'rb') as f:
@@ -977,4 +1036,4 @@ def plotLeverage(stocks):
         fig.subplots_adjust(top=0.9)
         plt.savefig("/SAN/fca/Konark_PhD_Experiments/smallTick/"+s+"_leverage_truetop.png")
 
-main( sys.argv[1] , assumptions2= sys.argv[2])
+main( sys.argv[1] , assumptions3= sys.argv[2])
