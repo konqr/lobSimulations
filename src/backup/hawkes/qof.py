@@ -6,7 +6,7 @@ import time
 import datetime as dt
 from src.backup.hawkes import dataLoader
 import matplotlib.pyplot as plt
-import statsmodels
+import statsmodels.api as sm
 
 # We plan to make use of inter-event durations' Q-Q plots, signature plots, distribution of spread and returns, average shape of the book,
 # autocorrelation of returns and order flow, and sample price paths as our set of stylized facts.
@@ -342,9 +342,9 @@ def runACF(paths, resultsPath, sDate, eDate, ric, emp=False):
     plt.ylabel("Autocorrelation")
     if emp:
         for r in empRets:
-            emps = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "blue", alpha=0.5)
+            emps = plt.plot(sm.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "blue", alpha=0.5)
     for r in simRets:
-        sims = plt.plot(statsmodels.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "orange", alpha=0.5)
+        sims = plt.plot(sm.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "orange", alpha=0.5)
     # plt.yscale("log")
     plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_absReturnsACF.png")
