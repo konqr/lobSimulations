@@ -56,10 +56,11 @@ def preprocessdata(paramsPath: str, todPath: str):
     for i in range(num_nodes):
         for j in range(num_nodes):
             kernelParams = data.get(cols[i] + "->" + cols[j], None)
-            mask[i][j]=kernelParams[0]
-            alpha[i][j]=kernelParams[1][0]
-            beta[i][j]=kernelParams[1][1]
-            gamma[i][j]=kernelParams[1][2]
+            if kernelParams is not None:
+                mask[i][j]=kernelParams[0]
+                alpha[i][j]=kernelParams[1][0]
+                beta[i][j]=kernelParams[1][1]
+                gamma[i][j]=kernelParams[1][2]
     kernelparams=[mask, alpha, beta, gamma] 
     params=[kernelparams, baselines] 
     return tod, params
@@ -92,9 +93,10 @@ def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps
     mat=todmult*params[0][0]*params[0][1]/((params[0][2]-1) *params[0][3])
     baselines[5] = ((spread/avgSpread)**beta)*baselines[5]
     baselines[6] = ((spread/avgSpread)**beta)*baselines[6]
-    specRad = np.max(np.linalg.eig(mat)[0])
-    #print("spectral radius = ", specRad)
-    specRad = np.max(np.linalg.eig(mat)[0]).real
+    if (np.sum(mat) != 0)&(not np.isnan(np.sum(mat))):
+        specRad = np.max(np.linalg.eig(mat)[0]).real
+    else:
+        specRad = 1
     if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
     
     """calculating initial values of lamb_bar"""
