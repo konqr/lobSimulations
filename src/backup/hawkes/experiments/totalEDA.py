@@ -48,7 +48,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
             data['timeDiff'] = data['Time'].diff()
             data['spreadTwa'] = data['spread']*data['timeDiff']
             data['id'] = data['Time'].apply(lambda x: int((x - 34200)//samplingTime))
-            twaspread = (data[['spreadTwa', 'id']].groupby('id').sum().values)/samplingTimeUW
+            twaspread = (data[['spreadTwa', 'id']].groupby('id').sum().values)/samplingTime
             spreads.append(twaspread)
 
 
@@ -959,10 +959,10 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                     tmp= data.groupby(['Type_qD'])['Time'].count()
                     uncondCounts_qD = uncondCounts_qD.add(tmp, fill_value=0)
 
-        condCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_condCounts_qT.csv')
-        uncondCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_uncondCounts_qT.csv')
-        condCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_condCounts_qD.csv')
-        uncondCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_uncondCounts_qD.csv')
+        condCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+ric+'_EDA_condCounts_qT.csv')
+        uncondCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+ric+'_EDA_uncondCounts_qT.csv')
+        condCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+ric+'_EDA_condCounts_qD.csv')
+        uncondCounts_qD.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+ric+'_EDA_uncondCounts_qD.csv')
         return
 
 
