@@ -957,7 +957,7 @@ def main(ric, edaspread = False, edashape = False, edasparse = False, edarest = 
                     tmp = data.groupby(['Type_qD','Type_qD_1'])['Time'].count()
                     condCounts_qD = condCounts_qD.add(tmp, fill_value=0)
                     tmp= data.groupby(['Type_qD'])['Time'].count()
-                    uncondCounts_mD = uncondCounts_qD.add(tmp, fill_value=0)
+                    uncondCounts_qD = uncondCounts_qD.add(tmp, fill_value=0)
 
         condCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_condCounts_qT.csv')
         uncondCounts_qT.to_csv('/SAN/fca/Konark_PhD_Experiments/smallTick/'+s+'_EDA_uncondCounts_qT.csv')
