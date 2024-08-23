@@ -346,7 +346,7 @@ def runACF(paths, resultsPath, sDate, eDate, ric, emp=False):
     for r in simRets:
         sims = plt.plot(sm.tsa.stattools.acf(np.abs(r), nlags = 10000)[1:], color = "orange", alpha=0.5)
     # plt.yscale("log")
-    plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
+    if emp: plt.legend([emps[0], sims[0]], ['Empirical', 'Simulated'])
     fig.savefig(resultsPath + "/"+ric + "_" + sDate.strftime("%Y-%m-%d") + "_" + eDate.strftime("%Y-%m-%d") + "_absReturnsACF.png")
     return
 
