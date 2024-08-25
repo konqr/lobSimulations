@@ -199,6 +199,8 @@ class TradingAgent(Entity):
                 pass
             self.profit=self.cash-self.statelog[0][1]
             self.updatestatelog()
+            if self.cash<0:
+                self.isterminated=True
         elif isinstance(message, WakeAgentMsg):
             
             action=self.get_action()

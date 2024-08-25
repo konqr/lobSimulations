@@ -10,7 +10,11 @@ from HawkesRLTrading.src.Kernel import Kernel
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
+<<<<<<< Updated upstream
     def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=155, log_to_file=True,**kwargs):
+=======
+    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=1, log_to_file=True,**kwargs):
+>>>>>>> Stashed changes
         """
         Initiates a trading environment. Arrivalmodel contains the simulation of the trading orders and params contains all other relevant information
         Relevant arguments:
@@ -106,12 +110,9 @@ class tradingEnv(gym.Env):
         simstate=self.kernel.run(action=action)
         Observations=self.getobservations()
         # rewards=self.calculaterewards()
-        # termination=self.isterminated()
+        termination=self.isterminated()
         # truncation=self.istruncated()
-        done=simstate["Done"]
-        timecode=simstate["TimeCode"]
-        infos=simstate["Infos"]
-        return simstate, Observations
+        return simstate, Observations, termination
         # return Observations, rewards, termination, truncation
         #return observations, rewards, dones, infos    
         
@@ -189,9 +190,9 @@ if __name__=="__main__":
             }
     env=tradingEnv(stop_time=300, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
-    Simstate, observations=env.step(action=None)
+    Simstate, observations, termination=env.step(action=None)
     i=0
-    while Simstate["Done"]==False and i<10:
+    while Simstate["Done"]==False and termination!=[True] and i<10:
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         if len(AgentsIDs)>1:
@@ -201,8 +202,8 @@ if __name__=="__main__":
         action=(agent.id, agent.get_action(data=observations))   
         print(f"Limit Order Book: {observations['LOB0']}")
         print(f"Action: {action}")
-        Simstate, observations=env.step(action=action) 
-        print(f"\nSimstate: {Simstate}\nObservations: {observations}")
+        Simstate, observations, termination=env.step(action=action) 
+        print(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
         i+=1
         print(f"DONEDONE{i}")
     
