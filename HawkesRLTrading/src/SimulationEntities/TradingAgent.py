@@ -128,7 +128,7 @@ class TradingAgent(Entity):
         if self.actions[k][0:2]=="lo":
             level=self.actionsToLevels[self.actions[k]]
             if k==5: #inspread ask
-                price=lob["Ask_L1"][0]+self.exchange.ticksize
+                price=lob["Ask_L1"][0]-self.exchange.ticksize
             elif k==6: #inspread bid
                 price=lob["Bid_L1"][0]+self.exchange.ticksize
             else:    
@@ -223,6 +223,8 @@ class TradingAgent(Entity):
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
         super().receivemessage(current_time, senderID, message)
+        if self.cash<0 or self.countInventory()<=0 or self.cash>100000 or self.countInventory()>10000:
+            self.isterminated=True
         
     def wakeup(self, current_time: int) -> None:
         """
