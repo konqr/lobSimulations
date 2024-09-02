@@ -208,18 +208,3 @@ if __name__=="__main__":
         i+=1
         print(f"ACTION DONE{i}")
     
-    """
-    done = False
-    observation, info = env.reset()
-    while not done:
-        action = agent.get_action(obs)
-        next_obs, reward, terminated, truncated, info = env.step(action)
-
-        # update the agent
-        agent.update(obs, action, reward, terminated, next_obs)
-
-        # update if the environment is done and the current obs
-        done = terminated or truncated
-        obs = next_obs
-    
-    """
