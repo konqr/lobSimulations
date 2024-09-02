@@ -146,9 +146,13 @@ class TradingAgent(Entity):
         elif self.actions[k][0:2]=="mo":
             #marketorder
             level=self.actionsToLevels[self.actions[k]]
+            if "Ask" in level:
+                assert self.Inventory[self.exchange.symbol]<=size, f"Agent {self.id} does not have sufficient inventory for ASK Market Orders of size {size}."
             order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, _level=level)
+
         else:
             logger.debug("GYM Agent is creating cancel order")
+            print(f"action type is {k}")
             #cancelorder
             level=self.actionsToLevels[self.actions[k]]
             if side=="Ask":
@@ -175,6 +179,7 @@ class TradingAgent(Entity):
             message: An object guaranteed to inherit from the Message.Message class.
         """
         assert message is not None, f"Trading Agent {self.id} received a blank message with ID{message.message_id}"
+        logger.debug(f"Agent Internal time updated from {self.current_time} to {current_time}\n")
         self.current_time=current_time
         super().receivemessage(current_time, senderID, message)
         #Check identity of the sender
@@ -228,16 +233,14 @@ class TradingAgent(Entity):
             self.submitorder(order)
             self.set_wakeup(requested_time=self.current_time+self.action_freq)
         elif isinstance(message, PartialOrderFill):
-            newsize=message.newsize
+            consumed=message.consumed
             order: LimitOrder=message.order
-            price=order.price
             if order.side=="Ask":
-                self.cash+=order.price*(order.size-newsize)
-                self.Inventory[order.symbol]-=(order.size-newsize)
+                self.cash+=order.price*(consumed)
+                self.Inventory[order.symbol]-=(consumed)
             else:
-                self.cash-=order.price*(order.size-newsize)
-                self.Inventory[order.symbol]+=(order.size-newsize)
-            order.size=newsize
+                self.cash-=order.price*(consumed)
+                self.Inventory[order.symbol]+=(consumed)
             self.profit=self.cash-self.statelog[0][1]
             self.updatestatelog()
         elif isinstance(message, OrderAutoCancelledMsg):

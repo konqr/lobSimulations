@@ -9,7 +9,7 @@ class ExchangeMsg(Message):
 @dataclass
 class PartialOrderFill(ExchangeMsg): #Exchange to agent
     order: Order
-    newsize: int
+    consumed: int
     
 @dataclass
 class OrderAutoCancelledMsg(ExchangeMsg):#exchange to agent 

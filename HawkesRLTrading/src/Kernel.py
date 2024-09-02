@@ -258,8 +258,8 @@ class Kernel:
         senderID=item[1][0]
         timesent=item[0]
         logger.debug(f"Processing {type(message).__name__} message with ID {message.message_id} from sender {senderID}")
-        print(f"\nCURRENT TIME: {self.current_time}, TIMESENT: {timesent}\n")
         assert self.current_time<=timesent, "Timing error in message"
+        logger.debug(f"Kernel GVT: {self.current_time}. Message timesent: {timesent}")
         if isinstance(message, ExchangeMsg):
             self.current_time=timesent
             if isinstance(message, PartialOrderFill):
@@ -273,18 +273,29 @@ class Kernel:
                 if recipientID==-1 or recipientID==self.exchange.id:
                     raise UnexpectedMessageType("Autocancel Messages should not be generated for random non-agent orders")
                 else:
+                    if self.agents_current_times[recipientID]<=self.current_time:
+                        self.agents_current_times[recipientID]=self.current_time
+                    else:
+                        pass
                     self.entity_registry[recipientID].receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, OrderExecutedMsg):
                 #tells an agent that a previously placed limit order has been executed
                 if recipientID==-1 or senderID!=self.exchange.id:
                     raise UnexpectedMessageType("Order Execution Messages should not be generated for random non-agent orders")
                 agent: TradingAgent=self.entity_registry[recipientID]
-                self.agents_current_times[recipientID]=timesent
+                if self.agents_current_times[recipientID]<=self.current_time:
+                    self.agents_current_times[recipientID]=self.current_time
+                else:
+                    pass
                 agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, LimitOrderAcceptedMsg):
                 assert recipientID!=-1, f"LimitOrderAcceptedMessages should not be sent to agents with ID=-1"
                 assert isinstance(message.order, LimitOrder), "LimitOrderAcceptedMsg expects an order object of type LimitOrder"
                 agent: TradingAgent=self.entity_registry[recipientID]
+                if self.agents_current_times[recipientID]<=self.current_time:
+                    self.agents_current_times[recipientID]=self.current_time
+                else:
+                    pass
                 agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading

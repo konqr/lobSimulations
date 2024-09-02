@@ -270,9 +270,12 @@ class Exchange(Entity):
         else: #Inspread
             lastlvl=side+"_L"+str(self.LOBlevels)
             todelete=[]
+            crossed=False
             if side=="Ask":
-                if order.price==np.round(self.bidprice+self.ticksize, 2): #Check if order book is crossed
-                    assert(np.round(self.bidprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
+
+                if order.price==np.round(self.bidprice, 2): #Check if order book is crossed
+                    crossed=True
+                    logger.debug("Orderbook entering crossed state")
                 else:
                     if order.price==np.round(self.askprice-self.ticksize, 2): #Check the price is correct for an ask_inspread order
                         pass
@@ -281,8 +284,9 @@ class Exchange(Entity):
                 
                 todelete=self.asks[self.askprices[lastlvl]]
             else:
-                if order.price==np.round(self.askprice-self.ticksize, 2): #Check if order book is crossed
-                    assert(np.round(self.askprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
+                if order.price==np.round(self.askprice, 2): #Check if order book is crossed
+                    crossed=True
+                    logger.debug("Orderbook entering crossed state")
                 else:
                     if order.price==np.round(self.bidprice+self.ticksize, 2): #Check the price is correct for a bid_inspread order
                         pass
@@ -326,6 +330,9 @@ class Exchange(Entity):
                 self.bids=new_bids
                 self.bidprices = new_bidprices      
                 print(f"Post inspread bids: {self.bids}")
+            if crossed:
+                #Resolving crossed orderbook state
+                self.resolve_crossedorderbook()
         
     def processMarketOrder(self, order: MarketOrder)-> int:
         side=order.side
@@ -340,16 +347,14 @@ class Exchange(Entity):
                     item: LimitOrder=self.bids[pricelvl][0]
                     print(f"\nItem size: {item.size}")
                     if remainingsize<item.size:
+                        consumed=remainingsize
                         totalvalue+=pricelvl*remainingsize
-                        newsize=item.size-remainingsize
-                        item.size=newsize
+                        item.size=item.size-remainingsize
                         remainingsize=0
-                        order.fill_time=self.current_time
-                        order.filled=True
                         if item.agent_id==-1:
                             pass
                         else:
-                            notif=PartialOrderFill(order=item, newsize=newsize)
+                            notif=PartialOrderFill(order=item, consumed=consumed)
                             self.sendmessage(recipientID=item.agent_id, message=notif)
                         return totalvalue
                     else:
@@ -388,16 +393,14 @@ class Exchange(Entity):
                     item: LimitOrder=self.asks[pricelvl][0]
                     print(f"Remaining size: {remainingsize}, item size: {item.size}")
                     if remainingsize<item.size:
-                        newsize=item.size-remainingsize
-                        item.size=newsize
+                        consumed=remainingsize
+                        item.size=item.size-remainingsize
                         totalvalue+=pricelvl*remainingsize
                         remainingsize=0
-                        order.fill_time=self.current_time
-                        order.filled=True
                         if item.agent_id==-1:
                             pass
                         else:
-                            notif=PartialOrderFill(order=item, newsize=newsize)
+                            notif=PartialOrderFill(order=item, consumed=consumed)
                             self.sendmessage(recipientID=item.agent_id, message=notif)
                         return totalvalue
                     else:
@@ -487,6 +490,69 @@ class Exchange(Entity):
             
             notif=OrderAutoCancelledMsg(order=order)
             self.sendmessage(recipientID=order.agent_id, message=notif)
+    
+    def resolve_crossedorderbook(self):
+        assert self.askprice==self.bidprice==self.askprices["Ask_L1"]==self.bidprices["Bid_L1"], f'Crossed Orderbook: ASKPRICE: {self.askprice}, BIDPRICE: {self.bidprice}, ASK_L1{self.askprices["Ask_L1"]}, BID_L1{self.bidprices["Bid_L1"]}'
+        totalask1=sum([j.size for j in self.asks[self.askprices["Ask_L1"]]])
+        totalbid1=sum([j.size for j in self.bids[self.bidprices["Bid_L1"]]])
+        ask_q=self.asks[self.askprices[self.askprice]]
+        bid_q=self.asks[self.bidprices[self.bidprice]]
+        while len(ask_q)>0 and len(bid_q)>0:
+            bid_order=bid_q[0]
+            ask_order=ask_q[0]
+            executionsize=min(bid_order.size, ask_order.size)
+            bid_order.size-=executionsize
+            ask_order.size-=executionsize
+            if bid_order.size==0:
+                bid_order.size
+                filled_order=bid_q.pop(0)
+                filled_order.fill_time=self.current_time
+                filled_order.filled=True
+                if filled_order.agent_id==-1:
+                    pass
+                else:
+                    notif=OrderExecutedMsg(order=filled_order)
+                    self.sendmessage(recipientID=filled_order.agent_id, message=notif)    
+            elif bid_order.size>0:
+                assert ask_order.size==0, "Error in order matching at crossed orderbook"
+                consumed=executionsize
+                notif=PartialOrderFill(order=bid_order, consumed=consumed)
+                self.sendmessage(recipientID= bid_order.agent_id, message=notif)
+            else:
+                logger.debug("Code should be unreachable")
+            if ask_order.size==0:
+                filled_order=ask_q.pop(0)
+                filled_order.fill_time=self.current_time
+                filled_order.filled=True
+                if filled_order.agent_id==-1:
+                    pass
+                else:
+                    notif=OrderExecutedMsg(order=filled_order)
+                    self.sendmessage(recipientID=filled_order.agent_id, message=notif)
+            elif ask_order.size>0:
+                assert bid_order.size==0, "Error in order matching at crossed orderbook"
+                consumed=executionsize
+                notif=PartialOrderFill(order=ask_order, consumed=consumed)
+                self.sendmessage(recipientID=ask_order.agent_id, message=notif)
+            else:
+                logger.debug("Code should be unreachable")
+            
+                
+        if len(bid_q)==0:
+            del self.bids[self.bidprice]
+            del self.bidprices["Bid_L1"]
+        if len(ask_q)==0:
+            del self.asks[self.askprice]
+            del self.askprices["Ask_L1"]
+        self.regeneratequeuedepletion()
+        assert self.askprice<self.bidprice, "Error in processing crossed orderbook"
+
+
+
+
+            
+
+
     def regeneratequeuedepletion(self): #to be implemented
         """
         Regenerates LOB from queue depletion and updates prices as necessary
@@ -497,19 +563,17 @@ class Exchange(Entity):
             self.askprices["Ask_L2"]=np.round(self.askprices["Ask_L1"]+self.ticksize, 2)
             self.asks[self.askprices["Ask_L2"]]=self.generate_orders_in_queue(loblevel="Ask_L2")
             self.askprice=self.askprices["Ask_L1"]
-            
-        elif len(self.bids[self.bidprices["Bid_L1"]])==0:
+        elif len(self.asks[self.askprices["Ask_L2"]])==0:
+            del self.asks[self.askprices["Ask_L2"]]
+            self.askprices["Ask_L2"]=np.round(self.askprices["Ask_L1"]+self.ticksize, 2)
+            self.asks[self.askprices["Ask_L2"]]=self.generate_orders_in_queue(loblevel="Ask_L2")
+
+        if len(self.bids[self.bidprices["Bid_L1"]])==0:
             del self.bids[self.bidprices["Bid_L1"]]
             self.bidprices["Ask_L1"]=self.bidprices["Bid_L2"]
             self.bidprices["Bid_L2"]=np.round(self.bidprices["Bid_L1"]-self.ticksize, 2)
             self.bids[self.bidprices["Bid_L2"]]=self.generate_orders_in_queue(loblevel="Bid_L2")
             self.bidprice=[self.bidprices["Bid_L1"]]
-
-        elif len(self.asks[self.askprices["Ask_L2"]])==0:
-            del self.asks[self.askprices["Ask_L2"]]
-            self.askprices["Ask_L2"]=np.round(self.askprices["Ask_L1"]+self.ticksize, 2)
-            self.asks[self.askprices["Ask_L2"]]=self.generate_orders_in_queue(loblevel="Ask_L2")
-        
         elif len(self.bids[self.bidprices["Bid_L2"]])==0:
             del self.bids[self.bidprices["Bid_L2"]]
             self.bidprices["Bid_L2"]=np.round(self.bidprices["Bid_L1"]-self.ticksize, 2)
@@ -517,7 +581,6 @@ class Exchange(Entity):
         else:
             #queue is not depleted
             pass
-    
     def checkLOBValidity(self) -> bool:
         condition1= (self.askprice==self.askprices["Ask_L1"])
         condition2=(self.askprice==min(self.asks.keys()) )     
