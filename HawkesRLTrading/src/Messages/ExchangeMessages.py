@@ -20,6 +20,9 @@ class OrderExecutedMsg(ExchangeMsg):#exchange to agent
     order: Order
     
 @dataclass
+class LimitOrderAcceptedMsg(ExchangeMsg):
+    order: Order
+@dataclass
 class WakeAgentMsg(ExchangeMsg):
     time: float
     pass

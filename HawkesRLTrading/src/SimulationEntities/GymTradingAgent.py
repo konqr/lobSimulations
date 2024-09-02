@@ -20,11 +20,11 @@ class GymTradingAgent(TradingAgent):
 
 
 class RandomGymTradingAgent(GymTradingAgent):
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=True, rewardpenalty: float=0.4):
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=True, rewardpenalty: float=0.4, cashlimit=1000000):
         """
         Rewardpenalty: absolute value of lambda ratio for the quadratic inventory penalty
         """
-        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade)
+        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade, cashlimit=cashlimit)
         if rewardpenalty is None:
             raise ValueError(f"Rewardpenalty value for agent {self.id} not specified")
         self.rewardpenalty=abs(rewardpenalty)

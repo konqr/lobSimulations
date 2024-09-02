@@ -2,19 +2,17 @@ import gymnasium as gym
 from gymnasium.spaces import *
 import numpy as np
 from typing import Any, Dict, List, Optional
+import logging
 from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
+logger=logging.getLogger(__name__)
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
-<<<<<<< Updated upstream
-    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=155, log_to_file=True,**kwargs):
-=======
     def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=1, log_to_file=True,**kwargs):
->>>>>>> Stashed changes
         """
         Initiates a trading environment. Arrivalmodel contains the simulation of the trading orders and params contains all other relevant information
         Relevant arguments:
@@ -74,7 +72,7 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
                 if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True)
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True, cashlimit=j["cashlimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -152,7 +150,7 @@ class tradingEnv(gym.Env):
             rewards[gymagent.id]=gymagent.calculaterewards()
         return rewards        
     def isterminated(self):
-        return self.kernel.isterminated()
+        return self.kernel.isterminated()==len(self.kernel.gymagents)
     def istruncated(self):
         return self.kernel.istruncated()  
     def getinfo(self):
@@ -167,12 +165,13 @@ if __name__=="__main__":
     print("compiles")
     kwargs={
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 5000, 
+                "GymTradingAgent": [{"cash": 10000, 
                                     "strategy": "Random",
-                                    "action_freq": 2,
+                                    "action_freq": 1.5,
                                     "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True}],
+                                    "Inventory": {"XYZ": 3000},
+                                    "log_to_file": True,
+                                    "cashlimit": 1000000}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -188,11 +187,13 @@ if __name__=="__main__":
                                             "Pi_Q0": None}}
 
             }
-    env=tradingEnv(stop_time=300, **kwargs)
+    env=tradingEnv(stop_time=300, seed=1000, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
+    logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
-    while Simstate["Done"]==False and termination!=[True] and i<10:
+    while Simstate["Done"]==False and termination!=True and i<10:
+        logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         if len(AgentsIDs)>1:
@@ -203,9 +204,9 @@ if __name__=="__main__":
         print(f"Limit Order Book: {observations['LOB0']}")
         print(f"Action: {action}")
         Simstate, observations, termination=env.step(action=action) 
-        print(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
         i+=1
-        print(f"DONEDONE{i}")
+        print(f"ACTION DONE{i}")
     
     """
     done = False

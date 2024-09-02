@@ -59,10 +59,10 @@ class Exchange(Entity):
         #Initialize prices
         for i in range(self.LOBlevels):
             key="Ask_L"+str(i+1)
-            val=self.priceMid+np.floor((self._spread//self.ticksize)/2)*self.ticksize + i*self.ticksize
+            val=np.round(self.priceMid+np.floor((self._spread//self.ticksize)/2)*self.ticksize + i*self.ticksize, 2)
             self.askprices[key]=val
             key="Bid_L"+str(i+1)
-            val=self.priceMid-np.floor((self._spread//self.ticksize)/2)*self.ticksize - i*self.ticksize
+            val=np.round(self.priceMid-np.floor((self._spread//self.ticksize)/2)*self.ticksize - i*self.ticksize, 2)
             self.bidprices[key]=val   
         self.askprice=self.askprices["Ask_L1"]
         self.bidprice=self.bidprices["Bid_L1"]
@@ -127,12 +127,12 @@ class Exchange(Entity):
             price=self.bidprices[loblevel]
         orderqueue=[]
         for size in queue:
-            order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.symbol, agent_id=-1)
+            order=LimitOrder(time_placed=self.current_time, price=price, side=side, size=size, symbol=self.symbol, agent_id=-1)
             orderqueue.append(order)
         return orderqueue
              
 
-    def nextarrival(self, timelimit=None):
+    def nextarrival(self, timelimit=None) -> Optional[bool]:
         """
         Automatically generates the next arrival and passes the order to the kernel to check for validity.
         """
@@ -145,9 +145,9 @@ class Exchange(Entity):
             time, side, order_type, level, size=tmp
         if order_type=="lo":
             if level=="Ask_inspread": #inspread ask
-                price=self.askprices["Ask_L1"]-self.ticksize
+                price=np.round(self.askprices["Ask_L1"]-self.ticksize, 2)
             elif level=="Bid_inspread": #inspread bid
-                price=self.bidprices["Bid_L1"]+self.ticksize
+                price=np.round(self.bidprices["Bid_L1"]+self.ticksize, 2)
             else:    
                 if side=="Ask":
                     price=self.askprices[level]
@@ -156,7 +156,7 @@ class Exchange(Entity):
             order=LimitOrder(time_placed=time, side=side, size=size, symbol=self.symbol, agent_id=-1, price=price)
             
         elif order_type=="mo":
-            #marketorder
+            #marketordernon-agent placed
             order=MarketOrder(time_placed=time, side=side, size=size, symbol=self.symbol, agent_id=-1)
         else:
             #cancelorder
@@ -166,7 +166,7 @@ class Exchange(Entity):
                 price=self.bidprices[level]
             order=CancelOrder(time_placed=time, side=side, price=price, size=-1, symbol=self.symbol, agent_id=-1)
         order._level=level
-        print(f"\nNon-Agent placed: {order}")
+        logger.debug(f"\nNon-Agent placed: {order}")
         self.processorder(order=order)
         return True
         
@@ -175,18 +175,20 @@ class Exchange(Entity):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """
-        print("\n")
+        print("Before processing order: \n")
         print(self.printlob())
-        logger.debug(f"Processing Order {order.order_id}")
+        logger.debug(f"Processing Order {order.order_id}\n")
         self.current_time=order.time_placed
         #process the order
         order_type=None
         trade_happened=False
-        side=order.side
         if isinstance(order, LimitOrder):
             #Limit_order
             self.processLimitOrder(order=order)
             order_type="lo"
+            if order.agent_id!=-1:
+                notif=LimitOrderAcceptedMsg(order=order)
+                self.sendmessage(recipientID=order.agent_id, message=notif)
         elif isinstance(order, MarketOrder): #market order
             totalvalue=self.processMarketOrder(order)
             order.total_value=totalvalue
@@ -206,30 +208,39 @@ class Exchange(Entity):
         elif isinstance(order, CancelOrder): #Cancel Order completed
             self.processCancelOrder(order=order)
             order_type="co"
+            if order.agent_id!=-1:
+                notif=OrderExecutedMsg(order=order)
+                self.sendmessage(recipientID=order.agent_id, message=notif)
         else:
             raise InvalidOrderType(f"Invalid Order type with ID {order.order_id} passed to exchange")
             pass
+        print("After processing order: \n")
+        print(self.printlob(), "\n")
         if order.agent_id==-1:
             pass
         else:
-            print(f"Information for model update: {order}\nOrderType: {order_type}")
+            print(f"Information for model update: {order}")
             self.update_model_state(order=order, order_type=order_type)
         
         #update spread and notify agents if a trade has happened:
         newspread=abs(self.askprice-self.bidprice)
-        if self._spread==newspread:
+        if np.round(self._spread, 2)==np.round(newspread, 2):
             pass
-        if trade_happened==False:
-            pass
-        if self._spread!=newspread:
-            self._spread=newspread
+        if np.round(self._spread, 2)!=np.round(newspread, 2):
+            self._spread=np.round(newspread, 2)
             #Send Batch message to agents
-            message=SpreadNotificationMsg(time=self.current_time)
-            self.sendbatchmessage(recipientIDs=self.agentIDs, message=message)
-        else:
             if trade_happened==True:
-                message=TradeNotificationMsg(time=self.current_time)
-                self.sendbatchmessage(recipientIDs=self.agentIDs, message=message)
+                pass
+            else:
+                if order.agent_id==-1:
+                    message=SpreadNotificationMsg(time=self.current_time)
+                    self.sendbatchmessage(recipientIDs=self.agentswithTradeNotifs, message=message)
+                else:
+                    message=SpreadNotificationMsg(time=self.current_time)
+                    recipientIDs=[j for j in self.agentswithTradeNotifs if j!=order.agent_id]
+                    if len(recipientIDs)>0:
+                        self.sendbatchmessage(recipientIDs=recipientIDs, message=message)
+        
         test=self.checkLOBValidity()
         if test:
             logger.debug("LOB Valid test passed")
@@ -243,7 +254,7 @@ class Exchange(Entity):
         #log event:
         self._logevent(event=[order.time_placed, order.ordertype(), order.agent_id, order.order_id])
         self.updatehistory()
-    
+
     
     def processLimitOrder(self, order: LimitOrder):
         #Limit_order
@@ -260,17 +271,26 @@ class Exchange(Entity):
             lastlvl=side+"_L"+str(self.LOBlevels)
             todelete=[]
             if side=="Ask":
-                if order.price==self.askprice-self.ticksize:
+                if order.price==np.round(self.bidprice+self.ticksize, 2): #Check if order book is crossed
                     assert(np.round(self.bidprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
                 else:
-                    raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
+                    if order.price==np.round(self.askprice-self.ticksize, 2): #Check the price is correct for an ask_inspread order
+                        pass
+                    else:
+                        raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
                 
                 todelete=self.asks[self.askprices[lastlvl]]
             else:
-                if order.price==self.bidprice+self.ticksize:
+                if order.price==np.round(self.askprice-self.ticksize, 2): #Check if order book is crossed
                     assert(np.round(self.askprice, 2)!=np.round(order.price, 2)), "Bid and Ask level prices converged"
                 else:
-                    raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
+                    if order.price==np.round(self.bidprice+self.ticksize, 2): #Check the price is correct for a bid_inspread order
+                        pass
+                    else:
+                        logger.debug(f"Order price: {order.price}, bidprice: {self.bidprice}\n")
+                        print(self.lob0)
+
+                        raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
                 todelete=self.bids[self.bidprices[lastlvl]]
             agentorders=[order for order in todelete if order.agent_id!=-1]
             if len(agentorders)>0:
@@ -306,6 +326,7 @@ class Exchange(Entity):
                 self.bids=new_bids
                 self.bidprices = new_bidprices      
                 print(f"Post inspread bids: {self.bids}")
+        
     def processMarketOrder(self, order: MarketOrder)-> int:
         side=order.side
         remainingsize=order.size
@@ -317,9 +338,11 @@ class Exchange(Entity):
                 pricelvl=self.bidprices[side+"_L"+str(level)]
                 while len(self.bids[pricelvl])>0:
                     item: LimitOrder=self.bids[pricelvl][0]
+                    print(f"\nItem size: {item.size}")
                     if remainingsize<item.size:
                         totalvalue+=pricelvl*remainingsize
-                        newsize=item.size=remainingsize
+                        newsize=item.size-remainingsize
+                        item.size=newsize
                         remainingsize=0
                         order.fill_time=self.current_time
                         order.filled=True
@@ -350,7 +373,7 @@ class Exchange(Entity):
                     old_key=f"Bid_L{i+1}"
                     new_bidprices[new_key]=self.bidprices[old_key]
                     new_bids[new_bidprices[new_key]]=self.bids[new_bidprices[new_key]]
-                new_bidprices[f"Bid_L{self.LOBlevels}"]=new_bidprices[f"Bid_L{self.LOBlevels-1}"] - self.ticksize
+                new_bidprices[f"Bid_L{self.LOBlevels}"]=np.round(new_bidprices[f"Bid_L{self.LOBlevels-1}"] - self.ticksize, 2)
                 new_bids[new_bidprices[f"Bid_L{self.LOBlevels}"]]=self.generate_orders_in_queue(loblevel=f"Bid_L{self.LOBlevels}")
                 self.bidprices = new_bidprices
                 self.bids = new_bids  
@@ -360,11 +383,13 @@ class Exchange(Entity):
             level=1
             while remainingsize>0:
                 pricelvl=self.askprices[side+"_L"+str(level)]
+                print(pricelvl)
                 while len(self.asks[pricelvl])>0:
                     item: LimitOrder=self.asks[pricelvl][0]
                     print(f"Remaining size: {remainingsize}, item size: {item.size}")
                     if remainingsize<item.size:
                         newsize=item.size-remainingsize
+                        item.size=newsize
                         totalvalue+=pricelvl*remainingsize
                         remainingsize=0
                         order.fill_time=self.current_time
@@ -388,8 +413,6 @@ class Exchange(Entity):
                         else:
                             notif=OrderExecutedMsg(order=filled_order)
                             self.sendmessage(recipientID=filled_order.agent_id, message=notif)
-                #Touch level has been depleted
-                #print(self.asks)
                 del self.asks[pricelvl]
                 del self.askprices["Ask_L1"]
                 new_askprices = {}
@@ -399,7 +422,7 @@ class Exchange(Entity):
                     old_key=f"Ask_L{i+1}"
                     new_askprices[new_key]=self.askprices[old_key]
                     new_asks[new_askprices[new_key]]=self.asks[new_askprices[new_key]]
-                new_askprices[f"Ask_L{self.LOBlevels}"]=new_askprices[f"Ask_L{self.LOBlevels-1}"] + self.ticksize
+                new_askprices[f"Ask_L{self.LOBlevels}"]=np.round(new_askprices[f"Ask_L{self.LOBlevels-1}"] + self.ticksize, 2)
                 new_asks[new_askprices[f"Ask_L{self.LOBlevels}"]]=self.generate_orders_in_queue(loblevel=f"Ask_L{self.LOBlevels}")
                 self.askprices = new_askprices
                 self.asks = new_asks  
@@ -432,7 +455,8 @@ class Exchange(Entity):
         if len(validcancels)==0:
             logger.info(f"Cancel order issued, but no eligible orders in queue at time {order.time_placed} ignored.")  
             return
-        cancelled=validcancels.pop(random.randrange(0, len(validcancels)))
+        cancelled: LimitOrder=validcancels.pop(random.randrange(0, len(validcancels)))
+        order.cancelID=cancelled.order_id
         queue=[item for item in queue if item.order_id != cancelled.order_id]
     #non-empty queue for order cancellation, public and private           
         if order.side=="Ask":
@@ -440,15 +464,11 @@ class Exchange(Entity):
         else:
             self.bids[price]=queue
         cancelled.cancelled=True
-        if public_cancel_flag==False:
-            notif=OrderExecutedMsg(order=order)
-            self.sendmessage(recipientID=order.agent_id, message=notif)
         self.regeneratequeuedepletion()   
-        
-    def autocancel(self, orderIDs: List[int]):
-        logger.info(f"Autocancelling agent orders{[j.order_id for j in orderIDs]} due to LOB inspread shift")
-        for orderID in orderIDs:
-            order=Order._get_order_by_id(orderID)
+
+    def autocancel(self, orders: List[Order]):
+        logger.info(f"Autocancelling agent orders{[j.order_id for j in orders]} due to LOB inspread shift")
+        for order in orders:
             if isinstance(order, LimitOrder):
                 pass
             else:
@@ -459,10 +479,10 @@ class Exchange(Entity):
             order.cancel_time=self.current_time
             oldqueue=None
             if side=="Ask":
-                oldqueue=order.asks[price]
+                oldqueue=self.asks[price]
             else:
-                oldqueue=order.bids[price]
-            queue=[j for j in oldqueue if j.order_id!=orderID]
+                oldqueue=self.bids[price]
+            queue=[j for j in oldqueue if j.order_id!=order.order_id]
             oldqueue=queue
             
             notif=OrderAutoCancelledMsg(order=order)
@@ -474,24 +494,25 @@ class Exchange(Entity):
         if len(self.asks[self.askprices["Ask_L1"]])==0:
             del self.asks[self.askprices["Ask_L1"]]
             self.askprices["Ask_L1"]=self.askprices["Ask_L2"]
-            self.askprices["Ask_L2"]=self.askprices["Ask_L1"]+self.ticksize
+            self.askprices["Ask_L2"]=np.round(self.askprices["Ask_L1"]+self.ticksize, 2)
             self.asks[self.askprices["Ask_L2"]]=self.generate_orders_in_queue(loblevel="Ask_L2")
-            
+            self.askprice=self.askprices["Ask_L1"]
             
         elif len(self.bids[self.bidprices["Bid_L1"]])==0:
             del self.bids[self.bidprices["Bid_L1"]]
             self.bidprices["Ask_L1"]=self.bidprices["Bid_L2"]
-            self.bidprices["Bid_L2"]=self.bidprices["Bid_L1"]-self.ticksize
+            self.bidprices["Bid_L2"]=np.round(self.bidprices["Bid_L1"]-self.ticksize, 2)
             self.bids[self.bidprices["Bid_L2"]]=self.generate_orders_in_queue(loblevel="Bid_L2")
-        
+            self.bidprice=[self.bidprices["Bid_L1"]]
+
         elif len(self.asks[self.askprices["Ask_L2"]])==0:
             del self.asks[self.askprices["Ask_L2"]]
-            self.askprices["Ask_L2"]=self.askprices["Ask_L1"]+self.ticksize
+            self.askprices["Ask_L2"]=np.round(self.askprices["Ask_L1"]+self.ticksize, 2)
             self.asks[self.askprices["Ask_L2"]]=self.generate_orders_in_queue(loblevel="Ask_L2")
         
         elif len(self.bids[self.bidprices["Bid_L2"]])==0:
             del self.bids[self.bidprices["Bid_L2"]]
-            self.bidprices["Bid_L2"]=self.bidprices["Bid_L1"]-self.ticksize
+            self.bidprices["Bid_L2"]=np.round(self.bidprices["Bid_L1"]-self.ticksize, 2)
             self.bids[self.bidprices["Bid_L2"]]=self.generate_orders_in_queue(loblevel="Bid_L2")
         else:
             #queue is not depleted
@@ -502,7 +523,7 @@ class Exchange(Entity):
         condition2=(self.askprice==min(self.asks.keys()) )     
         condition3=(self.bidprice==self.bidprices["Bid_L1"])
         condition4=(self.bidprice==max(self.bids.keys()))
-        condition5=(self.spread==abs(self.askprice-self.bidprice))
+        condition5=(self.spread==np.round(abs(self.askprice-self.bidprice)), 2)
         return condition1 and condition2 and condition3 and condition4 and condition5
         
         
@@ -542,10 +563,27 @@ class Exchange(Entity):
     @property
     def spread(self):
         return self._spread
+    
+    def getlevel(self, price: float):
+        logger.debug(f"\nGetting level for price: {price}")
+        logger.debug(f"Price: {price}, askprice: {self.askprice}, bidprice: {self.bidprice}")
+        if price>=self.askprice:
+            return list(filter(lambda key: self.askprices[key]==price, self.askprices))[0]
+        elif price <= self.bidprice:
+            return list(filter(lambda key: self.bidprices[key]==price, self.bidprices))[0]
+        else:
+            raise Exception("Price-level not in limit order book")
     def updatehistory(self):
         #data=[order book, spread]
         data=(self.current_time, self.lobl3, self.spread)
         self.LOBhistory.append(data)
+
+    def get_orders_from_level(self, level: str):
+        assert level in self.levels, f"Level {level} is not in exchange levels"
+        if level[0:3]=="Ask":
+            return self.asks[self.askprices[level]]
+        else:
+            return self.bids[self.bidprices[level]]
 
     def update_model_state(self, order: Order, order_type: str):
         """

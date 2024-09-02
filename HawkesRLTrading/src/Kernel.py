@@ -112,24 +112,12 @@ class Kernel:
         Results: the raw state of the simulation, containing data which can be formated for using in the GYM environment. 
         """
         if action is None:
-            if self.isrunning==False:
-                #The only time when no action is passed in is at the very start of the simulation at time=0
-                self.isrunning=True
-                print(f"Nearest action time is: {self.nearest_action_time}")
-                rtn=self.exchange.nextarrival(timelimit=self.nearest_action_time)
-                if rtn is None:
-                    self.current_time=self.nearest_action_time
-                    #print("terminating early, skipping to next action time")
-                    done=True if all(self.isterminated()) or self.istruncated else False
-                    return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(self.gymagents)}
-                elif rtn==True:
-                    print(f"Message Queue looks like {self.queue}")
-                else:
-                    raise Exception("This segment should be unreachable") 
-            else:
-                raise Exception("Kernel.run requires action when it is running")
+            assert self.isrunning==False and self.current_time==0, "The only time when kernel action is none is at the beginning when isrunning=False"
+            #The only time when no action is passed in is at the very start of the simulation at time=0
+            self.begin()
+            print(f"First action time is: {self.nearest_action_time} seconds")
         else:
-            assert self.isrunning==True, f"Kernel cannot take an agent action when it has not begun running"
+            assert self.isrunning==True, f"Kernel must take an agent action once it has begun running"
             agentID=action[0]
             event=action[1][0]
             size=action[1][1]
@@ -137,35 +125,43 @@ class Kernel:
             assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
             order=agent.action_to_order(action=(event, size))
             agent.submitorder(order)
-        #While there are still items in the queue or time limit is not up yet and simulation has started, process a message.
-        while (self.current_time<self.stop_time) and (self.nearest_action_time<self.stop_time):  
-            if self.head<len(self.queue):
+        #While there are still items in the queue, process them. And if there are no items in the queue left and time limit is not up yet, generate the next point.
+        while (self.current_time<self.stop_time):
+            logger.debug(f"Nearest Action time: {self.nearest_action_time}")
+            logger.debug(f"Agent current times: {self.agents_current_times}")
+            if self.head>=len(self.queue):
+                timelimit=min(self.nearest_action_time, self.stop_time)
+                rtn=self.exchange.nextarrival(timelimit=timelimit)
+                if rtn==None and self.exchange.Arrival_model.s>=self.nearest_action_time:
+                    self.current_time=self.nearest_action_time
+                    recipientIDs=[agent.id for agent in self.gymagents if self.agents_current_times[agent.id]==self.current_time]
+                    logger.debug(f"\nrecipientIDs for empty queue: {recipientIDs}")
+                    message=BeginTradingMsg(time=self.current_time)
+                    self.sendbatchmessage(current_time=self.current_time, senderID=-1, recipientIDs=recipientIDs, message=message)
+                else:
+                    pass
+            while (self.head<len(self.queue)):  
                 item=self.queue[self.head]
                 self.head+=1
                 if self.isbatchmessage(item=item):
                     interrupt=self.processbatchmessage(item=item)
-                    print(interrupt)
+                    logger.debug(f"Kernel Interrupt: {interrupt}")
                     if all([v is None for k,v in interrupt.items()]):
                         print("true")
                         pass
                     else:
-                        print("exiting kernel run batch")
-                        done=True if all(self.isterminated()) or self.istruncated() else False
+                        print("exiting kernel run batch \n")
+                        done=True if len(self.isterminated())==len(self.agents) or self.istruncated() else False
                         return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
                 else:
                     interrupt=self.processmessage(item=item)
                     if interrupt is not None:
                         print("exiting kernel run")
-                        done=True if all(self.isterminated()) or self.istruncated else False
+                        done=True if len(self.isterminated())==len(self.agents) or self.istruncated() else False
                         return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo(interrupt)}
-            print(f"Nearest action time is: {self.nearest_action_time}")
-            rtn=self.exchange.nextarrival(timelimit=self.nearest_action_time)
-        
-        if self.head==len(self.queue) and self.nearest_action_time>self.stop_time:
-            logger.debug("---Kernel Message queue empty ---")
         if self.current_time and (self.current_time > self.stop_time):
             logger.debug("---Kernel Stop Time surpassed---")
-        done=True if all(self.isterminated()) or self.istruncated else False
+        done=True if len(self.isterminated())==len(self.agents) or self.istruncated() else False
         return {"Done": done, "TimeCode": self.current_time, "Infos": self.getinfo()}   
 
     
@@ -240,12 +236,12 @@ class Kernel:
     def sendbatchmessage(self, current_time: float, senderID: int , recipientIDs: int, message: Message, delay: int=0):
         
         if senderID in self.entity_registry.keys():
-            sender=self.entity_registry[senderID]
+            pass
         elif senderID==-1:
             pass
         else:
             raise KeyError(f"{senderID} is not a valid entity")
-              
+        assert len(recipientIDs)>0, "RecipientIDs expecting list of length>0 for batchmessage"      
         for recipientID in recipientIDs:
             if  recipientID in self.entity_registry.keys():
                 pass
@@ -261,7 +257,9 @@ class Kernel:
         recipientID=item[1][1]
         senderID=item[1][0]
         timesent=item[0]
-        logger.debug(f"Processing {type(message).__name__}message with ID {message.message_id} from sender {senderID}")
+        logger.debug(f"Processing {type(message).__name__} message with ID {message.message_id} from sender {senderID}")
+        print(f"\nCURRENT TIME: {self.current_time}, TIMESENT: {timesent}\n")
+        assert self.current_time<=timesent, "Timing error in message"
         if isinstance(message, ExchangeMsg):
             self.current_time=timesent
             if isinstance(message, PartialOrderFill):
@@ -275,7 +273,7 @@ class Kernel:
                 if recipientID==-1 or recipientID==self.exchange.id:
                     raise UnexpectedMessageType("Autocancel Messages should not be generated for random non-agent orders")
                 else:
-                    self.entity_registry[recipientID].receivemessage(current_time=self.self.current_time, senderID=senderID, message=message)
+                    self.entity_registry[recipientID].receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, OrderExecutedMsg):
                 #tells an agent that a previously placed limit order has been executed
                 if recipientID==-1 or senderID!=self.exchange.id:
@@ -283,7 +281,11 @@ class Kernel:
                 agent: TradingAgent=self.entity_registry[recipientID]
                 self.agents_current_times[recipientID]=timesent
                 agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
-                
+            elif isinstance(message, LimitOrderAcceptedMsg):
+                assert recipientID!=-1, f"LimitOrderAcceptedMessages should not be sent to agents with ID=-1"
+                assert isinstance(message.order, LimitOrder), "LimitOrderAcceptedMsg expects an order object of type LimitOrder"
+                agent: TradingAgent=self.entity_registry[recipientID]
+                agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
                 if recipientID==-1 or recipientID==self.exchange.id:
@@ -304,7 +306,7 @@ class Kernel:
                 #SHOULD NEVER HAPPEN
                 raise UnexpectedMessageType(f"Unexpected message type received")
                 pass
-                
+
         elif isinstance(message, AgentMsg):
             #Process orders from agents and set their wake-ups
             self.current_time=timesent
@@ -380,6 +382,7 @@ class Kernel:
             if agentID in self.entity_registry.keys():
                 self.agents_current_times[agentID]=requested_time
                 self.nearest_action_time=min(self.agents_current_times.values())
+                logger.debug(f"Agent current times when being set: {self.agents_current_times}")
                 logger.debug(f"Agent {agentID} wake-up time set to {requested_time}")
                 return True
             else:
@@ -432,7 +435,7 @@ class Kernel:
         return self.current_time>self.stop_time
     
     def isterminated(self):
-        return [agent.isterminated for agent in self.gymagents]
+        return [agent.id for agent in self.gymagents if agent.isterminated==True]
     
     def getobservations(self, agentID: int):
         rtn={"LOB0": self.exchange.lob0,

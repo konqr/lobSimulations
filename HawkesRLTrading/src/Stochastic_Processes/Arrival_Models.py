@@ -63,7 +63,7 @@ class HawkesArrival(ArrivalModel):
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
             #logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
-            logger.info(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. Assuming default values")
+            logger.info(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. \nAssuming default values")
             params.update(missing_with_defaults)
         else:
             pass
@@ -284,6 +284,7 @@ class HawkesArrival(ArrivalModel):
         """simulate a point"""
         pointcount=0
         while self.s<T:
+            logger.debug(f"stuck in the loop -- s: {self.s}, T: {T}, lamb: {self.lamb}")
             """Assign lamb_bar"""
             lamb_bar=self.lamb 
             #print("lamb_bar: ", lamb_bar)
@@ -294,6 +295,7 @@ class HawkesArrival(ArrivalModel):
             else:
                 w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
                 self.s+=w  
+                logger.debug(f"Adding w={w} to s ")
             print(f"S: {self.s}")
             if(self.s>T):
                 return pointcount
@@ -367,6 +369,8 @@ class HawkesArrival(ArrivalModel):
                 self.timeseries.append((self.s, k)) #(time, event)
                 self.pointcount+=pointcount
                 return pointcount
+        if self.s>T and pointcount==0:
+            self.s=T
         return pointcount        
     def orderwrapper(self, time:float, k: int, size: int):
         """
@@ -385,8 +389,7 @@ class HawkesArrival(ArrivalModel):
         elif "co" in self.cols[k]:
             order_type="co"
         level=self.coltolevel[k]
-        return time, side, order_type, level, size
-        
+        return time, side, order_type, level, size      
     def orderunwrap(self, time:float, side: str, order_type: str, level: str, size: int):
         """Takes in information about an event from the exchange and wraps it into an event tuple of (s,k)"""
         s=time

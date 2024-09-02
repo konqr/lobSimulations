@@ -82,7 +82,7 @@ class Entity:
             sender: The entity that is sending the message
             message: An object guaranteed to inherit from the Message.Message class.
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, f"Kernel not linked to Entity: {self.id}"
         self.current_time=current_time
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} received: {}".format(self.current_time, self.id, message))

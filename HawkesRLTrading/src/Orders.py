@@ -25,7 +25,6 @@ class Order:
     @classmethod
     def _get_order_by_id(cls, id: int) -> Optional['Order']:
         return cls._orders.get(id)
-    
 @dataclass
 class LimitOrder(Order):
     price: float=0

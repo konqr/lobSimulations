@@ -34,14 +34,15 @@ class TradingAgent(Entity):
         action_freq: what is the time period betweeen an agent's actions in seconds
         on_trade: decides whether agent gets suscribed to new information every time a trade happens
         """
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False, cashlimit=1000000) -> None:
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
-        self.positions: Dict[str: List[Order]]={key: [] for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
+        self.positions: Dict[str: List[Order]]={key: {} for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
+        self.cashlimit=cashlimit
         self.cash=cash
         self.profit=0
         self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
@@ -73,6 +74,9 @@ class TradingAgent(Entity):
         
     def kernel_start(self, current_time: int=0) -> None:
         assert self.kernel is not None, f"Kernel not linked to TradingAgent: {self.id}"
+        assert self.exchange is not None, f"Exchange not linked to TradingAgent: {self.id}"
+        for key in self.exchange.levels:
+            self.positions[self.exchange.symbol][key]=[]
         wakeuptime=self.current_time + self.action_freq
         logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")
         self.set_wakeup(requested_time= wakeuptime)
@@ -136,6 +140,7 @@ class TradingAgent(Entity):
                     price=lob[level][0]
                 else:
                     price=lob[level][0]
+            price=np.round(price ,2)
             order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, price=price, _level=level)
             
         elif self.actions[k][0:2]=="mo":
@@ -143,19 +148,20 @@ class TradingAgent(Entity):
             level=self.actionsToLevels[self.actions[k]]
             order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, _level=level)
         else:
-            
+            logger.debug("GYM Agent is creating cancel order")
             #cancelorder
             level=self.actionsToLevels[self.actions[k]]
             if side=="Ask":
                 price=lob[level][0]
             else:
                 price=lob[level][0]
-            positions=[j for j in self.positions[self.exchange.symbol] if j.side==side and j.price==price]
+            positions=self.positions[self.exchange.symbol][level]
             if len(positions)==0:
                 raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
             else:
                 tocancel: LimitOrder=np.random.choice(positions)
-            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  event_type=k, cancelID=tocancel.order_id, _level=level)
+            price=np.round(price ,2)
+            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  price=price, cancelID=tocancel.order_id, _level=level)
         return order
     
     
@@ -168,10 +174,11 @@ class TradingAgent(Entity):
             sender: The object that send this message(can be the exchange, another agent or the kernel).
             message: An object guaranteed to inherit from the Message.Message class.
         """
-        assert self.kernel is not None, f"Kernel not linked to TradingAgent: {self.id}"
         assert message is not None, f"Trading Agent {self.id} received a blank message with ID{message.message_id}"
         self.current_time=current_time
+        super().receivemessage(current_time, senderID, message)
         #Check identity of the sender
+        logger.debug(f"Agent current state before processing msg: {self.statelog[-1]}\n")
         if isinstance(message, OrderExecutedMsg):
             #update agent state
             order=message.order
@@ -183,7 +190,6 @@ class TradingAgent(Entity):
                     self.cash-=order.total_value
                     self.Inventory[order.symbol]+=order.size
                     pass
-                
             elif isinstance(order, LimitOrder):
                 if order.side=="Ask":
                     self.Inventory[order.symbol]-=order.size
@@ -191,16 +197,30 @@ class TradingAgent(Entity):
                 else:
                     self.Inventory[order.symbol]+=order.size
                     self.cash-=order.price*order.size
-                self.positions[order.symbol].append(order)
+                #delete positions
+                if order.side=="Ask":
+                    levels=[j for j in self.exchange.levels if j[0:3]=="Ask"]
+                    for key in levels:
+                        self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
+                else:
+                    levels=[j for j in self.exchange.levels if j[0:3]=="Bid"]
+                    for key in levels:
+                        self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
             elif isinstance(order, CancelOrder):
-                self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
-            else:
-                raise UnexpectedMessageType(f"Agent {self.id} received uenxpected message type from Exchange {self.id}")
-                pass
+                assert order.agent_id!=-1, f"Non-exiting entities of ID -1 should not be receiving CancelOrderExecutedMsg"
+                level=order._level
+                rtn=[j for j in self.positions[order.symbol][level] if j.order_id!=order.cancelID]
+                self.positions[order.symbol][level]=rtn
             self.profit=self.cash-self.statelog[0][1]
             self.updatestatelog()
+            print(f"Statelog: {self.statelog[-1]}")
             if self.cash<0:
                 self.isterminated=True
+        elif isinstance(message, LimitOrderAcceptedMsg):
+                level=self.exchange.getlevel(price=message.order.price)
+                print(f"Level of limit Order is: {level} ")
+                self.positions[message.order.symbol][level]=[message.order]
+                logger.debug(f"Agent new state: {self.statelog[-1]}")
         elif isinstance(message, WakeAgentMsg):
             
             action=self.get_action()
@@ -221,11 +241,18 @@ class TradingAgent(Entity):
             self.profit=self.cash-self.statelog[0][1]
             self.updatestatelog()
         elif isinstance(message, OrderAutoCancelledMsg):
-            self.positions[order.symbol]=[j for j in self.positions[order.symbol] if j.id!=order.cancelID]
+            order=message.order
+            if order.side=="Ask":
+                    levels=[j for j in self.exchange.levels if j[0:3]=="Ask"]
+                    for key in levels:
+                        self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
+            else:
+                levels=[j for j in self.exchange.levels if j[0:3]=="Bid"]
+                for key in levels:
+                    self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        super().receivemessage(current_time, senderID, message)
-        if self.cash<0 or self.countInventory()<=0 or self.cash>100000 or self.countInventory()>10000:
+        if self.cash<0 or self.countInventory()<=0 or self.cash>self.cashlimit or self.countInventory()>10000:
             self.isterminated=True
         
     def wakeup(self, current_time: int) -> None:
