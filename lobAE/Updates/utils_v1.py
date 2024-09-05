@@ -27,10 +27,21 @@ def read_data(dataPath):
     data['Position'] = data['Position'].apply(ast.literal_eval)
     return data
 
+def data_init():
+    dataPath = '/Users/sw/Working Space/Python/nmdp_rl/data/dataset_with_percentile/'
+    file_list = sorted(os.listdir(dataPath))
+    file_list = file_list[1:61]
+    data  = pd.DataFrame()
+    for file in tqdm(file_list):
+        item_path = os.path.join(dataPath, file)
+        data_intraday = read_data(item_path)
+        data = pd.concat((data,data_intraday),axis=0)
+    return data
+
 def prepare_data(data, max_positions=16):
     # Standardization
     data[['A2P', 'A1P', 'B1P', 'B2P', 'Price']] = data[['A2P', 'A1P', 'B1P', 'B2P', 'Price']] / 1e4
-    data[['A2V', 'A1V', 'B1V', 'B2V', 'Volume']] = np.log(data[['A2V', 'A1V', 'B1V', 'B2V', 'Volume']])
+    data[['A2V', 'A1V', 'B1V', 'B2V', 'Volume']] = np.log(data[['A2V', 'A1V', 'B1V', 'B2V', 'Volume']] + 1)  # in case of 0 and maintain positive values
     
     # lob_cols = ['A2P', 'A2V', 'A1P', 'A1V', 'B1P', 'B1V', 'B2P', 'B2V']
     lob_cols = ['A2P', 'A1P', 'B1P', 'B2P', 'A2V', 'A1V', 'B1V', 'B2V']
@@ -45,7 +56,7 @@ def prepare_data(data, max_positions=16):
             else:
                 pos_array = np.array(list(pos.values()), dtype=float)
                 pos_array[:, 0] /= 1e4  # Scale prices
-                pos_array[:, 1] = np.log(pos_array[:, 1])
+                pos_array[:, 1] = np.log(pos_array[:, 1] + 1)
                 pos_array[:, 2] = pos_array[:, 3]
                 pos_array[:, 2] = np.log(pos_array[:, 2] + 1)
                 pos_array = pos_array[:, :-1]
