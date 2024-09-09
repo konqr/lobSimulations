@@ -287,10 +287,10 @@ class dataLoader():
                 co_deep['event'] = "co_deep_" + side
                 lo_inspread = lo.loc[((lo['BidDiff'] > 0)|(lo['AskDiff'] < 0))]
                 lo_inspread['event'] = "lo_inspread_" + side
-                lo_top = lo.loc[(lo.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1))]
+                lo_top = lo.loc[(lo.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 2'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 2'] - 1e-3), axis=1))]
                 lo_top = lo_top.loc[lo_top[side+"Diff"]==0]
                 lo_top['event'] = "lo_top_" + side
-                co_top = co.loc[(co.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 1'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 1'] - 1e-3), axis=1))]
+                co_top = co.loc[(co.apply(lambda x: (x["Price"]/10000 <= x['Ask Price 2'] + 1e-3) and (x["Price"]/10000 >= x['Bid Price 2'] - 1e-3), axis=1))]
                 co_top['event'] = "co_top_" + side
                 mo = df.loc[(df.Type.apply(lambda x: x in orderTypeDict['market']))&(df.TradeDirection == s)]
                 mo['event'] = 'mo_' + side
