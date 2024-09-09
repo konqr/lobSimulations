@@ -156,7 +156,6 @@ def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps
         D=np.random.uniform(0, 1)
         #print("Candidate D: ", D)
         if D*lamb_bar<=lamb:
-            print(f"S is: {s}")
             """Accepted so assign candidate point to a process by a ratio of intensities"""
             k=0
             total=decays[k]
@@ -380,7 +379,6 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
     trials=1
     left=None
     thinningtime=0
-    print("POST INIT Snapshot LOB0: " + str(lob0))
     while s <= T:
         start=time.perf_counter_ns()
         s, n, timestamps, tau, lamb, timeseries, left=thinningOgataIS2(T, params, tod, num_nodes=num_nodes, maxJumps = 1, s = s, n = n, Ts = timestamps, timeseries=timeseries, spread=spread, beta = beta, avgSpread = avgSpread,lamb= lamb, left=left)
