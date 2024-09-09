@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, List
+
 @dataclass
 class Message:
     """The base message class is responsible for delivering messages between the orderbook, trading agents, and the kernel. The post_init method here implements an autoincrementing counter of messages"""
@@ -29,4 +30,6 @@ class Message:
     def messagetype(self) -> str:
         return self.__class__.__name__
 
-    
+if __name__=="__main__":
+    rtn=Message()
+    print("Class " + type(rtn).__name__ + " compiled.")

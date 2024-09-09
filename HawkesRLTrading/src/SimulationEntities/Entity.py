@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, ClassVar
 import pandas as pd
 import logging
-from RLenv.Messages.Message import Message
+from HawkesRLTrading.src.Messages.Message import Message
 
 logger = logging.getLogger(__name__)
 class Entity:
@@ -25,8 +25,9 @@ class Entity:
     _entity_counter: ClassVar[int]=1
     _registry={}
     def __init__(self, type: str = None, seed=1, log_events: bool = True, log_to_file: bool = False) -> None:
-        self.id=self.__class__._entity_counter
-        type(self)._entity_counter+=1
+        print("Current CLass ID: " + str(self.__class__._entity_counter))
+        self.id=Entity._entity_counter
+        Entity._entity_counter+=1
         self.type=type
         self.name="Entity"+str(self.id)+"_"+str(self.type)
         self.log_events=log_events
@@ -51,25 +52,24 @@ class Entity:
     def get_entity_by_id(cls, ID: int):
         return cls._registry.get(ID)   
     
-    
     """Methods for communication with the exchange, kernel, or other entities"""
     def sendmessage(self, recipientID: int, message: Message) -> None:
         """
         Sends a message to a specific recipient. If the recipient is -1 then it is aimed at the kernel
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, f"Kernel not linked to {type(self).__name__} {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("At {}, entity {} sent: {} to entity {}".format(self.current_time, self.id, message, recipientID))
-        self.kernel.sendmessage(self.id, recipientID, message)
+            logger.debug(f"At {self.current_time}, {type(self).__name__} {self.id} sent: {message} to {type(Entity.get_entity_by_id(recipientID)).__name__} {recipientID}")
+        self.kernel.sendmessage(self.current_time, senderID=self.id, recipientID=recipientID, message=message)
         
     def sendbatchmessage(self, recipientIDs: List[int], message: Message) -> None:
         """
         Sends a batch message to multiple recipients at the same time
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, f"Kernel not linked to {type(self).__name__} {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("At {}, entity {} sent: {} to entities {}".format(self.current_time, self.id, message))
-        self.kernel.sendbatchmessage(self.id, recipientIDs, message)
+            logger.debug("At {}, entity {} sent batch message: {} to entities {}".format(self.current_time, self.id, message, recipientIDs))
+        self.kernel.sendbatchmessage(self.current_time, self.id, recipientIDs, message)
             
         
         
@@ -82,13 +82,13 @@ class Entity:
             sender: The entity that is sending the message
             message: An object guaranteed to inherit from the Message.Message class.
         """
-        assert self.kernel is not None
+        assert self.kernel is not None, f"Kernel not linked to Entity: {self.id}"
         self.current_time=current_time
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} received: {}".format(self.current_time, self.id, message))
         
         
-    def wakeup(self, current_time: int) -> None:
+    def wakeup(self, current_time: float, delay: float=0) -> None:
         """
         Entities can request a wakeup call at a future simulation time using
         the Entity.set_wakeup(time) method
@@ -102,21 +102,24 @@ class Entity:
 
         assert self.kernel is not None
 
-        self.current_time = current_time
+        self.current_time = current_time+delay
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
                 "At {}, entity {} received wakeup.".format(
-                    current_time, self.id
+                    self.current_time, self.id
                 )
             )
     
     def set_wakeup(self, requested_time: float) -> None:
         """
         Called to receive a future call from the kernel at the point of requested_time
+        Returns:
+            True - if a new wakeup time was set
+            False - if the new wakeuptime is beyond simulation limits
         """
-        assert self.kernel is not None
-        self.kernel.set_wakeup(self.id, requested_time)
+        assert self.kernel is not None, f"Kernel is not linked to Entity {self.id}"
+        return self.kernel.set_wakeup(self.id, requested_time)
     
            
     """Book-keeping Methods for Internal use"""   
@@ -142,10 +145,7 @@ class Entity:
         self.kernel.write_log(self.id, df_log, filename)
     
     
-          
-    @abstractmethod        
-    def update_state(self): #update internal state 
-        pass
+
     @abstractmethod
     def reset(self):
         pass

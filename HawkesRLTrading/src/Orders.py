@@ -11,6 +11,7 @@ class Order:
     filled: Optional[bool] = False
     cancelled: Optional[bool]=False
     fill_time: Optional[int] = None
+    cancel_time: Optional[int]=None
     _level: str=None #private method for internal use
     _order_id_counter: ClassVar[int]=1
     _orders: ClassVar[Dict[int, "Order"]]={}
@@ -19,12 +20,11 @@ class Order:
         Order._order_id_counter+=1
         Order._orders[self.order_id]=self
     def ordertype(self) -> str:
-        return self.__class.__name__
+        return str(self.__class__.__name__)
     
     @classmethod
     def _get_order_by_id(cls, id: int) -> Optional['Order']:
         return cls._orders.get(id)
-    
 @dataclass
 class LimitOrder(Order):
     price: float=0
@@ -35,5 +35,6 @@ class MarketOrder(Order):
     pass
 @dataclass
 class CancelOrder(Order):
+    price: int=0
     cancelID: int=0
 

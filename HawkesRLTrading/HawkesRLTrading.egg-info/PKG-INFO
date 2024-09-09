@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: HawkesRLTrading
+Version: 0.0.0
+Summary: HawkesRLTrading: An entity-based discrete event reinforcement-learning simulation environment for equities trading
+Home-page: https://github.com/tkwang657/lobSimulationsHawkes
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+Installation Guide
+
+Usage Guide:
+
+Test Script available 
