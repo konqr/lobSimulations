@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 import copy
 import matplotlib.pyplot as plt
 
-from data.dataLoader import dataLoader
+from src.data.dataLoader import dataLoader
 
 class ParametricFit():
 

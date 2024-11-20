@@ -198,7 +198,7 @@ def thinningOgataIS2(T, params, tod, kernel = 'powerlaw', num_nodes=12, maxJumps
                 return s, n, Ts, tau, lamb, timeseries, left
     return s, n, Ts, -1, lamb, timeseries, left
 
-def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
+def simulate_optimized(T , paramsPath , todPath, verbose = False, s0 = None, filePathName = None, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params
@@ -364,12 +364,12 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
         s = s0
     Ts,lob,lobL3 = [],[],[]
     _, lob0, lob0_l3 = createLOB({}, {}, Pi_Q0, priceMid0 = price0, spread0 = spread0, ticksize = 0.01, numOrdersPerLevel = 5, lob0 = {}, lob0_l3 = {})
-    #print("The initial LOB: lob0", lob0, "lob0_l3", lob0_l3)
+    if verbose: print("The initial LOB: lob0", lob0, "lob0_l3", lob0_l3)
     Ts.append(0)
     lob.append(lob0[-1])
     lobL3.append(lob0_l3[-1])
     spread = lob0[0]['Ask_touch'][0] - lob0[0]['Bid_touch'][0]
-    #print("initial spread: ", spread, "\n")
+    if verbose: print("initial spread: ", spread, "\n")
     n = None
     timestamps = None
     timeseries=None
@@ -417,7 +417,7 @@ def simulate_optimized(T , paramsPath , todPath, s0 = None, filePathName = None,
         spread = lobTmp[-1]['Ask_touch'][0] - lobTmp[-1]['Bid_touch'][0]
         lob0 = lobTmp[-1]
         lob0_l3 = lobL3Tmp[-1]
-        #print("Snapshot LOB0: ", lob0, "\n")
+        if verbose: print("Snapshot LOB : ", lob0, "\n")
         if len(list(dictTimestamps.keys())):
             Ts.append([list(dictTimestamps.keys())[0], TsTmp[-1], tau])
             lob.append(lob0)
