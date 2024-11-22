@@ -162,7 +162,6 @@ class tradingEnv(gym.Env):
         return self.kernel.entity_registry[ID]
 
 if __name__=="__main__":
-    print("compiles")
     kwargs={
                 "TradingAgent": [],
                 "GymTradingAgent": [{"cash": 10000, 
@@ -187,12 +186,13 @@ if __name__=="__main__":
                                             "Pi_Q0": None}}
 
             }
-    env=tradingEnv(stop_time=300, seed=11, **kwargs)
+    
+    env=tradingEnv(stop_time=300, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
-    while Simstate["Done"]==False and termination!=True and i<10:
+    while Simstate["Done"]==False and termination!=True and i<100:
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
