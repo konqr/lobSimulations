@@ -11,7 +11,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--model_name", type=str, default="simulation-hawkes", help="Model name")
 parser.add_argument("--kernel_type", type=str, default="exp", help="Kernel type", choices=['powerlaw', 'exp'])
-parser.add_argument("--seed", type=int, default=2, help="Random seed")
+parser.add_argument("--seed", type=int, default=2294, help="Random seed")
 parser.add_argument("--n_sims", type=int, default=10, help="Number of simulations")
 parser.add_argument("--T", type=int, default=100, help="Time horizon")
 parser.add_argument("--inputs_path", type=str, default=os.path.join(file_source, 'data', 'inputs'), help="Inputs path")
@@ -49,11 +49,11 @@ if __name__ == '__main__':
             faketod[k][k1] = 1.0
 
     # check if dir exists
-    if not os.path.exists(os.path.join(args.inputs_path, model_name)):
-        os.makedirs(os.path.join(args.inputs_path, model_name))
+    if not os.path.exists(os.path.join(args.inputs_path, model_name, kernel_type)):
+        os.makedirs(os.path.join(args.inputs_path, model_name, kernel_type))
 
     # save the fake data
-    with open(os.path.join(args.inputs_path, model_name, "fakeData_Params_sod_eod_dictTOD_constt"), "wb") as f:
+    with open(os.path.join(args.inputs_path, model_name, kernel_type, "fakeData_Params_sod_eod_dictTOD_constt"), "wb") as f:
         pickle.dump(faketod, f)
 
     # Create fake power law kernel params from the above norm matrix
@@ -88,16 +88,16 @@ if __name__ == '__main__':
             elif kernel_type == 'exp':
                 mat[i][j] = kernelParams[0]*kernelParams[1][0]/kernelParams[1][1]
 
-    with open(os.path.join(args.inputs_path, model_name, "fake_ParamsInferredWCutoff_sod_eod_true"), "wb") as f:
+    with open(os.path.join(args.inputs_path, model_name, kernel_type, "fake_ParamsInferredWCutoff_sod_eod_true"), "wb") as f:
         pickle.dump(paramsFake, f)
 
-    paramsPath = os.path.join(args.inputs_path, model_name, "fake_ParamsInferredWCutoff_sod_eod_true")
-    todPath = os.path.join(args.inputs_path, model_name, "fakeData_Params_sod_eod_dictTOD_constt")
+    paramsPath = os.path.join(args.inputs_path, model_name, kernel_type, "fake_ParamsInferredWCutoff_sod_eod_true")
+    todPath = os.path.join(args.inputs_path, model_name, kernel_type, "fakeData_Params_sod_eod_dictTOD_constt")
     simulate = Simulate()
 
     # check if dir exists
-    if not os.path.exists(os.path.join(args.outputs_path, model_name)):
-        os.makedirs(os.path.join(args.outputs_path, model_name))
+    if not os.path.exists(os.path.join(args.outputs_path, model_name, kernel_type)):
+        os.makedirs(os.path.join(args.outputs_path, model_name, kernel_type))
 
     #### WARNING: THIS PIECE OF CODE TAKES A LONG TIME ####
     for i in range(n_sims):
@@ -114,15 +114,16 @@ if __name__ == '__main__':
         if len(pd.DataFrame(Ts[1:])[0].unique()) != len(cols):
             raise ValueError(f"Some columns are missing in the data 'T' for id = {i}")
         
-        fakeSimPath = os.path.join(args.outputs_path, model_name, f"fake_simulated_sod_eod_{i}")
+        fakeSimPath = os.path.join(args.outputs_path, model_name, kernel_type, f"fake_simulated_sod_eod_{i}")
 
         with open(fakeSimPath, "wb") as f:
             pickle.dump((Ts, lob, lobL3), f)
 
     # save as 12D 
-    paths = [i for i in os.listdir(os.path.join(os.path.join(args.outputs_path, model_name))) if ("fake_simulated" in i)]
+    list_of_dirs = os.listdir(os.path.join(os.path.join(args.outputs_path, model_name, kernel_type)))
+    paths = [i for i in list_of_dirs if ("fake_simulated" in i)]
     for p in paths:
-        resPath = os.path.join(args.outputs_path, model_name, p)
+        resPath = os.path.join(args.outputs_path, model_name, kernel_type, p)
         with open(resPath, 'rb') as f:
             results = pickle.load(f)
         
@@ -146,4 +147,4 @@ if __name__ == '__main__':
         df['AskDiff2']= df['Ask Price 2'].diff()
         id = (resPath.split("/")[-1]).split("_")[-1]
         df["Date"] = id
-        df.to_csv(os.path.join(args.outputs_path, model_name, f"fake_{id}_12D.csv"))
+        df.to_csv(os.path.join(args.outputs_path, model_name, kernel_type, f"fake_{id}_12D.csv"))
