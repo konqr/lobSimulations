@@ -1,4 +1,4 @@
-src/data/inputs/*
+src/data/inputs/simulation-hawkes/*
 src/data/outputs/*
 
 /venv/
@@ -9,7 +9,7 @@ src/data/outputs/*
 *.pyc
 
 # vscode
-.DS_Store
+*.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
