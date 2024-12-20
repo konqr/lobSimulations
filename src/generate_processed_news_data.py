@@ -15,8 +15,12 @@ years_data = []
 for year in tqdm(years, total=len(years), desc=f'Loading Sentiment Data for {NEWS_VENUE} Venue...'):
     files = os.listdir(os.path.join(target_path, year))
 
+    if year == 'processed':
+        continue
+
     moths_data = []
     for file in files:
+
         data = pd.read_csv(os.path.join(target_path, year, file))
 
         # select necessary columns for the analysis
@@ -40,9 +44,13 @@ for year in tqdm(years, total=len(years), desc=f'Loading Sentiment Data for {NEW
                             'negative_sentiment': float(row['sentiment'].split(', ')[0].split(": ")[-1].replace('}', '')),
                             'neutral_sentiment': float(row['sentiment'].split(', ')[1].split(": ")[-1].replace('}', '')),
                             'positive_sentiment': float(row['sentiment'].split(', ')[2].split(": ")[-1].replace('}', '')),
-                            'negative_emotion': float(row['emotion'].split(', ')[0].split(": ")[-1].replace('}', '')),
-                            'neutral_emotion': float(row['emotion'].split(', ')[1].split(": ")[-1].replace('}', '')),
-                            'positive_emotion': float(row['emotion'].split(', ')[2].split(": ")[-1].replace('}', '')) 
+                            'neutral_emotion': float(row['emotion'].split(', ')[0].split(": ")[-1].replace('}', '')),
+                            'surprise_emotion': float(row['emotion'].split(', ')[1].split(": ")[-1].replace('}', '')),
+                            'sadness_emotion': float(row['emotion'].split(', ')[2].split(": ")[-1].replace('}', '')),
+                            'joy_emotion': float(row['emotion'].split(', ')[3].split(": ")[-1].replace('}', '')),
+                            'anger_emotion': float(row['emotion'].split(', ')[4].split(": ")[-1].replace('}', '')),
+                            'disgust_emotion': float(row['emotion'].split(', ')[5].split(": ")[-1].replace('}', '')),
+                            'fear_emotion': float(row['emotion'].split(', ')[6].split(": ")[-1].replace('}', '')),
                         }
                     ]
                 ))
@@ -54,9 +62,9 @@ sentiment_data = pd.concat(years_data, axis=0)
 sentiment_data['venue'] = NEWS_VENUE
 
 cols_order = [
-       'date_publish', 'venue', 'company', 'dummy', 'negative_sentiment',
-       'neutral_sentiment', 'positive_sentiment', 'negative_emotion',
-       'neutral_emotion', 'positive_emotion'
+       'date_publish', 'venue', 'company', 'dummy', 
+       'negative_sentiment', 'neutral_sentiment', 'positive_sentiment', 
+       'neutral_emotion', 'surprise_emotion', 'sadness_emotion', 'joy_emotion', 'anger_emotion', 'disgust_emotion', 'fear_emotion'
 ]
 
 output_path = os.path.join(os.path.dirname(__file__), 'data', 'inputs', DS_NAME, NEWS_VENUE, 'processed')
