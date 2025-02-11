@@ -1,9 +1,7 @@
-import gymnasium as gym 
-from gymnasium.spaces import *
+import gymnasium as gym
 import numpy as np
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 import logging
-from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
@@ -187,12 +185,12 @@ if __name__=="__main__":
 
             }
     
-    env=tradingEnv(stop_time=300, seed=1, **kwargs)
+    env=tradingEnv(stop_time=3000, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
-    while Simstate["Done"]==False and termination!=True and i<100:
+    while Simstate["Done"]==False and termination!=True:
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
