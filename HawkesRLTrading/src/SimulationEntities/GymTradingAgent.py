@@ -37,6 +37,11 @@ class RandomGymTradingAgent(GymTradingAgent):
         
         action=np.random.choice(range(13))
         size=np.random.choice([50,75,100,125])
+        if action in [1,3,8,10]: # cancels
+            a = self.actions[action]
+            lvl = self.actionsToLevels[a]
+            if len(data['Positions'][lvl]) == 0: #no position to cancel
+                return self.get_action(data) # retry
         return action, size
     
     
