@@ -25,7 +25,6 @@ class Entity:
     _entity_counter: ClassVar[int]=1
     _registry={}
     def __init__(self, type: str = None, seed=1, log_events: bool = True, log_to_file: bool = False) -> None:
-        print("Current CLass ID: " + str(self.__class__._entity_counter))
         self.id=Entity._entity_counter
         Entity._entity_counter+=1
         self.type=type
