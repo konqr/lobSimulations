@@ -134,6 +134,9 @@ class Kernel:
                 rtn=self.exchange.nextarrival(timelimit=timelimit)
                 if rtn==None and self.exchange.Arrival_model.s>=self.nearest_action_time:
                     self.current_time=self.nearest_action_time
+                    if not self.isrunning:
+                        self.current_time = self.stop_time + 1 #random increase in current time to get correct final exit
+                        break # exit condition
                     recipientIDs=[agent.id for agent in self.gymagents if self.agents_current_times[agent.id]==self.current_time]
                     logger.debug(f"\nrecipientIDs for empty queue: {recipientIDs}")
                     message=BeginTradingMsg(time=self.current_time)
@@ -387,6 +390,7 @@ class Kernel:
             False - if the new wakeuptime is beyond simulation limits
         """
         if requested_time>self.stop_time:
+            self.isrunning = False #terminate
             return False
         agent = TradingAgent.get_entity_by_id(agentID)
         if agent:
@@ -403,7 +407,7 @@ class Kernel:
             raise KeyError(f"No agent exists with ID {agentID}")       
         
         
-    def wakeup(self, agentID: int, delay=0.000001) -> None:
+    def wakeup(self, agentID: int, delay=0) -> None:
         #Wake a specific agent up
 
 

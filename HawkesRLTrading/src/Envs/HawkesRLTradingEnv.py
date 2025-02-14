@@ -162,13 +162,13 @@ class tradingEnv(gym.Env):
 if __name__=="__main__":
     kwargs={
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 10000, 
+                "GymTradingAgent": [{"cash": 1000000,
                                     "strategy": "Random",
-                                    "action_freq": 2,
+                                    "action_freq": .2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
                                     "log_to_file": True,
-                                    "cashlimit": 1000000}],
+                                    "cashlimit": 100000000}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -185,7 +185,7 @@ if __name__=="__main__":
 
             }
     
-    env=tradingEnv(stop_time=3000, seed=1, **kwargs)
+    env=tradingEnv(stop_time=100, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")

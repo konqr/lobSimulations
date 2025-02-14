@@ -309,7 +309,7 @@ class HawkesArrival(ArrivalModel):
             else:
                 while self.left<len(self.timeseries):
                     #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
-                    if self.s-self.timeseries[self.left][0]>=10:
+                    if self.s-self.timeseries[self.left][0]>=500:
                         self.left+=1 
                     else:
                         break
@@ -367,6 +367,8 @@ class HawkesArrival(ArrivalModel):
                 tau = decays[k][0]
                 self.n[k]+=1
                 self.timeseries.append((self.s, k)) #(time, event)
+                if self.timeseries[-1][0] - self.timeseries[0][0] > 600: # purge too big timeseries
+                    self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
                 self.pointcount+=pointcount
                 return pointcount
         if self.s>T and pointcount==0:

@@ -570,7 +570,7 @@ class Exchange(Entity):
 
         if len(self.bids[self.bidprices["Bid_L1"]])==0:
             del self.bids[self.bidprices["Bid_L1"]]
-            self.bidprices["Ask_L1"]=self.bidprices["Bid_L2"]
+            self.bidprices["Bid_L1"]=self.bidprices["Bid_L2"]
             self.bidprices["Bid_L2"]=np.round(self.bidprices["Bid_L1"]-self.ticksize, 2)
             self.bids[self.bidprices["Bid_L2"]]=self.generate_orders_in_queue(loblevel="Bid_L2")
             self.bidprice=[self.bidprices["Bid_L1"]]
