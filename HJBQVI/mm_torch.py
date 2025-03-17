@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import DGMTorch as DGM
+from DGMTorch import TrainingLogger, ModelManager
 import torch.nn as nn
 import torch.optim as optim
 
@@ -713,13 +714,24 @@ class MarketMaking():
 
             print(f'Model d loss: {train_loss_d:0.4f}')
 
-        return model_phi, model_d, model_u
+        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u
 
-    def train(self):
+    def train(self, continue_training=False, checkpoint_frequency=50, layer_widths = [20]*3, n_layers= [5]*3, log_dir = './logs', model_dir = './models'):
+        # Initialize logger and model manager
+        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, model_dir = model_dir)
+        model_manager = ModelManager()
+
         # Create models
-        model_phi = DGM.DGMNet(20, 5, 11)
-        model_u = DGM.PIANet(20, 5, 11, 10)
-        model_d = DGM.PIANet(20, 5, 11, 2)
+        model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11)
+        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10)
+        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2)
+
+        # Load existing models if continuing training
+        if continue_training:
+            loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u)
+            if loaded_phi is not None:
+                model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
+                print("Resuming training from previously saved models")
 
         # Learning rate scheduler
         def lr_lambda(epoch):
@@ -734,13 +746,38 @@ class MarketMaking():
         scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
         scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
 
+        # Training loop
         for epoch in range(self.EPOCHS):
-            model_phi, model_d, model_u = self.train_step(model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u)
+            print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
+            model_phi, model_d, model_u, loss_phi, loss_d, loss_u = self.train_step(
+                model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u
+            )
+
+            # Log losses
+            logger.log_losses(loss_phi, loss_d, loss_u)
+
+            # Save checkpoint at specified frequency
+            if (epoch + 1) % checkpoint_frequency == 0:
+                print(f"Saving checkpoint at epoch {epoch+1}")
+                model_manager.save_models(model_phi, model_d, model_u, epoch=epoch+1)
+                # Save and plot losses
+                logger.save_logs()
+                logger.plot_losses(show=True, save=True)
+
+            # Step learning rate schedulers
             scheduler_phi.step()
             scheduler_u.step()
             scheduler_d.step()
 
+            # Print epoch summary
+            print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
+
+        # Save final model
+        model_manager.save_models(model_phi, model_d, model_u)
+
+        print("Training completed. Models saved and losses plotted.")
+
         return model_phi, model_d, model_u
 
-MM = MarketMaking(num_points=10000)
-MM.train()
+MM = MarketMaking(num_epochs=2000, num_points=100000)
+MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', layer_widths = [200]*3, n_layers= [5]*3)

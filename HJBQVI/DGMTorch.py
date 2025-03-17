@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
+import os
+import json
+from datetime import datetime
 
 class LSTMLayer(nn.Module):
     def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
@@ -233,3 +237,146 @@ class PIANet(nn.Module):
         op = op.reshape(op.shape[0], 1).float()
 
         return op, result
+
+# Helper class for loss tracking and visualization
+class TrainingLogger:
+    def __init__(self, log_dir='./logs', layer_widths = [20]*3, n_layers= [5]*3):
+        self.log_dir = log_dir
+        os.makedirs(log_dir, exist_ok=True)
+        self.hyperparams = {'layer_widths': layer_widths,
+                            'n_layers': n_layers}
+        # Initialize loss dictionaries
+        self.losses = {
+            'hyperparams' : self.hyperparams,
+            'phi': [],
+            'd': [],
+            'u': []
+        }
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def log_losses(self, phi_loss, d_loss, u_loss):
+        """Log losses for each epoch"""
+        self.losses['phi'].append(phi_loss)
+        self.losses['d'].append(d_loss)
+        self.losses['u'].append(u_loss)
+
+    def save_logs(self):
+        """Save logs to file"""
+        log_file = os.path.join(self.log_dir, f"training_logs_{self.timestamp}.json")
+        with open(log_file, 'w') as f:
+            json.dump(self.losses, f)
+        return log_file
+
+    def plot_losses(self, show=True, save=True):
+        """Plot the loss curves for all three networks"""
+        plt.figure(figsize=(12, 8))
+
+        epochs = range(1, len(self.losses['phi']) + 1)
+
+        plt.subplot(3, 1, 1)
+        plt.plot(epochs, self.losses['phi'], 'b-', label='Value Function (Phi)')
+        plt.title('Value Function Loss')
+        plt.ylabel('Loss')
+        plt.grid(True)
+
+        plt.subplot(3, 1, 2)
+        plt.plot(epochs, self.losses['u'], 'g-', label='Control Function (U)')
+        plt.title('Control Function Loss')
+        plt.ylabel('Loss')
+        plt.grid(True)
+
+        plt.subplot(3, 1, 3)
+        plt.plot(epochs, self.losses['d'], 'r-', label='Decision Function (D)')
+        plt.title('Decision Function Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.grid(True)
+
+        plt.tight_layout()
+
+        if save:
+            plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}.png")
+            plt.savefig(plot_file)
+            print(f"Loss plot saved to {plot_file}")
+
+        if show:
+            plt.show()
+
+        return plt.gcf()
+
+# Model management helper class
+class ModelManager:
+    def __init__(self, model_dir='./models'):
+        self.model_dir = model_dir
+        os.makedirs(model_dir, exist_ok=True)
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def save_models(self, model_phi, model_d, model_u, epoch=-1):
+        """Save models to files"""
+        # Create epoch-specific or final save
+        suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
+
+        # Save paths
+        phi_path = os.path.join(self.model_dir, f"model_phi{suffix}_{self.timestamp}.pt")
+        d_path = os.path.join(self.model_dir, f"model_d{suffix}_{self.timestamp}.pt")
+        u_path = os.path.join(self.model_dir, f"model_u{suffix}_{self.timestamp}.pt")
+
+        # Save model states
+        torch.save(model_phi.state_dict(), phi_path)
+        torch.save(model_d.state_dict(), d_path)
+        torch.save(model_u.state_dict(), u_path)
+
+        # Save model metadata
+        metadata = {
+            'timestamp': self.timestamp,
+            'epoch': epoch,
+            'models': {
+                'phi': phi_path,
+                'd': d_path,
+                'u': u_path
+            }
+        }
+
+        meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{self.timestamp}.json")
+        with open(meta_path, 'w') as f:
+            json.dump(metadata, f)
+
+        return metadata
+
+    def load_models(self, model_phi, model_d, model_u, timestamp=None, epoch=-1):
+        """Load models from files"""
+        # Find latest model if timestamp not provided
+        if timestamp is None:
+            # List all metadata files and find the latest one
+            meta_files = [f for f in os.listdir(self.model_dir) if f.startswith("model_metadata")]
+            if not meta_files:
+                print("No saved models found.")
+                return None, None, None
+
+            # Get the latest timestamp
+            meta_files.sort(reverse=True)
+            latest_meta = meta_files[0]
+            meta_path = os.path.join(self.model_dir, latest_meta)
+        else:
+            # Use specified timestamp
+            suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
+            meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{timestamp}.json")
+
+        # Load metadata
+        try:
+            with open(meta_path, 'r') as f:
+                metadata = json.load(f)
+
+            # Load model states
+            model_phi.load_state_dict(torch.load(metadata['models']['phi']))
+            model_d.load_state_dict(torch.load(metadata['models']['d']))
+            model_u.load_state_dict(torch.load(metadata['models']['u']))
+
+            print(f"Models loaded successfully from {meta_path}")
+            return model_phi, model_d, model_u
+        except FileNotFoundError:
+            print(f"Model files not found at {meta_path}")
+            return None, None, None
+        except Exception as e:
+            print(f"Error loading models: {e}")
+            return None, None, None
