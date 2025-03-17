@@ -274,11 +274,13 @@ class TrainingLogger:
         self.label = ''
         if label: self.label = str(label)
 
-    def log_losses(self, phi_loss, d_loss, u_loss):
+    def log_losses(self, phi_loss, d_loss, u_loss, acc_d, acc_u):
         """Log losses for each epoch"""
         self.losses['phi'].append(phi_loss)
         self.losses['d'].append(d_loss)
         self.losses['u'].append(u_loss)
+        self.losses['acc_d'].append(acc_d)
+        self.losses['acc_u'].append(acc_u)
 
     def save_logs(self):
         """Save logs to file"""
@@ -289,27 +291,39 @@ class TrainingLogger:
 
     def plot_losses(self, show=True, save=True):
         """Plot the loss curves for all three networks"""
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(12, 12))
 
         epochs = range(1, len(self.losses['phi']) + 1)
 
-        plt.subplot(3, 1, 1)
+        plt.subplot(5, 1, 1)
         plt.plot(epochs, self.losses['phi'], 'b-', label='Value Function (Phi)')
         plt.title('Value Function Loss')
         plt.ylabel('Loss')
         plt.grid(True)
 
-        plt.subplot(3, 1, 2)
+        plt.subplot(5, 1, 2)
         plt.plot(epochs, self.losses['u'], 'g-', label='Control Function (U)')
         plt.title('Control Function Loss')
         plt.ylabel('Loss')
         plt.grid(True)
 
-        plt.subplot(3, 1, 3)
+        plt.subplot(5, 1, 3)
+        plt.plot(epochs, self.losses['acc_u'], 'g.', label='Control Function (U)')
+        plt.title('Control Function Acc')
+        plt.ylabel('Accuracy')
+        plt.grid(True)
+
+        plt.subplot(5, 1, 4)
         plt.plot(epochs, self.losses['d'], 'r-', label='Decision Function (D)')
         plt.title('Decision Function Loss')
-        plt.xlabel('Epochs')
         plt.ylabel('Loss')
+        plt.grid(True)
+
+        plt.subplot(5, 1, 5)
+        plt.plot(epochs, self.losses['acc_d'], 'r-', label='Decision Function (D)')
+        plt.title('Decision Function Acc')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
         plt.grid(True)
 
         plt.tight_layout()

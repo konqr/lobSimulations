@@ -671,11 +671,13 @@ class MarketMaking():
         # Train control function
         gt_u = self.oracle_u(model_phi, ts, Ss)
         train_loss_u = 0.0
+        acc_u = 0.0
         loss_object_u = nn.CrossEntropyLoss()
 
         for j in range(10):
             optimizer_u.zero_grad()
-            _, prob_us = model_u(ts, Ss)
+            pred_u, prob_us = model_u(ts, Ss)
+            acc_u = 100*torch.sum(pred_u.flatten() == gt_u) / len(pred_u)
             loss_u = loss_object_u(prob_us, gt_u)
             loss_u.backward()
 
@@ -690,15 +692,17 @@ class MarketMaking():
                 break
 
             print(f'Model u loss: {train_loss_u:0.4f}')
-
+            print(f'Model u Acc: {acc_u:0.4f}')
         # Train decision function
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
+        acc_d = 0.0
         loss_object_d = nn.CrossEntropyLoss()
 
         for j in range(10):
             optimizer_d.zero_grad()
-            _, prob_ds = model_d(ts, Ss)
+            pred_d, prob_ds = model_d(ts, Ss)
+            acc_d = 100*torch.sum(pred_u.flatten() == gt_u) / len(pred_u)
             loss_d = loss_object_d(prob_ds, gt_d)
             loss_d.backward()
 
@@ -713,8 +717,9 @@ class MarketMaking():
                 break
 
             print(f'Model d loss: {train_loss_d:0.4f}')
+            print(f'Model d Acc: {acc_d:0.4f}')
 
-        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u
+        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u, acc_u, acc_d
 
     def train(self, **kwargs):
         # Default parameter values
@@ -779,12 +784,12 @@ class MarketMaking():
         # Training loop
         for epoch in range(self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
-            model_phi, model_d, model_u, loss_phi, loss_d, loss_u = self.train_step(
+            model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
                 model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u
             )
 
             # Log losses
-            logger.log_losses(loss_phi, loss_d, loss_u)
+            logger.log_losses(loss_phi, loss_d, loss_u, acc_d, acc_u)
 
             # Save checkpoint at specified frequency
             if (epoch + 1) % checkpoint_frequency == 0:
@@ -813,4 +818,4 @@ class MarketMaking():
 
 # get_gpu_specs()
 # MM = MarketMaking(num_epochs=2000, num_points=10000)
-# MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='LSTM', layer_widths = [50]*3, n_layers= [10]*3, label = 'LSTM')
+# MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
