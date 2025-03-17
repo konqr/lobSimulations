@@ -677,7 +677,7 @@ class MarketMaking():
         for j in range(10):
             optimizer_u.zero_grad()
             pred_u, prob_us = model_u(ts, Ss)
-            acc_u = 100*torch.sum(pred_u.flatten() == gt_u) / len(pred_u)
+            acc_u = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
             loss_u = loss_object_u(prob_us, gt_u)
             loss_u.backward()
 
@@ -702,7 +702,7 @@ class MarketMaking():
         for j in range(10):
             optimizer_d.zero_grad()
             pred_d, prob_ds = model_d(ts, Ss)
-            acc_d = 100*torch.sum(pred_u.flatten() == gt_u) / len(pred_u)
+            acc_d = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
             loss_d = loss_object_d(prob_ds, gt_d)
             loss_d.backward()
 
