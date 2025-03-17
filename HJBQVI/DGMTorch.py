@@ -182,8 +182,8 @@ class DGMNet(nn.Module):
         S = self.initial_layer(X)
 
         # Call intermediate LSTM layers
-        for lstm_layer in self.LSTMLayerList:
-            S = lstm_layer(S, X)
+        for layer in self.LayerList:
+            S = layer(S, X)
 
         # Call final layer
         result = self.final_layer(S)
@@ -239,8 +239,8 @@ class PIANet(nn.Module):
         S = self.initial_layer(X)
 
         # Call intermediate LSTM layers
-        for lstm_layer in self.LSTMLayerList:
-            S = lstm_layer(S, X)
+        for layer in self.LayerList:
+            S = layer(S, X)
 
         # Call final layer
         result = self.final_layer(S)
