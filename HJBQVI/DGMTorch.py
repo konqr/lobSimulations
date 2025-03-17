@@ -268,7 +268,9 @@ class TrainingLogger:
             'hyperparams' : self.hyperparams,
             'phi': [],
             'd': [],
-            'u': []
+            'u': [],
+            'acc_u' : [],
+            'acc_d' : []
         }
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.label = ''
