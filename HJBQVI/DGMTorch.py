@@ -159,11 +159,11 @@ class DGMNet(nn.Module):
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, input_dim+1, transformation="tanh") for _ in range(self.n_layers)
+                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
             ])
         else:
             raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
-
+        self.typeNN = typeNN
         # Final layer as fully connected with a single output (function value)
         self.final_layer = DenseLayer(1, layer_width, transformation=final_trans)
 
@@ -183,7 +183,10 @@ class DGMNet(nn.Module):
 
         # Call intermediate LSTM layers
         for layer in self.LayerList:
-            S = layer(S, X)
+            if self.typeNN == 'LSTM':
+                S = layer(S, X)
+            elif self.typeNN == 'Dense':
+                S = layer(S)
 
         # Call final layer
         result = self.final_layer(S)
@@ -216,11 +219,11 @@ class PIANet(nn.Module):
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, input_dim+1, transformation="tanh") for _ in range(self.n_layers)
+                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
             ])
         else:
             raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
-
+        self.typeNN = typeNN
         # Final layer as fully connected with multiple outputs (function values)
         self.final_layer = DenseLayer(num_classes, layer_width, transformation=final_trans)
 
@@ -240,8 +243,10 @@ class PIANet(nn.Module):
 
         # Call intermediate LSTM layers
         for layer in self.LayerList:
-            S = layer(S, X)
-
+            if self.typeNN == 'LSTM':
+                S = layer(S, X)
+            elif self.typeNN == 'Dense':
+                S = layer(S)
         # Call final layer
         result = self.final_layer(S)
 
