@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
-import numpy as np
 import matplotlib.pyplot as plt
 import json
 from datetime import datetime
-import subprocess
-import platform
 import os
 
 class LSTMLayer(nn.Module):
@@ -422,37 +419,9 @@ def get_gpu_specs():
 
         # Additional properties
         print(f"Multi-processor count: {prop.multi_processor_count}")
-        print(f"Clock rate: {prop.clock_rate / 1000:.2f} MHz")
-        print(f"Memory clock rate: {prop.memory_clock_rate / 1000:.2f} MHz")
-        print(f"Memory bus width: {prop.memory_bus_width} bits")
-        print(f"L2 cache size: {prop.l2_cache_size / 1024:.2f} KB")
-
-        # Device capability-specific features
-        if hasattr(prop, 'is_integrated') and prop.is_integrated:
-            print("Type: Integrated GPU")
-        else:
-            print("Type: Discrete GPU")
-
-        if hasattr(prop, 'is_multi_gpu_board') and prop.is_multi_gpu_board:
-            print("Multi-GPU board: Yes")
-        else:
-            print("Multi-GPU board: No")
 
     # Check memory usage of current device
     print("\nCurrent GPU Memory Usage:")
     print("-" * 30)
     print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
     print(f"Cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
-
-    # Try to get more detailed GPU info using nvidia-smi if available
-    try:
-        if platform.system() == "Windows":
-            nvidia_smi_output = subprocess.check_output(["nvidia-smi"], shell=True)
-        else:
-            nvidia_smi_output = subprocess.check_output(["nvidia-smi"], stderr=subprocess.STDOUT)
-
-        print("\nNVIDIA-SMI Output:")
-        print("-" * 30)
-        print(nvidia_smi_output.decode('utf-8'))
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("\nNVIDIA-SMI not available or failed to run.")
