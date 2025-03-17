@@ -727,7 +727,8 @@ class MarketMaking():
             'log_dir': './logs',
             'model_dir': './models',
             'label': None,
-            'refresh_epoch' : 300
+            'refresh_epoch' : 300,
+            'lr' : 1e-2
         }
 
         # Update defaults with provided kwargs
@@ -745,6 +746,7 @@ class MarketMaking():
         model_dir = defaults['model_dir']
         label = defaults['label']
         refresh_epoch = defaults['refresh_epoch']
+        lr = defaults['lr']
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
         model_manager = ModelManager(model_dir = model_dir, label = label)
@@ -765,9 +767,9 @@ class MarketMaking():
         def lr_lambda(epoch):
             return 0.9 ** (epoch / (self.EPOCHS * 10))
 
-        optimizer_phi = optim.Adam(model_phi.parameters(), lr=1e-2)
-        optimizer_u = optim.Adam(model_u.parameters(), lr=1e-2)
-        optimizer_d = optim.Adam(model_d.parameters(), lr=1e-2)
+        optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+        optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
+        optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
         # Set up schedulers
         scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
