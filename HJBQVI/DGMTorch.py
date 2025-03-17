@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
-import os
 import json
 from datetime import datetime
+import subprocess
+import platform
+import os
 
 class LSTMLayer(nn.Module):
     def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
@@ -380,3 +382,77 @@ class ModelManager:
         except Exception as e:
             print(f"Error loading models: {e}")
             return None, None, None
+
+def get_gpu_specs():
+    """Print detailed information about available CUDA devices in PyTorch."""
+
+    print("=" * 40)
+    print("PYTORCH GPU INFORMATION")
+    print("=" * 40)
+
+    # Check if CUDA is available
+    if not torch.cuda.is_available():
+        print("CUDA is not available. No GPU detected by PyTorch.")
+        return
+
+    # Get the number of GPUs
+    gpu_count = torch.cuda.device_count()
+    print(f"Number of available GPUs: {gpu_count}")
+
+    # Current device
+    current_device = torch.cuda.current_device()
+    print(f"Current active device: {current_device}")
+
+    # Get PyTorch CUDA version
+    cuda_version = torch.version.cuda
+    print(f"PyTorch CUDA version: {cuda_version}")
+
+    # Loop through each device and get its properties
+    for i in range(gpu_count):
+        print(f"\nGPU {i} specifications:")
+        print("-" * 30)
+
+        # Get device properties
+        prop = torch.cuda.get_device_properties(i)
+
+        # Print device name and specifications
+        print(f"Name: {prop.name}")
+        print(f"Compute capability: {prop.major}.{prop.minor}")
+        print(f"Total memory: {prop.total_memory / 1024**3:.2f} GB")
+
+        # Additional properties
+        print(f"Multi-processor count: {prop.multi_processor_count}")
+        print(f"Clock rate: {prop.clock_rate / 1000:.2f} MHz")
+        print(f"Memory clock rate: {prop.memory_clock_rate / 1000:.2f} MHz")
+        print(f"Memory bus width: {prop.memory_bus_width} bits")
+        print(f"L2 cache size: {prop.l2_cache_size / 1024:.2f} KB")
+
+        # Device capability-specific features
+        if hasattr(prop, 'is_integrated') and prop.is_integrated:
+            print("Type: Integrated GPU")
+        else:
+            print("Type: Discrete GPU")
+
+        if hasattr(prop, 'is_multi_gpu_board') and prop.is_multi_gpu_board:
+            print("Multi-GPU board: Yes")
+        else:
+            print("Multi-GPU board: No")
+
+    # Check memory usage of current device
+    print("\nCurrent GPU Memory Usage:")
+    print("-" * 30)
+    print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+    print(f"Cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+
+    # Try to get more detailed GPU info using nvidia-smi if available
+    try:
+        if platform.system() == "Windows":
+            nvidia_smi_output = subprocess.check_output(["nvidia-smi"], shell=True)
+        else:
+            nvidia_smi_output = subprocess.check_output(["nvidia-smi"], stderr=subprocess.STDOUT)
+
+        print("\nNVIDIA-SMI Output:")
+        print("-" * 30)
+        print(nvidia_smi_output.decode('utf-8'))
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("\nNVIDIA-SMI not available or failed to run.")

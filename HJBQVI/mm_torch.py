@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import DGMTorch as DGM
-from DGMTorch import TrainingLogger, ModelManager
+from DGMTorch import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
 
@@ -779,5 +779,6 @@ class MarketMaking():
 
         return model_phi, model_d, model_u
 
+get_gpu_specs()
 MM = MarketMaking(num_epochs=2000, num_points=100000)
-MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', layer_widths = [50]*3, n_layers= [5]*3)
+MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', layer_widths = [30]*3, n_layers= [5]*3)
