@@ -292,43 +292,79 @@ class TrainingLogger:
         return log_file
 
     def plot_losses(self, show=True, save=True):
-        """Plot the loss curves for all three networks"""
-        plt.figure(figsize=(12, 12))
+        """Plot the loss curves with linear and log scales"""
+        plt.figure(figsize=(18, 12))  # Wider figure for two columns
 
         epochs = range(1, len(self.losses['phi']) + 1)
 
-        plt.subplot(5, 1, 1)
-        plt.plot(epochs, self.losses['phi'], 'b-', label='Value Function (Phi)')
-        plt.title('Value Function Loss')
+        # Value Function
+        plt.subplot(5, 2, 1)
+        plt.plot(epochs, self.losses['phi'], 'b-')
+        plt.title('Value Function Loss (Linear)')
         plt.ylabel('Loss')
         plt.grid(True)
 
-        plt.subplot(5, 1, 2)
-        plt.plot(epochs, self.losses['u'], 'g-', label='Control Function (U)')
-        plt.title('Control Function Loss')
+        plt.subplot(5, 2, 2)
+        plt.semilogy(epochs, self.losses['phi'], 'b-')
+        plt.title('Value Function Loss (Log Scale)')
+        plt.ylabel('Log Loss')
+        plt.grid(True)
+
+        # Control Function Loss
+        plt.subplot(5, 2, 3)
+        plt.plot(epochs, self.losses['u'], 'g-')
+        plt.title('Control Function Loss (Linear)')
         plt.ylabel('Loss')
         plt.grid(True)
 
-        plt.subplot(5, 1, 3)
-        plt.plot(epochs, self.losses['acc_u'], 'g.', label='Control Function (U)')
-        plt.title('Control Function Acc')
+        plt.subplot(5, 2, 4)
+        plt.semilogy(epochs, self.losses['u'], 'g-')
+        plt.title('Control Function Loss (Log Scale)')
+        plt.ylabel('Log Loss')
+        plt.grid(True)
+
+        # Control Function Accuracy
+        plt.subplot(5, 2, 5)
+        plt.plot(epochs, self.losses['acc_u'], 'g.')
+        plt.title('Control Function Acc (Linear)')
         plt.ylabel('Accuracy')
         plt.grid(True)
 
-        plt.subplot(5, 1, 4)
-        plt.plot(epochs, self.losses['d'], 'r-', label='Decision Function (D)')
-        plt.title('Decision Function Loss')
+        plt.subplot(5, 2, 6)
+        plt.semilogy(epochs, self.losses['acc_u'], 'g.')
+        plt.title('Control Function Acc (Log Scale)')
+        plt.ylabel('Log Accuracy')
+        plt.grid(True)
+
+        # Decision Function Loss
+        plt.subplot(5, 2, 7)
+        plt.plot(epochs, self.losses['d'], 'r-')
+        plt.title('Decision Function Loss (Linear)')
         plt.ylabel('Loss')
         plt.grid(True)
 
-        plt.subplot(5, 1, 5)
-        plt.plot(epochs, self.losses['acc_d'], 'r-', label='Decision Function (D)')
-        plt.title('Decision Function Acc')
+        plt.subplot(5, 2, 8)
+        plt.semilogy(epochs, self.losses['d'], 'r-')
+        plt.title('Decision Function Loss (Log Scale)')
+        plt.ylabel('Log Loss')
+        plt.grid(True)
+
+        # Decision Function Accuracy
+        plt.subplot(5, 2, 9)
+        plt.plot(epochs, self.losses['acc_d'], 'r-')
+        plt.title('Decision Function Acc (Linear)')
         plt.xlabel('Epochs')
         plt.ylabel('Accuracy')
         plt.grid(True)
 
-        plt.tight_layout()
+        plt.subplot(5, 2, 10)
+        plt.semilogy(epochs, self.losses['acc_d'], 'r-')
+        plt.title('Decision Function Acc (Log Scale)')
+        plt.xlabel('Epochs')
+        plt.ylabel('Log Accuracy')
+        plt.grid(True)
+
+        plt.tight_layout(pad=3.0)  # Add more padding between subplots
 
         if save:
             plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}_{self.label}.png")
@@ -339,6 +375,7 @@ class TrainingLogger:
             plt.show()
 
         return plt.gcf()
+
 
 # Model management helper class
 class ModelManager:
