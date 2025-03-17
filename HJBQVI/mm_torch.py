@@ -718,8 +718,8 @@ class MarketMaking():
 
     def train(self, continue_training=False, checkpoint_frequency=50, layer_widths = [20]*3, n_layers= [5]*3, log_dir = './logs', model_dir = './models'):
         # Initialize logger and model manager
-        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, model_dir = model_dir)
-        model_manager = ModelManager()
+        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir)
+        model_manager = ModelManager(model_dir = model_dir)
 
         # Create models
         model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11)
