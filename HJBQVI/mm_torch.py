@@ -1,0 +1,746 @@
+import torch
+import numpy as np
+import DGMTorch as DGM
+import torch.nn as nn
+import torch.optim as optim
+
+class MarketMaking():
+    def __init__(self, num_points=100, num_epochs=1000):
+        '''
+        state variables:
+            X: Cash
+            Y: Inventory,
+            p_a, p_b: best prices,
+            q_a, q_b: best quotes,
+            qD_a, qD_b: 2nd best quotes,
+            n_a, n_b: queue priority,
+            P_mid: mid-price
+        '''
+        self.TERMINATION_TIME = 23400
+        self.NDIMS = 12
+        self.NUM_POINTS = num_points
+        self.EPOCHS = num_epochs
+        self.eta = 0.5  # inventory penalty
+        self.E = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
+                  "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid", "lo_deep_Bid"]
+        self.U = ["lo_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
+                  "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "lo_deep_Bid"]
+        self.lambdas_poisson = [.86, .32, .33, .48, .02, .47, .47, .02, .48, .33, .32, .86]  # [5] * 12
+
+    def sampler(self, num_points=1000, seed=None, boundary=False):
+        '''
+        Sample points from the stationary distributions for the DGM learning
+        :param num_points: number of points
+        :return: samples of [0,T] x {state space}
+        '''
+        if seed:
+            np.random.seed(seed)
+            torch.random.set_seed(seed)
+
+        # Generate sample data using NumPy
+        Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
+        Ys = np.round(10 * np.random.randn(num_points, 1), 2)
+        P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
+        spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
+        p_as = np.round(P_mids + spreads / 2, 2)
+        p_bs = np.round(P_mids - spreads / 2, 2)
+        q_as = np.random.geometric(.002, [num_points, 1])
+        qD_as = np.random.geometric(.0015, [num_points, 1])
+        q_bs = np.random.geometric(.002, [num_points, 1])
+        qD_bs = np.random.geometric(.0015, [num_points, 1])
+        n_as = np.array([np.random.randint(0, b) for b in q_as + qD_as])
+        n_bs = np.array([np.random.randint(0, b) for b in q_bs + qD_bs])
+
+        t = np.random.uniform(0, self.TERMINATION_TIME, [num_points, 1])
+        t_boundary = self.TERMINATION_TIME * np.ones([num_points, 1])
+
+        # Convert to TensorFlow tensors immediately
+        if boundary:
+            return torch.tensor(t_boundary, dtype=torch.float32), torch.tensor(
+                np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+
+        return torch.tensor(t, dtype=torch.float32), torch.tensor(
+            np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+
+    def sample_qd(self):
+        # Return a PyTorch tensor directly
+        return torch.tensor(np.random.geometric(.0015, 1), dtype=torch.float32)
+
+    def tr_lo_deep(self, qD):
+        # PyTorch operation
+        return qD + 1.0
+
+    def tr_co_deep(self, qD, n, q):
+        # PyTorch operations
+        qD_updated = qD - 1.0
+
+        # Replace conditional operations with smooth PyTorch operations
+        qD_updated = torch.clamp(qD_updated, min=0.0)  # Ensure qD doesn't go negative
+
+        # Handle the agent's orders case
+        condition = (qD_updated == 1.0) & (n == q)
+        qD_updated = torch.where(condition, qD_updated + 1.0, qD_updated)
+
+        return qD_updated
+
+    def tr_lo_top(self, q_as, n_as):
+        # PyTorch operations
+        q_as_updated = q_as + 1.0
+
+        # Adjust priority for deep orders
+        condition = n_as >= q_as_updated
+        n_as_updated = torch.where(condition, n_as + 1.0, n_as)
+
+        return q_as_updated, n_as_updated
+
+    def tr_co_top(self, z, q_as, n_as, qD_as, p_as, P_mids, intervention=False):
+        if intervention:
+            # For intervention, directly update values
+            q_as_updated = q_as - 1.0
+            # This is a simplification; in real code, you might need a differentiable alternative
+            n_as_updated = torch.rand(n_as.shape, device=n_as.device) * (q_as_updated + qD_as + 1)
+        else:
+            # For normal operation
+            idxCO = torch.rand(q_as.shape, device=q_as.device) * q_as
+            q_as_updated = q_as - 1.0
+
+            # Handle cases where we are cancelling agent's orders
+            condition = idxCO == n_as
+            qD_as_updated = torch.where(condition, qD_as + 1.0, qD_as)
+
+            # Handle cases where n_as > idxCO
+            condition = n_as > idxCO
+            n_as_updated = torch.where(condition, n_as - 1.0, n_as)
+
+        # Handle queue depletion
+        condition = q_as_updated == 0.0
+        q_as_final = torch.where(condition, qD_as, q_as_updated)
+        qD_as_final = torch.where(condition, self.sample_qd(), qD_as)
+        p_as_final = torch.where(condition, p_as + z * 0.01, p_as)
+        P_mids_final = torch.where(condition, P_mids + z * 0.005, P_mids)
+
+        return q_as_final, n_as_updated, qD_as_final, p_as_final, P_mids_final
+
+    def tr_mo(self, z, q_as, n_as, qD_as, p_as, P_mids, Xs, Ys, intervention=False):
+        # Agent fill condition
+        agent_fill_condition = n_as == 0.0
+
+        if not intervention:
+            # Update X and Y when agent's order is filled
+            Xs_updated = torch.where(agent_fill_condition, Xs + z * p_as, Xs)
+            Ys_updated = torch.where(agent_fill_condition, Ys - z * 1.0, Ys)
+
+            # Update agent position
+            # For a differentiable version, we could use a smoothed random update
+            n_as_random = torch.rand(n_as.shape, device=n_as.device) * (q_as + qD_as - 1.0) + 1.0
+            n_as_updated = torch.where(agent_fill_condition, n_as_random, n_as)
+        else:
+            # No effect during intervention for agent fills
+            q_as_intervention = torch.where(agent_fill_condition, q_as + 1.0, q_as)
+            n_as_intervention = torch.where(agent_fill_condition, n_as + 1.0, n_as)
+            q_as = q_as_intervention
+            n_as = n_as_intervention
+            Xs_updated = Xs
+            Ys_updated = Ys
+
+        # Standard updates
+        q_as_updated = q_as - 1.0
+        n_as_final = n_as - 1.0
+
+        # Handle queue depletion
+        depletion_condition = q_as_updated == 0.0
+        q_as_final = torch.where(depletion_condition, qD_as, q_as_updated)
+        qD_as_final = torch.where(depletion_condition, self.sample_qd(), qD_as)
+        p_as_final = torch.where(depletion_condition, p_as + z * 0.01, p_as)
+        P_mids_final = torch.where(depletion_condition, P_mids + z * 0.005, P_mids)
+
+        if intervention:
+            # Update X and Y for intervention
+            Xs_updated = Xs + z * p_as
+            Ys_updated = Ys - z * 1.0
+
+        return q_as_final, n_as_final, qD_as_final, p_as_final, P_mids_final, Xs_updated, Ys_updated
+
+    def tr_is(self, z, q_as, qD_as, n_as, P_mids, p_as, intervention=False):
+        # PyTorch operations
+        qD_as_updated = q_as  # Copy q_as to qD_as
+        q_as_updated = torch.ones_like(q_as)  # Set q_as to ones
+
+        if intervention:
+            n_as_updated = torch.zeros_like(n_as)
+        else:
+            n_as_updated = n_as + 1.0
+
+        P_mids_updated = P_mids - z * 0.005
+        p_as_updated = p_as - z * 0.01
+
+        return q_as_updated, qD_as_updated, n_as_updated, P_mids_updated, p_as_updated
+
+    def transition(self, Ss, eventID):
+        # Unpack state variables
+        Xs = Ss[:, 0]
+        Ys = Ss[:, 1]
+        p_as = Ss[:, 2]
+        p_bs = Ss[:, 3]
+        q_as = Ss[:, 4]
+        q_bs = Ss[:, 5]
+        qD_as = Ss[:, 6]
+        qD_bs = Ss[:, 7]
+        n_as = Ss[:, 8]
+        n_bs = Ss[:, 9]
+        P_mids = Ss[:, 10]
+
+        # Initialize output tensor - same shape as input
+        batch_size = Ss.shape[0]
+        Ss_out = Ss.clone()
+
+        # Event 0: lo_deep_Ask
+        mask = (eventID == 0)
+        if mask.any():
+            qD_as_updated = self.tr_lo_deep(qD_as)
+            Ss_out[:, 6] = qD_as_updated
+
+        # Event 1: co_deep_Ask
+        mask = (eventID == 1)
+        if mask.any():
+            qD_as_updated = self.tr_co_deep(qD_as, n_as, q_as)
+            Ss_out[:, 6] = qD_as_updated
+
+        # Event 2: lo_top_Ask
+        mask = (eventID == 2)
+        if mask.any():
+            q_as_updated, n_as_updated = self.tr_lo_top(q_as, n_as)
+            Ss_out[:, 4] = q_as_updated
+            Ss_out[:, 8] = n_as_updated
+
+        # Event 3: co_top_Ask
+        mask = (eventID == 3)
+        if mask.any():
+            q_as_updated, n_as_updated, qD_as_updated, p_as_updated, P_mids_updated = self.tr_co_top(
+                1.0, q_as, n_as, qD_as, p_as, P_mids)
+            Ss_out[:, 2] = p_as_updated
+            Ss_out[:, 4] = q_as_updated
+            Ss_out[:, 6] = qD_as_updated
+            Ss_out[:, 8] = n_as_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 4: mo_Ask
+        mask = (eventID == 4)
+        if mask.any():
+            q_as_updated, n_as_updated, qD_as_updated, p_as_updated, P_mids_updated, Xs_updated, Ys_updated = self.tr_mo(
+                1.0, q_as, n_as, qD_as, p_as, P_mids, Xs, Ys)
+            Ss_out[:, 0] = Xs_updated
+            Ss_out[:, 1] = Ys_updated
+            Ss_out[:, 2] = p_as_updated
+            Ss_out[:, 4] = q_as_updated
+            Ss_out[:, 6] = qD_as_updated
+            Ss_out[:, 8] = n_as_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 5: lo_inspread_Ask
+        mask = (eventID == 5)
+        if mask.any():
+            q_as_updated, qD_as_updated, n_as_updated, P_mids_updated, p_as_updated = self.tr_is(
+                1.0, q_as, qD_as, n_as, P_mids, p_as)
+            Ss_out[:, 2] = p_as_updated
+            Ss_out[:, 4] = q_as_updated
+            Ss_out[:, 6] = qD_as_updated
+            Ss_out[:, 8] = n_as_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 6: lo_inspread_Bid
+        mask = (eventID == 6)
+        if mask.any():
+            q_bs_updated, qD_bs_updated, n_bs_updated, P_mids_updated, p_bs_updated = self.tr_is(
+                -1.0, q_bs, qD_bs, n_bs, P_mids, p_bs)
+            Ss_out[:, 3] = p_bs_updated
+            Ss_out[:, 5] = q_bs_updated
+            Ss_out[:, 7] = qD_bs_updated
+            Ss_out[:, 9] = n_bs_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 7: mo_Bid
+        mask = (eventID == 7)
+        if mask.any():
+            q_bs_updated, n_bs_updated, qD_bs_updated, p_bs_updated, P_mids_updated, Xs_updated, Ys_updated = self.tr_mo(
+                -1.0, q_bs, n_bs, qD_bs, p_bs, P_mids, Xs, Ys)
+            Ss_out[:, 0] = Xs_updated
+            Ss_out[:, 1] = Ys_updated
+            Ss_out[:, 3] = p_bs_updated
+            Ss_out[:, 5] = q_bs_updated
+            Ss_out[:, 7] = qD_bs_updated
+            Ss_out[:, 9] = n_bs_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 8: co_top_Bid
+        mask = (eventID == 8)
+        if mask.any():
+            q_bs_updated, n_bs_updated, qD_bs_updated, p_bs_updated, P_mids_updated = self.tr_co_top(
+                -1.0, q_bs, n_bs, qD_bs, p_bs, P_mids)
+            Ss_out[:, 3] = p_bs_updated
+            Ss_out[:, 5] = q_bs_updated
+            Ss_out[:, 7] = qD_bs_updated
+            Ss_out[:, 9] = n_bs_updated
+            Ss_out[:, 10] = P_mids_updated
+
+        # Event 9: lo_top_Bid
+        mask = (eventID == 9)
+        if mask.any():
+            q_bs_updated, n_bs_updated = self.tr_lo_top(q_bs, n_bs)
+            Ss_out[:, 5] = q_bs_updated
+            Ss_out[:, 9] = n_bs_updated
+
+        # Event 10: co_deep_Bid
+        mask = (eventID == 10)
+        if mask.any():
+            qD_bs_updated = self.tr_co_deep(qD_bs, n_bs, q_bs)
+            Ss_out[:, 7] = qD_bs_updated
+
+        # Event 11: lo_deep_Bid
+        mask = (eventID == 11)
+        if mask.any():
+            qD_bs_updated = self.tr_lo_deep(qD_bs)
+            Ss_out[:, 7] = qD_bs_updated
+
+        return Ss_out
+
+    def intervention(self, model_phi, ts, Ss, us):
+        # Get batch size from inputs
+        batch_size = ts.shape[0]
+        device = ts.device
+
+        # Unpack state variables
+        Xs = Ss[:, 0]
+        Ys = Ss[:, 1]
+        p_as = Ss[:, 2]
+        p_bs = Ss[:, 3]
+        q_as = Ss[:, 4]
+        q_bs = Ss[:, 5]
+        qD_as = Ss[:, 6]
+        qD_bs = Ss[:, 7]
+        n_as = Ss[:, 8]
+        n_bs = Ss[:, 9]
+        P_mids = Ss[:, 10]
+
+        # Initialize state variables to be updated
+        Xs_updated = Xs.clone()
+        Ys_updated = Ys.clone()
+        p_as_updated = p_as.clone()
+        p_bs_updated = p_bs.clone()
+        q_as_updated = q_as.clone()
+        q_bs_updated = q_bs.clone()
+        qD_as_updated = qD_as.clone()
+        qD_bs_updated = qD_bs.clone()
+        n_as_updated = n_as.clone()
+        n_bs_updated = n_bs.clone()
+        P_mids_updated = P_mids.clone()
+
+        # Initialize profit tensor
+        inter_profit = torch.zeros(batch_size, device=device)
+
+        # Handle different intervention types using PyTorch operations
+
+        # Market order asks
+        mo_asks_mask = (us == 3).flatten()
+        if mo_asks_mask.any():
+            # Apply market order ask intervention
+            mo_q_as = q_as[mo_asks_mask]
+            mo_n_as = n_as[mo_asks_mask]
+            mo_qD_as = qD_as[mo_asks_mask]
+            mo_p_as = p_as[mo_asks_mask]
+            mo_P_mids = P_mids[mo_asks_mask]
+            mo_Xs = Xs[mo_asks_mask]
+            mo_Ys = Ys[mo_asks_mask]
+
+            # Apply market order intervention
+            mo_q_as_updated, mo_n_as_updated, mo_qD_as_updated, mo_p_as_updated, mo_P_mids_updated, mo_Xs_updated, mo_Ys_updated = self.tr_mo(
+                1.0, mo_q_as, mo_n_as, mo_qD_as, mo_p_as, mo_P_mids, mo_Xs, mo_Ys, intervention=True
+            )
+
+            # Update state variables
+            q_as_updated[mo_asks_mask] = mo_q_as_updated
+            n_as_updated[mo_asks_mask] = mo_n_as_updated
+            qD_as_updated[mo_asks_mask] = mo_qD_as_updated
+            p_as_updated[mo_asks_mask] = mo_p_as_updated
+            P_mids_updated[mo_asks_mask] = mo_P_mids_updated
+            Xs_updated[mo_asks_mask] = mo_Xs_updated
+            Ys_updated[mo_asks_mask] = mo_Ys_updated
+
+            # Update profit
+            inter_profit[mo_asks_mask] = mo_p_as
+
+        # Market order bids
+        mo_bids_mask = (us == 6).flatten()
+        if mo_bids_mask.any():
+            # Apply market order bid intervention
+            mo_q_bs = q_bs[mo_bids_mask]
+            mo_n_bs = n_bs[mo_bids_mask]
+            mo_qD_bs = qD_bs[mo_bids_mask]
+            mo_p_bs = p_bs[mo_bids_mask]
+            mo_P_mids = P_mids[mo_bids_mask]
+            mo_Xs = Xs[mo_bids_mask]
+            mo_Ys = Ys[mo_bids_mask]
+
+            # Apply market order intervention
+            mo_q_bs_updated, mo_n_bs_updated, mo_qD_bs_updated, mo_p_bs_updated, mo_P_mids_updated, mo_Xs_updated, mo_Ys_updated = self.tr_mo(
+                -1.0, mo_q_bs, mo_n_bs, mo_qD_bs, mo_p_bs, mo_P_mids, mo_Xs, mo_Ys, intervention=True
+            )
+
+            # Update state variables
+            q_bs_updated[mo_bids_mask] = mo_q_bs_updated
+            n_bs_updated[mo_bids_mask] = mo_n_bs_updated
+            qD_bs_updated[mo_bids_mask] = mo_qD_bs_updated
+            p_bs_updated[mo_bids_mask] = mo_p_bs_updated
+            P_mids_updated[mo_bids_mask] = mo_P_mids_updated
+            Xs_updated[mo_bids_mask] = mo_Xs_updated
+            Ys_updated[mo_bids_mask] = mo_Ys_updated
+
+            # Update profit (negative because we're paying to buy)
+            inter_profit[mo_bids_mask] = -1.0 * mo_p_bs
+
+        # Limit order deep asks
+        lo_deep_asks_mask = (us == 0).flatten()
+        if lo_deep_asks_mask.any():
+            qD_as_updated[lo_deep_asks_mask] = qD_as[lo_deep_asks_mask] + 1.0
+
+        # Limit order deep bids
+        lo_deep_bids_mask = (us == 9).flatten()
+        if lo_deep_bids_mask.any():
+            qD_bs_updated[lo_deep_bids_mask] = qD_bs[lo_deep_bids_mask] + 1.0
+
+        # Limit order top asks
+        lo_top_asks_mask = (us == 1).flatten()
+        if lo_top_asks_mask.any():
+            # Update q_as
+            q_as_updated[lo_top_asks_mask] = q_as[lo_top_asks_mask] + 1.0
+
+            # Update n_as if necessary
+            condition = n_as[lo_top_asks_mask] >= q_as_updated[lo_top_asks_mask]
+            indices = lo_top_asks_mask.nonzero(as_tuple=True)[0][condition]
+            n_as_updated[indices] = q_as_updated[indices]
+
+        # Limit order top bids
+        lo_top_bids_mask = (us == 8).flatten()
+        if lo_top_bids_mask.any():
+            # Update q_bs
+            q_bs_updated[lo_top_bids_mask] = q_bs[lo_top_bids_mask] + 1.0
+
+            # Update n_bs if necessary
+            condition = n_bs[lo_top_bids_mask] >= q_bs_updated[lo_top_bids_mask]
+            indices = lo_top_bids_mask.nonzero(as_tuple=True)[0][condition]
+            n_bs_updated[indices] = q_bs_updated[indices]
+
+        # Cancel order top asks
+        co_top_asks_mask = (us == 2).flatten()
+        if co_top_asks_mask.any():
+            co_q_as = q_as[co_top_asks_mask]
+            co_n_as = n_as[co_top_asks_mask]
+            co_qD_as = qD_as[co_top_asks_mask]
+            co_p_as = p_as[co_top_asks_mask]
+            co_P_mids = P_mids[co_top_asks_mask]
+
+            # Apply cancel order intervention
+            co_q_as_updated, co_n_as_updated, co_qD_as_updated, co_p_as_updated, co_P_mids_updated = self.tr_co_top(
+                1.0, co_q_as, co_n_as, co_qD_as, co_p_as, co_P_mids, intervention=True
+            )
+
+            # Update state variables
+            q_as_updated[co_top_asks_mask] = co_q_as_updated
+            n_as_updated[co_top_asks_mask] = co_n_as_updated
+            qD_as_updated[co_top_asks_mask] = co_qD_as_updated
+            p_as_updated[co_top_asks_mask] = co_p_as_updated
+            P_mids_updated[co_top_asks_mask] = co_P_mids_updated
+
+        # Cancel order top bids
+        co_top_bids_mask = (us == 7).flatten()
+        if co_top_bids_mask.any():
+            co_q_bs = q_bs[co_top_bids_mask]
+            co_n_bs = n_bs[co_top_bids_mask]
+            co_qD_bs = qD_bs[co_top_bids_mask]
+            co_p_bs = p_bs[co_top_bids_mask]
+            co_P_mids = P_mids[co_top_bids_mask]
+
+            # Apply cancel order intervention
+            co_q_bs_updated, co_n_bs_updated, co_qD_bs_updated, co_p_bs_updated, co_P_mids_updated = self.tr_co_top(
+                -1.0, co_q_bs, co_n_bs, co_qD_bs, co_p_bs, co_P_mids, intervention=True
+            )
+
+            # Update state variables
+            q_bs_updated[co_top_bids_mask] = co_q_bs_updated
+            n_bs_updated[co_top_bids_mask] = co_n_bs_updated
+            qD_bs_updated[co_top_bids_mask] = co_qD_bs_updated
+            p_bs_updated[co_top_bids_mask] = co_p_bs_updated
+            P_mids_updated[co_top_bids_mask] = co_P_mids_updated
+
+        # Limit order in-spread asks
+        lo_is_asks_mask = (us == 4).flatten()
+        if lo_is_asks_mask.any():
+            lo_q_as = q_as[lo_is_asks_mask]
+            lo_n_as = n_as[lo_is_asks_mask]
+            lo_qD_as = qD_as[lo_is_asks_mask]
+            lo_p_as = p_as[lo_is_asks_mask]
+            lo_P_mids = P_mids[lo_is_asks_mask]
+
+            # Apply limit order in-spread intervention
+            lo_q_as_updated, lo_qD_as_updated, lo_n_as_updated, lo_P_mids_updated, lo_p_as_updated = self.tr_is(
+                1.0, lo_q_as, lo_qD_as, lo_n_as, lo_P_mids, lo_p_as, intervention=True
+            )
+
+            # Update state variables
+            q_as_updated[lo_is_asks_mask] = lo_q_as_updated
+            qD_as_updated[lo_is_asks_mask] = lo_qD_as_updated
+            n_as_updated[lo_is_asks_mask] = lo_n_as_updated
+            P_mids_updated[lo_is_asks_mask] = lo_P_mids_updated
+            p_as_updated[lo_is_asks_mask] = lo_p_as_updated
+
+        # Limit order in-spread bids
+        lo_is_bids_mask = (us == 5).flatten()
+        if lo_is_bids_mask.any():
+            lo_q_bs = q_bs[lo_is_bids_mask]
+            lo_n_bs = n_bs[lo_is_bids_mask]
+            lo_qD_bs = qD_bs[lo_is_bids_mask]
+            lo_p_bs = p_bs[lo_is_bids_mask]
+            lo_P_mids = P_mids[lo_is_bids_mask]
+
+            # Apply limit order in-spread intervention
+            lo_q_bs_updated, lo_qD_bs_updated, lo_n_bs_updated, lo_P_mids_updated, lo_p_bs_updated = self.tr_is(
+                -1.0, lo_q_bs, lo_qD_bs, lo_n_bs, lo_P_mids, lo_p_bs, intervention=True
+            )
+
+            # Update state variables
+            q_bs_updated[lo_is_bids_mask] = lo_q_bs_updated
+            qD_bs_updated[lo_is_bids_mask] = lo_qD_bs_updated
+            n_bs_updated[lo_is_bids_mask] = lo_n_bs_updated
+            P_mids_updated[lo_is_bids_mask] = lo_P_mids_updated
+            p_bs_updated[lo_is_bids_mask] = lo_p_bs_updated
+
+        # Build updated state tensor
+        Ss_intervened = torch.stack([
+            Xs_updated, Ys_updated, p_as_updated, p_bs_updated, q_as_updated, q_bs_updated,
+            qD_as_updated, qD_bs_updated, n_as_updated, n_bs_updated, P_mids_updated
+        ], dim=1)
+
+        # Calculate new value function and add profit
+        return model_phi(ts, Ss_intervened) #+ inter_profit.unsqueeze(1)
+
+    def oracle_u(self, model_phi, ts, Ss):
+        # Use PyTorch operations to compute the best action
+        batch_size = ts.shape[0]
+
+        # Initialize tensor to store intervention values for each action
+        interventions = torch.zeros((batch_size, len(self.U)), dtype=torch.float32)
+
+        # Calculate value for each action
+        for u in range(len(self.U)):
+            # Create a tensor of action u for all batch items
+            u_tensor = torch.ones((batch_size, 1), dtype=torch.float32) * u
+
+            # Calculate intervention value
+            intervention_value = self.intervention(model_phi, ts, Ss, u_tensor)
+
+            # Store in interventions tensor
+            indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
+                                   torch.ones(batch_size, dtype=torch.int64) * u], dim=1)
+            interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1)
+
+        # Return the action with highest value
+        return torch.argmax(interventions, dim=1)
+
+    def oracle_d(self, model_phi, model_u, ts, Ss):
+        batch_size = ts.shape[0]
+
+        # Initialize tensor to store HJB values for each decision
+        hjb = torch.zeros((batch_size, 2), dtype=torch.float32)
+
+        for d in [0, 1]:
+            # Use autograd to calculate time derivative
+            ts.requires_grad_(True)
+            output = model_phi(ts, Ss)
+            phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
+            ts.requires_grad_(False)
+
+            # Calculate integral term
+            I_phi = torch.zeros_like(output)
+            for i in range(self.NDIMS):
+                # Calculate transition for event i
+                Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+                I_phi += self.lambdas_poisson[i] * (model_phi(ts, Ss_transitioned) - output)
+
+            # Calculate generator term
+            L_phi = phi_t + I_phi
+
+            # Calculate running cost
+            f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+            f = f.reshape(-1, 1)
+
+            # Decision tensor
+            ds = torch.ones((batch_size, 1), dtype=torch.float32) * d
+
+            # Get optimal control
+            us, _ = model_u(ts, Ss)
+
+            # Calculate intervention value
+            M_phi = self.intervention(model_phi, ts, Ss, us)
+
+            # Calculate HJB value
+            evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
+
+            # Store in hjb tensor
+            indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
+                                   torch.ones(batch_size, dtype=torch.int64) * d], dim=1)
+            hjb[indices[:, 0], indices[:, 1]] = evaluation.reshape(-1)
+
+        # Return the decision with highest value
+        return torch.argmax(hjb, dim=1)
+
+    def loss_phi_poisson(self, model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas):
+        # Use autograd to calculate time derivative
+        ts.requires_grad_(True)
+        output = model_phi(ts, Ss)
+        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
+        ts.requires_grad_(False)
+
+        # Calculate integral term
+        I_phi = torch.zeros_like(output)
+        for i in range(self.NDIMS):
+            # Calculate transition for event i
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+            I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
+
+        # Calculate generator term
+        L_phi = phi_t + I_phi
+
+        # Calculate running cost
+        f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+        f = f.reshape(-1, 1)
+
+        # Get optimal decision and control
+        ds, _ = model_d(ts, Ss)
+        us, _ = model_u(ts, Ss)
+
+        # Calculate intervention value
+        M_phi = self.intervention(model_phi, ts, Ss, us)
+
+        # Calculate HJB evaluation
+        evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
+
+        # Interior loss
+        interior_loss = nn.MSELoss()(evaluation, torch.zeros_like(evaluation))
+
+        # Boundary loss
+        output_boundary = model_phi(Ts, S_boundarys)
+        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]  # Terminal condition
+        g = g.reshape(-1, 1)
+        boundary_loss = nn.MSELoss()(output_boundary, g)
+
+        # Combine losses with potential weighting
+        loss = interior_loss + boundary_loss
+
+        return loss
+
+    def train_step(self, model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u):
+        # Setup for training
+        lambdas = self.lambdas_poisson
+
+        # Generate sample data
+        ts, Ss = self.sampler(self.NUM_POINTS)
+        Ts, S_boundarys = self.sampler(self.NUM_POINTS, boundary=True)
+
+        # Train value function
+        train_loss_phi = 0.0
+
+        # Use gradient clipping to prevent exploding gradients
+        for j in range(10):
+            optimizer_phi.zero_grad()
+            loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            loss_phi.backward()
+
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
+            optimizer_phi.step()
+            train_loss_phi = loss_phi.item()
+
+            # Check for NaN or Inf
+            if torch.isnan(loss_phi) or torch.isinf(loss_phi):
+                print("Warning: NaN or Inf detected in loss value")
+                break
+
+            print(f'Model Phi loss: {train_loss_phi:0.4f}')
+
+        # Train control function
+        gt_u = self.oracle_u(model_phi, ts, Ss)
+        train_loss_u = 0.0
+        loss_object_u = nn.CrossEntropyLoss()
+
+        for j in range(10):
+            optimizer_u.zero_grad()
+            _, prob_us = model_u(ts, Ss)
+            loss_u = loss_object_u(prob_us, gt_u)
+            loss_u.backward()
+
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
+            optimizer_u.step()
+            train_loss_u = loss_u.item()
+
+            # Check for NaN or Inf
+            if torch.isnan(loss_u) or torch.isinf(loss_u):
+                print("Warning: NaN or Inf detected in loss value")
+                break
+
+            print(f'Model u loss: {train_loss_u:0.4f}')
+
+        # Train decision function
+        gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
+        train_loss_d = 0.0
+        loss_object_d = nn.CrossEntropyLoss()
+
+        for j in range(10):
+            optimizer_d.zero_grad()
+            _, prob_ds = model_d(ts, Ss)
+            loss_d = loss_object_d(prob_ds, gt_d)
+            loss_d.backward()
+
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_d.parameters(), 1.0)
+            optimizer_d.step()
+            train_loss_d = loss_d.item()
+
+            # Check for NaN or Inf
+            if torch.isnan(loss_d) or torch.isinf(loss_d):
+                print("Warning: NaN or Inf detected in loss value")
+                break
+
+            print(f'Model d loss: {train_loss_d:0.4f}')
+
+        return model_phi, model_d, model_u
+
+    def train(self):
+        # Create models
+        model_phi = DGM.DGMNet(20, 5, 11)
+        model_u = DGM.PIANet(20, 5, 11, 10)
+        model_d = DGM.PIANet(20, 5, 11, 2)
+
+        # Learning rate scheduler
+        def lr_lambda(epoch):
+            return 0.9 ** (epoch / (self.EPOCHS * 10))
+
+        optimizer_phi = optim.Adam(model_phi.parameters(), lr=1e-2)
+        optimizer_u = optim.Adam(model_u.parameters(), lr=1e-2)
+        optimizer_d = optim.Adam(model_d.parameters(), lr=1e-2)
+
+        # Set up schedulers
+        scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+        scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
+        scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
+
+        for epoch in range(self.EPOCHS):
+            model_phi, model_d, model_u = self.train_step(model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u)
+            scheduler_phi.step()
+            scheduler_u.step()
+            scheduler_d.step()
+
+        return model_phi, model_d, model_u
+
+MM = MarketMaking(num_points=10000)
+MM.train()
