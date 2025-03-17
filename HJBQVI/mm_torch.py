@@ -726,7 +726,8 @@ class MarketMaking():
             'typeNN': 'LSTM',
             'log_dir': './logs',
             'model_dir': './models',
-            'label': None
+            'label': None,
+            'refresh_epoch' : 300
         }
 
         # Update defaults with provided kwargs
@@ -743,6 +744,7 @@ class MarketMaking():
         log_dir = defaults['log_dir']
         model_dir = defaults['model_dir']
         label = defaults['label']
+        refresh_epoch = defaults['refresh_epoch']
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
         model_manager = ModelManager(model_dir = model_dir, label = label)
@@ -789,7 +791,9 @@ class MarketMaking():
                 # Save and plot losses
                 logger.save_logs()
                 logger.plot_losses(show=True, save=True)
-
+            if (epoch+1) == refresh_epoch:
+                model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
+                model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
             # Step learning rate schedulers
             scheduler_phi.step()
             scheduler_u.step()
