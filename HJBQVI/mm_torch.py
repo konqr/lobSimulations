@@ -809,6 +809,6 @@ class MarketMaking():
 
         return model_phi, model_d, model_u
 
-get_gpu_specs()
-MM = MarketMaking(num_epochs=2000, num_points=10000)
-MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='Dense', layer_widths = [30]*3, n_layers= [10]*3, label = 'dense')
+# get_gpu_specs()
+# MM = MarketMaking(num_epochs=2000, num_points=10000)
+# MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='LSTM', layer_widths = [50]*3, n_layers= [10]*3, label = 'LSTM')
