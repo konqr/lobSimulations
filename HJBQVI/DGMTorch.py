@@ -501,3 +501,70 @@ def get_gpu_specs():
     print("-" * 30)
     print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
     print(f"Cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+
+import json
+import matplotlib.pyplot as plt
+import os
+from datetime import datetime
+
+def plot_losses_from_json(json_path, show=True, save=True):
+    """Load loss data from JSON and create dual-scale plots"""
+    # Load data
+    with open(json_path, 'r') as f:
+        losses = json.load(f)
+
+    # Validate required keys
+    required_keys = ['phi', 'u', 'd']
+    for key in required_keys:
+        if key not in losses:
+            raise ValueError(f"Missing required key in JSON: {key}")
+
+    # Create figure
+    plt.figure(figsize=(18, 12))
+    epochs = range(1, len(losses['phi']) + 1)
+
+    # Plotting function
+    def plot_pair(position, data, color, label, is_accuracy=False):
+        # Linear scale
+        plt.subplot(5, 2, position*2-1)
+        plt.plot(epochs, data, f'{color}-' if not is_accuracy else f'{color}.')
+        plt.title(f'{label} (Linear)')
+        plt.ylabel('Accuracy' if is_accuracy else 'Loss')
+        plt.grid(True)
+
+        # Log scale
+        plt.subplot(5, 2, position*2)
+        plot_data = data if not is_accuracy else [x + 1e-8 for x in data]  # Avoid log(0)
+        plt.semilogy(epochs, plot_data, f'{color}-' if not is_accuracy else f'{color}.')
+        plt.title(f'{label} (Log Scale)')
+        plt.ylabel('Log Accuracy' if is_accuracy else 'Log Loss')
+        plt.grid(True)
+
+    # Plot all components
+    plot_pair(1, losses['phi'], 'b', 'Value Function Loss')
+    plot_pair(2, losses['u'], 'g', 'Control Function Loss')
+    #plot_pair(3, losses['acc_u'], 'g', 'Control Function Accuracy', is_accuracy=True)
+    plot_pair(4, losses['d'], 'r', 'Decision Function Loss')
+    #plot_pair(5, losses['acc_d'], 'r', 'Decision Function Accuracy', is_accuracy=True)
+
+    # Final formatting
+    plt.tight_layout(pad=3.0)
+    plt.subplot(5, 2, 9)
+    plt.xlabel('Epochs')
+    plt.subplot(5, 2, 10)
+    plt.xlabel('Epochs')
+
+    # Save/output
+    if save:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plot_path = os.path.join(os.path.dirname(json_path), f"loss_plot_{timestamp}.png")
+        plt.savefig(plot_path)
+        print(f"Plot saved to: {plot_path}")
+
+    if show:
+        plt.show()
+
+    return plt.gcf()
+
+# Example usage
+# plot_losses_from_json('D:\\PhD\\results - hjbqvi\\training_logs_20250317_120356.json')

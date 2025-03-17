@@ -522,7 +522,7 @@ class MarketMaking():
         ], dim=1)
 
         # Calculate new value function and add profit
-        return model_phi(ts, Ss_intervened) #+ inter_profit.unsqueeze(1)
+        return model_phi(ts, Ss_intervened) + inter_profit.unsqueeze(1)
 
     def oracle_u(self, model_phi, ts, Ss):
         # Use PyTorch operations to compute the best action
