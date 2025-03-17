@@ -135,7 +135,7 @@ class DenseLayer(nn.Module):
 
 
 class DGMNet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, final_trans=None):
+    def __init__(self, layer_width, n_layers, input_dim, final_trans=None, typeNN = 'LSTM'):
         '''
         Args:
             layer_width:
@@ -153,9 +153,16 @@ class DGMNet(nn.Module):
 
         # Intermediate LSTM layers
         self.n_layers = n_layers
-        self.LSTMLayerList = nn.ModuleList([
-            LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
-        ])
+        if typeNN == 'LSTM':
+            self.LayerList = nn.ModuleList([
+                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
+            ])
+        elif typeNN == 'Dense':
+            self.LayerList = nn.ModuleList([
+                DenseLayer(layer_width, input_dim+1, transformation="tanh") for _ in range(self.n_layers)
+            ])
+        else:
+            raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
 
         # Final layer as fully connected with a single output (function value)
         self.final_layer = DenseLayer(1, layer_width, transformation=final_trans)
@@ -184,7 +191,7 @@ class DGMNet(nn.Module):
         return result
 
 class PIANet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None):
+    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None, typeNN = 'LSTM'):
         '''
         Args:
             layer_width:
@@ -203,9 +210,16 @@ class PIANet(nn.Module):
 
         # Intermediate LSTM layers
         self.n_layers = n_layers
-        self.LSTMLayerList = nn.ModuleList([
-            LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
-        ])
+        if typeNN == 'LSTM':
+            self.LayerList = nn.ModuleList([
+                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
+            ])
+        elif typeNN == 'Dense':
+            self.LayerList = nn.ModuleList([
+                DenseLayer(layer_width, input_dim+1, transformation="tanh") for _ in range(self.n_layers)
+            ])
+        else:
+            raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
 
         # Final layer as fully connected with multiple outputs (function values)
         self.final_layer = DenseLayer(num_classes, layer_width, transformation=final_trans)
@@ -239,7 +253,7 @@ class PIANet(nn.Module):
 
 # Helper class for loss tracking and visualization
 class TrainingLogger:
-    def __init__(self, log_dir='./logs', layer_widths = [20]*3, n_layers= [5]*3):
+    def __init__(self, log_dir='./logs', layer_widths = [20]*3, n_layers= [5]*3, label=None):
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
         self.hyperparams = {'layer_widths': layer_widths,
@@ -252,6 +266,8 @@ class TrainingLogger:
             'u': []
         }
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.label = ''
+        if label: self.label = str(label)
 
     def log_losses(self, phi_loss, d_loss, u_loss):
         """Log losses for each epoch"""
@@ -261,7 +277,7 @@ class TrainingLogger:
 
     def save_logs(self):
         """Save logs to file"""
-        log_file = os.path.join(self.log_dir, f"training_logs_{self.timestamp}.json")
+        log_file = os.path.join(self.log_dir, f"training_logs_{self.timestamp}_{self.label}.json")
         with open(log_file, 'w') as f:
             json.dump(self.losses, f)
         return log_file
@@ -294,7 +310,7 @@ class TrainingLogger:
         plt.tight_layout()
 
         if save:
-            plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}.png")
+            plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}_{self.label}.png")
             plt.savefig(plot_file)
             print(f"Loss plot saved to {plot_file}")
 
@@ -305,10 +321,12 @@ class TrainingLogger:
 
 # Model management helper class
 class ModelManager:
-    def __init__(self, model_dir='./models'):
+    def __init__(self, model_dir='./models', label = None):
         self.model_dir = model_dir
         os.makedirs(model_dir, exist_ok=True)
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.label = ''
+        if label: self.label = str(label)
 
     def save_models(self, model_phi, model_d, model_u, epoch=-1):
         """Save models to files"""
@@ -316,9 +334,9 @@ class ModelManager:
         suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
 
         # Save paths
-        phi_path = os.path.join(self.model_dir, f"model_phi{suffix}_{self.timestamp}.pt")
-        d_path = os.path.join(self.model_dir, f"model_d{suffix}_{self.timestamp}.pt")
-        u_path = os.path.join(self.model_dir, f"model_u{suffix}_{self.timestamp}.pt")
+        phi_path = os.path.join(self.model_dir, f"model_phi{suffix}_{self.timestamp}_{self.label}.pt")
+        d_path = os.path.join(self.model_dir, f"model_d{suffix}_{self.timestamp}_{self.label}.pt")
+        u_path = os.path.join(self.model_dir, f"model_u{suffix}_{self.timestamp}_{self.label}.pt")
 
         # Save model states
         torch.save(model_phi.state_dict(), phi_path)
@@ -336,7 +354,7 @@ class ModelManager:
             }
         }
 
-        meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{self.timestamp}.json")
+        meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{self.timestamp}_{self.label}.json")
         with open(meta_path, 'w') as f:
             json.dump(metadata, f)
 

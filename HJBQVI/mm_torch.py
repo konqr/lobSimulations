@@ -716,15 +716,41 @@ class MarketMaking():
 
         return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u
 
-    def train(self, continue_training=False, checkpoint_frequency=50, layer_widths = [20]*3, n_layers= [5]*3, log_dir = './logs', model_dir = './models'):
+    def train(self, **kwargs):
+        # Default parameter values
+        defaults = {
+            'continue_training': False,
+            'checkpoint_frequency': 50,
+            'layer_widths': [20, 20, 20],
+            'n_layers': [5, 5, 5],
+            'typeNN': 'LSTM',
+            'log_dir': './logs',
+            'model_dir': './models',
+            'label': None
+        }
+
+        # Update defaults with provided kwargs
+        for key, value in kwargs.items():
+            if key in defaults:
+                defaults[key] = value
+
+        # Extract parameters for use
+        continue_training = defaults['continue_training']
+        checkpoint_frequency = defaults['checkpoint_frequency']
+        layer_widths = defaults['layer_widths']
+        n_layers = defaults['n_layers']
+        typeNN = defaults['typeNN']
+        log_dir = defaults['log_dir']
+        model_dir = defaults['model_dir']
+        label = defaults['label']
         # Initialize logger and model manager
-        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir)
-        model_manager = ModelManager(model_dir = model_dir)
+        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+        model_manager = ModelManager(model_dir = model_dir, label = label)
 
         # Create models
-        model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11)
-        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10)
-        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2)
+        model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
+        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
+        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
 
         # Load existing models if continuing training
         if continue_training:
@@ -781,4 +807,4 @@ class MarketMaking():
 
 get_gpu_specs()
 MM = MarketMaking(num_epochs=2000, num_points=10000)
-MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', layer_widths = [30]*3, n_layers= [5]*3)
+MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='Dense', layer_widths = [30]*3, n_layers= [10]*3, label = 'dense')
