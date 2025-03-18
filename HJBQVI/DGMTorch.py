@@ -177,7 +177,7 @@ class DGMNet(nn.Module):
         '''
         # Define input vector as time-space pairs
         X = torch.cat([t, x], 1)
-
+        X = MinMaxScaler().fit_transform(X)
         # Call initial layer
         S = self.initial_layer(X)
 
@@ -237,7 +237,7 @@ class PIANet(nn.Module):
         '''
         # Define input vector as time-space pairs
         X = torch.cat([t, x], 1)
-
+        X = MinMaxScaler().fit_transform(X)
         # Call initial layer
         S = self.initial_layer(X)
 
@@ -255,6 +255,40 @@ class PIANet(nn.Module):
         op = op.reshape(op.shape[0], 1).float()
 
         return op, result
+
+class MinMaxScaler:
+    def __init__(self, feature_range=(0, 1)):
+        self.feature_range = feature_range
+        self.data_min_ = None
+        self.data_max_ = None
+
+    def fit(self, X):
+        """Compute min/max values for scaling along each feature (column)"""
+        self.data_min_ = X.min(dim=0).values
+        self.data_max_ = X.max(dim=0).values
+        return self
+
+    def transform(self, X):
+        """Apply min-max scaling using precomputed statistics"""
+        denominator = self.data_max_ - self.data_min_
+        denominator = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+
+        scale = (self.feature_range[1] - self.feature_range[0]) / denominator
+        min_ = self.feature_range[0] - self.data_min_ * scale
+
+        return X * scale + min_
+
+    def fit_transform(self, X):
+        """Convenience method for fit+transform"""
+        return self.fit(X).transform(X)
+
+    def inverse_transform(self, X_scaled):
+        """Reverse the scaling operation"""
+        denominator = self.data_max_ - self.data_min_
+        denominator = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
+
+        scale = (self.feature_range[1] - self.feature_range[0]) / denominator
+        return (X_scaled - (self.feature_range[0] - self.data_min_ * scale)) / scale
 
 # Helper class for loss tracking and visualization
 class TrainingLogger:
