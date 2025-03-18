@@ -805,9 +805,9 @@ class MarketMaking():
                 # Save and plot losses
                 logger.save_logs()
                 logger.plot_losses(show=True, save=True)
-            if (epoch+1) == refresh_epoch:
-                model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
-                model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
+            # if (epoch+1) == refresh_epoch:
+            #     model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
+            #     model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
             # Step learning rate schedulers
             scheduler_phi.step()
             scheduler_u.step()
