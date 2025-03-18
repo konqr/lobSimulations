@@ -747,6 +747,10 @@ class MarketMaking():
         layer_widths = defaults['layer_widths']
         n_layers = defaults['n_layers']
         typeNN = defaults['typeNN']
+        typeNN2= typeNN
+        if type(typeNN) == list:
+            typeNN = typeNN[0]
+            typeNN2 =typeNN[1]
         log_dir = defaults['log_dir']
         model_dir = defaults['model_dir']
         label = defaults['label']
@@ -758,8 +762,8 @@ class MarketMaking():
 
         # Create models
         model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
-        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
-        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
+        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
+        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
 
         # Load existing models if continuing training
         if continue_training:
