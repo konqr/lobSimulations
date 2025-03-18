@@ -21,7 +21,7 @@ class MarketMaking():
         self.NDIMS = 12
         self.NUM_POINTS = num_points
         self.EPOCHS = num_epochs
-        self.eta = 0.5  # inventory penalty
+        self.eta = 125  # inventory penalty
         self.E = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
                   "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid", "lo_deep_Bid"]
         self.U = ["lo_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
@@ -749,8 +749,8 @@ class MarketMaking():
         typeNN = defaults['typeNN']
         typeNN2= typeNN
         if type(typeNN) == list:
-            typeNN = typeNN[0]
             typeNN2 =typeNN[1]
+            typeNN = typeNN[0]
         log_dir = defaults['log_dir']
         model_dir = defaults['model_dir']
         label = defaults['label']
