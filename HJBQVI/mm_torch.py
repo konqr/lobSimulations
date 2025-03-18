@@ -775,9 +775,11 @@ class MarketMaking():
                 model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
                 print("Resuming training from previously saved models")
 
-        # Learning rate scheduler
+        # Define lambda function for the scheduler
         def lr_lambda(epoch):
-            return 0.9 ** (epoch / (self.EPOCHS * 10))
+            # Calculate decay rate
+            decay_rate = np.log(1e-2) / (self.EPOCHS - 1)
+            return np.exp(decay_rate * epoch)
 
         optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
