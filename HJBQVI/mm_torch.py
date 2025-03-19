@@ -729,7 +729,7 @@ class MarketMaking():
         defaults = {
             'continue_training': False,
             'checkpoint_label' : None,
-            'continue_epoch': None,
+            'continue_epoch': 0,
             'checkpoint_frequency': 50,
             'layer_widths': [20, 20, 20],
             'n_layers': [5, 5, 5],
@@ -795,7 +795,7 @@ class MarketMaking():
         scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
 
         # Training loop
-        for epoch in range(self.EPOCHS):
+        for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
                 model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u
