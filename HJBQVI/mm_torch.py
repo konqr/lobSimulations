@@ -736,7 +736,7 @@ class MarketMaking():
             'model_dir': './models',
             'label': None,
             'refresh_epoch' : 300,
-            'lr' : 1e-2
+            'lr' : 1e-3
         }
 
         # Update defaults with provided kwargs
@@ -778,7 +778,7 @@ class MarketMaking():
         # Define lambda function for the scheduler
         def lr_lambda(epoch):
             # Calculate decay rate
-            decay_rate = np.log(1e-2) / (self.EPOCHS - 1)
+            decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
             return np.exp(decay_rate * epoch)
 
         optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
