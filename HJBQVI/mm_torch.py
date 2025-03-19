@@ -728,6 +728,8 @@ class MarketMaking():
         # Default parameter values
         defaults = {
             'continue_training': False,
+            'checkpoint_label' : None,
+            'continue_epoch': None,
             'checkpoint_frequency': 50,
             'layer_widths': [20, 20, 20],
             'n_layers': [5, 5, 5],
@@ -746,6 +748,8 @@ class MarketMaking():
 
         # Extract parameters for use
         continue_training = defaults['continue_training']
+        checkpoint_label = defaults['checkpoint_label']
+        continue_epoch = defaults['continue_epoch']
         checkpoint_frequency = defaults['checkpoint_frequency']
         layer_widths = defaults['layer_widths']
         n_layers = defaults['n_layers']
@@ -770,7 +774,7 @@ class MarketMaking():
 
         # Load existing models if continuing training
         if continue_training:
-            loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u)
+            loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u, timestamp= checkpoint_label, epoch = continue_epoch)
             if loaded_phi is not None:
                 model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
                 print("Resuming training from previously saved models")
