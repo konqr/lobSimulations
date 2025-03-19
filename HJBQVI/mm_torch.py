@@ -779,7 +779,7 @@ class MarketMaking():
         def lr_lambda(epoch):
             # Calculate decay rate
             decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
-            return np.exp(decay_rate * epoch)
+            return np.exp(decay_rate * epoch * 50)
 
         optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
