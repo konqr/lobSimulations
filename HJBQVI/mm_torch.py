@@ -9,7 +9,7 @@ import pickle
 import pandas as pd
 
 class MarketMaking():
-    def __init__(self, num_points=100, num_epochs=1000):
+    def __init__(self, num_points=100, num_epochs=1000, ric='AAPL'):
         '''
         state variables:
             X: Cash
@@ -33,8 +33,9 @@ class MarketMaking():
         # self.lambdas_poisson = [.86, .32, .33, .48, .02, .47, .47, .02, .48, .33, .32, .86]  # [5] * 12 # AMZN
         # INTC : {'lo_deep_Ask': 1.3291742343304844, 'co_deep_Ask': 2.2448482015669513, 'lo_top_Ask': 7.89707621082621, 'co_top_Ask': 6.617852118945869, 'mo_Ask': 0.5408440170940172, 'lo_inspread_Ask': 0.1327911324786325, 'lo_inspread_Bid': 0.1327911324786325, 'mo_Bid': 0.5408440170940172, 'co_top_Bid': 6.617852118945869, 'lo_top_Bid': 7.89707621082621, 'co_deep_Bid': 2.2448482015669513, 'lo_deep_Bid': 1.3291742343304844}
         # AAPL : {'lo_deep_Ask': 1.9115059993425376, 'co_deep_Ask': 2.3503168145956606, 'lo_top_Ask': 4.392785174227481, 'co_top_Ask': 4.248318129520053, 'mo_Ask': 1.0989673734385272, 'lo_inspread_Ask': 1.0131743096646941, 'lo_inspread_Bid': 1.0131743096646941, 'mo_Bid': 1.0989673734385272, 'co_top_Bid': 4.248318129520053, 'lo_top_Bid': 4.392785174227481, 'co_deep_Bid': 2.3503168145956606, 'lo_deep_Bid': 1.9115059993425376}
-        # self.lambdas_poisson = [1.33, 2.24, 7.90, 6.62, 0.54, 0.13, 0.13, 0.54, 6.62, 7.90, 2.24, 1.33]
-        self.lambdas_poisson = [1.91, 2.35, 4.39, 4.23, 1.09, 1.01, 1.01, 1.09, 4.23, 4.39, 2.35, 1.91]
+        self.lambdas_poisson = [1.33, 2.24, 7.90, 6.62, 0.54, 0.13, 0.13, 0.54, 6.62, 7.90, 2.24, 1.33]
+        if ric == 'AAPL':
+            self.lambdas_poisson = [1.91, 2.35, 4.39, 4.23, 1.09, 1.01, 1.01, 1.09, 4.23, 4.39, 2.35, 1.91]
     def sampler(self, num_points=1000, seed=None, boundary=False):
         '''
         Sample points from the stationary distributions for the DGM learning
