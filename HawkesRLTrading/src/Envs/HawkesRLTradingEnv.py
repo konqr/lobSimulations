@@ -1,8 +1,12 @@
+import sys
+import os
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+
 import gymnasium as gym
 import numpy as np
 from typing import Any, Optional
 import logging
-from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
+from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent, TWAPGymTradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -71,6 +75,8 @@ class tradingEnv(gym.Env):
                 new_agent=None
                 if j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True, cashlimit=j["cashlimit"])
+                elif j["strategy"] == "TWAP":
+                    new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=True)
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -164,11 +170,21 @@ if __name__=="__main__":
                 "TradingAgent": [],
                 "GymTradingAgent": [{"cash": 1000000,
                                     "strategy": "Random",
-                                    "action_freq": .2,
+                                    "action_freq": .2, #makes an action every .2 seconds
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
                                     "log_to_file": True,
-                                    "cashlimit": 100000000}],
+                                    "cashlimit": 100000000}, 
+                                     {"cash":100000000,
+                                      "strategy": "TWAP",
+                                      "total_order_size":100000,
+                                      "order_target":"XYZ",
+                                      "total_time":3600,
+                                      "window_size":900, #window size, measured in seconds
+                                      "side":"buy", #buy or sell
+                                      "action_freq":.2, 
+                                      "Inventory": {} #note: add a checker in the twap agent initialisation which makes sure if its a sell order, that the agent has enough of that particular stock in the inventory
+                                     }],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
