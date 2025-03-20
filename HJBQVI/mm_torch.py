@@ -106,7 +106,7 @@ class MarketMaking():
             qD_as += [qD_a]
             qD_bs += [qD_b]
             P_mids += [P_mid]
-            t += [pd.DataFrame(results[0][1:]).iloc[idxs][1].values]
+            t += [pd.DataFrame(results[0][1:]).iloc[idxs-1][1].values]
         t = np.hstack(t).reshape(-1,1)
         P_mids = np.hstack(P_mids).reshape(-1,1)
         p_as = np.hstack(p_as).reshape(-1,1)
