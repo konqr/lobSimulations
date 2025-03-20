@@ -87,7 +87,7 @@ class MarketMaking():
         t = []
         t_boundary = self.TERMINATION_TIME * np.ones([num_points, 1])
         for fname in files:
-            with open(fname, "rb") as f:
+            with open(path+'/'+fname, "rb") as f:
                 results = pickle.load(f)
             df = pd.DataFrame(results[1])
             idxs = np.random.randint(0, len(df), num_points//10)
