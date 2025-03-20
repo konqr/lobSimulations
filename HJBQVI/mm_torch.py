@@ -719,7 +719,7 @@ class MarketMaking():
         train_loss_phi = 0.0
 
         # Use gradient clipping to prevent exploding gradients
-        for j in range(10):
+        for j in range(100):
             optimizer_phi.zero_grad()
             loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             loss_phi.backward()
