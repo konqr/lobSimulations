@@ -4,6 +4,9 @@ import DGMTorch as DGM
 from DGMTorch import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
+import os
+import pickle
+import pandas as pd
 
 class MarketMaking():
     def __init__(self, num_points=100, num_epochs=1000):
@@ -17,6 +20,7 @@ class MarketMaking():
             n_a, n_b: queue priority,
             P_mid: mid-price
         '''
+        self.SAMPLER = 'sim'
         self.TERMINATION_TIME = 23400
         self.NDIMS = 12
         self.NUM_POINTS = num_points
@@ -29,8 +33,8 @@ class MarketMaking():
         # self.lambdas_poisson = [.86, .32, .33, .48, .02, .47, .47, .02, .48, .33, .32, .86]  # [5] * 12 # AMZN
         # INTC : {'lo_deep_Ask': 1.3291742343304844, 'co_deep_Ask': 2.2448482015669513, 'lo_top_Ask': 7.89707621082621, 'co_top_Ask': 6.617852118945869, 'mo_Ask': 0.5408440170940172, 'lo_inspread_Ask': 0.1327911324786325, 'lo_inspread_Bid': 0.1327911324786325, 'mo_Bid': 0.5408440170940172, 'co_top_Bid': 6.617852118945869, 'lo_top_Bid': 7.89707621082621, 'co_deep_Bid': 2.2448482015669513, 'lo_deep_Bid': 1.3291742343304844}
         # AAPL : {'lo_deep_Ask': 1.9115059993425376, 'co_deep_Ask': 2.3503168145956606, 'lo_top_Ask': 4.392785174227481, 'co_top_Ask': 4.248318129520053, 'mo_Ask': 1.0989673734385272, 'lo_inspread_Ask': 1.0131743096646941, 'lo_inspread_Bid': 1.0131743096646941, 'mo_Bid': 1.0989673734385272, 'co_top_Bid': 4.248318129520053, 'lo_top_Bid': 4.392785174227481, 'co_deep_Bid': 2.3503168145956606, 'lo_deep_Bid': 1.9115059993425376}
-        self.lambdas_poisson = [1.33, 2.24, 7.90, 6.62, 0.54, 0.13, 0.13, 0.54, 6.62, 7.90, 2.24, 1.33]
-
+        # self.lambdas_poisson = [1.33, 2.24, 7.90, 6.62, 0.54, 0.13, 0.13, 0.54, 6.62, 7.90, 2.24, 1.33]
+        self.lambdas_poisson = [1.91, 2.35, 4.39, 4.23, 1.09, 1.01, 1.01, 1.09, 4.23, 4.39, 2.35, 1.91]
     def sampler(self, num_points=1000, seed=None, boundary=False):
         '''
         Sample points from the stationary distributions for the DGM learning
@@ -65,6 +69,62 @@ class MarketMaking():
 
         return torch.tensor(t, dtype=torch.float32), torch.tensor(
             np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+
+    def sampler_sim(self, ric='AAPL', num_points=1000, seed=None, boundary=False):
+        path = '/SAN/fca/Konark_PhD_Experiments/simulated/poisson'
+        files = os.listdir(path)
+        files = [f for f in files if ('poisson' in f)&(ric in f)]
+        files = np.random.choice(files, 10)
+        Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
+        Ys = np.round(10 * np.random.randn(num_points, 1), 2)
+        P_mids = []
+        p_as = []
+        p_bs = []
+        q_as = []
+        qD_as = []
+        q_bs = []
+        qD_bs = []
+        t = []
+        t_boundary = self.TERMINATION_TIME * np.ones([num_points, 1])
+        for fname in files:
+            with open(fname, "rb") as f:
+                results = pickle.load(f)
+            df = pd.DataFrame(results[1])
+            idxs = np.random.randint(0, len(df), num_points//10)
+            data = df.iloc[idxs]
+            p_a = data['Ask_touch'].apply(lambda x: x[0]).values
+            q_a = data['Ask_touch'].apply(lambda x: x[1]).values
+            p_b = data['Bid_touch'].apply(lambda x: x[0]).values
+            q_b = data['Bid_touch'].apply(lambda x: x[1]).values
+            qD_a = data['Ask_deep'].apply(lambda x: x[1]).values
+            qD_b = data['Bid_deep'].apply(lambda x: x[1]).values
+            P_mid = (p_a + p_b)/2
+            p_as += [p_a]
+            q_as += [q_a]
+            p_bs += [p_b]
+            q_bs += [q_b]
+            qD_as += [qD_a]
+            qD_bs += [qD_b]
+            P_mids += [P_mid]
+            t += [pd.DataFrame(results[0][1:]).iloc[idxs][1].values]
+        t = np.hstack(t).reshape(-1,1)
+        P_mids = np.hstack(P_mids).reshape(-1,1)
+        p_as = np.hstack(p_as).reshape(-1,1)
+        p_bs = np.hstack(p_bs).reshape(-1,1)
+        q_as = np.hstack(q_as).reshape(-1,1)
+        qD_as = np.hstack(qD_as).reshape(-1,1)
+        q_bs = np.hstack(q_bs).reshape(-1,1)
+        qD_bs = np.hstack(qD_bs).reshape(-1,1)
+        n_as = np.array([np.random.randint(0, b) for b in q_as + qD_as])
+        n_bs = np.array([np.random.randint(0, b) for b in q_bs + qD_bs])
+        # Convert to TensorFlow tensors immediately
+        if boundary:
+            return torch.tensor(t_boundary, dtype=torch.float32), torch.tensor(
+                np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+
+        return torch.tensor(t, dtype=torch.float32), torch.tensor(
+            np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+
 
     def sample_qd(self):
         # Return a PyTorch tensor directly
@@ -647,9 +707,14 @@ class MarketMaking():
         lambdas = self.lambdas_poisson
 
         # Generate sample data
-        ts, Ss = self.sampler(self.NUM_POINTS)
-        Ts, S_boundarys = self.sampler(self.NUM_POINTS, boundary=True)
-
+        if self.SAMPLER=='iid':
+            ts, Ss = self.sampler(self.NUM_POINTS)
+            Ts, S_boundarys = self.sampler(self.NUM_POINTS, boundary=True)
+        elif self.SAMPLER == 'sim':
+            ts, Ss = self.sampler_sim(num_points=self.NUM_POINTS)
+            Ts, S_boundarys = self.sampler_sim(num_points=self.NUM_POINTS, boundary=True)
+        else:
+            raise Exception('invalid sampler')
         # Train value function
         train_loss_phi = 0.0
 
@@ -738,7 +803,8 @@ class MarketMaking():
             'model_dir': './models',
             'label': None,
             'refresh_epoch' : 300,
-            'lr' : 1e-3
+            'lr' : 1e-3,
+            'sampler': 'sim'
         }
 
         # Update defaults with provided kwargs
@@ -763,6 +829,8 @@ class MarketMaking():
         label = defaults['label']
         refresh_epoch = defaults['refresh_epoch']
         lr = defaults['lr']
+        sampler = defaults['sampler']
+        self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
         model_manager = ModelManager(model_dir = model_dir, label = label)
