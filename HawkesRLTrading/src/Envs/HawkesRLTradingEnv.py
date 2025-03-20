@@ -23,12 +23,16 @@ class tradingEnv(gym.Env):
         kwargs -- Simulation default parameters specified as following:
             Dictionary{
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 5000, 
+                "GymTradingAgent": [{"cash": 10000000, 
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True}],
+                                    "log_to_file": True, 
+                                    "cashlimit": 1000000000000,
+                                    "inventorylimit": 100000,
+                                    "wake_on_MO": True,
+                                    "wake_on_Spread": True}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -70,7 +74,7 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
                 if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True, cashlimit=j["cashlimit"])
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -107,8 +111,8 @@ class tradingEnv(gym.Env):
         Observations=self.getobservations()
         # rewards=self.calculaterewards()
         termination=self.isterminated()
-        # truncation=self.istruncated()
-        return simstate, Observations, termination
+        truncation=self.istruncated()
+        return simstate, Observations, termination, truncation
         # return Observations, rewards, termination, truncation
         #return observations, rewards, dones, infos    
         
@@ -147,10 +151,10 @@ class tradingEnv(gym.Env):
         for gymagent in self.kernel.gymagents:
             rewards[gymagent.id]=gymagent.calculaterewards()
         return rewards        
-    def isterminated(self):
-        return self.kernel.isterminated()==len(self.kernel.gymagents)
     def istruncated(self):
-        return self.kernel.istruncated()  
+        return all(self.kernel.istruncated())
+    def isterminated(self):
+        return self.kernel.isterminated()  
     def getinfo(self):
         """
         Returns auxiliary info: 
@@ -162,13 +166,16 @@ class tradingEnv(gym.Env):
 if __name__=="__main__":
     kwargs={
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 10000, 
+                "GymTradingAgent": [{"cash": 2000, 
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
+                                    "Inventory": {"XYZ": 500},
                                     "log_to_file": True,
-                                    "cashlimit": 1000000}],
+                                    "cashlimit": 500000, 
+                                    "inventorylimit": 1000000,
+                                    "wake_on_MO": True,
+                                    "wake_on_Spread": False}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -185,12 +192,12 @@ if __name__=="__main__":
 
             }
     
-    env=tradingEnv(stop_time=3000, seed=1, **kwargs)
+    env=tradingEnv(stop_time=500, seed=2, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
-    Simstate, observations, termination=env.step(action=None)
+    Simstate, observations, termination, truncation =env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
-    while Simstate["Done"]==False and termination!=True:
+    while Simstate["Done"]==False:
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
@@ -201,8 +208,13 @@ if __name__=="__main__":
         action=(agent.id, agent.get_action(data=observations))   
         print(f"Limit Order Book: {observations['LOB0']}")
         print(f"Action: {action}")
-        Simstate, observations, termination=env.step(action=action) 
-        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+        Simstate, observations, termination, truncation=env.step(action=action) 
+        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
         i+=1
         print(f"ACTION DONE{i}")
-    
+    if termination:
+        print("Termination condition reached.")
+    elif truncation:
+        print("Truncation condition reached.")    
+    else:
+        pass

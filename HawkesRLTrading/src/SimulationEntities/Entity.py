@@ -84,7 +84,7 @@ class Entity:
         assert self.kernel is not None, f"Kernel not linked to Entity: {self.id}"
         self.current_time=current_time
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("At {}, entity {} received: {}".format(self.current_time, self.id, message))
+            logger.debug("At {}, entity {} received from entity {}: {}".format(self.current_time, self.id, senderID, message))
         
         
     def wakeup(self, current_time: float, delay: float=0) -> None:

@@ -63,7 +63,7 @@ class HawkesArrival(ArrivalModel):
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
             #logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
-            logger.info(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. \nAssuming default values")
+            logger.error(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. \nAssuming default values")
             params.update(missing_with_defaults)
         else:
             pass
@@ -219,7 +219,7 @@ class HawkesArrival(ArrivalModel):
         cdf = np.cumsum(pi)
         a = np.random.uniform(0, 1)
         qSize = np.argmax(cdf>=a) + 1
-        print("first qsize: " + str(qSize))
+        #logger.debug("first qsize: " + str(qSize))
         return qSize
 
     def generate_orders_in_queue(self, loblevel, numorders=10) -> List[int]:
@@ -284,7 +284,7 @@ class HawkesArrival(ArrivalModel):
         """simulate a point"""
         pointcount=0
         while self.s<T:
-            logger.debug(f"stuck in the loop -- s: {self.s}, T: {T}, lamb: {self.lamb}")
+            #logger.debug(f"stuck in the loop -- s: {self.s}, T: {T}, lamb: {self.lamb}")
             """Assign lamb_bar"""
             lamb_bar=self.lamb 
             #print("lamb_bar: ", lamb_bar)
@@ -295,9 +295,10 @@ class HawkesArrival(ArrivalModel):
             else:
                 w=max(1e-7, -1 * np.log(u)/lamb_bar) # floor at 0.1 microsec
                 self.s+=w  
-                logger.debug(f"Adding w={w} to s ")
-            print(f"S: {self.s}")
+                #logger.debug(f"Adding w={w} to s ")
+            #logger.debug(f"S: {self.s}")
             if(self.s>T):
+                #self.s=T
                 return pointcount
             """Recalculating baseline lambdas sum with new candidate"""
             hourIndex = min(12,int(self.s//1800))
@@ -309,7 +310,7 @@ class HawkesArrival(ArrivalModel):
             else:
                 while self.left<len(self.timeseries):
                     #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
-                    if self.s-self.timeseries[self.left][0]>=10:
+                    if self.s-self.timeseries[self.left][0]>=500:
                         self.left+=1 
                     else:
                         break
@@ -329,7 +330,7 @@ class HawkesArrival(ArrivalModel):
             """Testing candidate point"""
             D=np.random.uniform(0, 1)
             #print("Candidate D: ", D)
-            print(f"Candidate: {self.s}")
+            #logger.debug(f"Candidate: {self.s}")
             if D*lamb_bar<=self.lamb:
                 pointcount+=1
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
@@ -367,10 +368,10 @@ class HawkesArrival(ArrivalModel):
                 tau = decays[k][0]
                 self.n[k]+=1
                 self.timeseries.append((self.s, k)) #(time, event)
+                if self.timeseries[-1][0] - self.timeseries[0][0] > 600: # purge too big timeseries
+                    self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
                 self.pointcount+=pointcount
                 return pointcount
-        if self.s>T and pointcount==0:
-            self.s=T
         return pointcount        
     def orderwrapper(self, time:float, k: int, size: int):
         """
@@ -437,11 +438,11 @@ class HawkesArrival(ArrivalModel):
         """Returns None if no arrivals before the timelimit. Otherwise, 
         Returns: time, side, order_type, level, size"""
         tmp=self.thinningOgataIS2(T=timelimit)
-        print("Pointcount is: " + str(tmp))
+        #logger.debug("Pointcount is: " + str(tmp))
         if tmp==0:
             return None
         #Newest point
-        print(f"Arrival Model time series {self.timeseries}")
+        #logger.debug(f"Arrival Model time series {self.timeseries}")
         t, k=self.timeseries[-1][0], self.timeseries[-1][1]
         size=self.generate_actionsize(self.coltolevel[k])
         return self.orderwrapper(time=t, k=k, size=size)

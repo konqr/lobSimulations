@@ -27,23 +27,38 @@ class TradingAgent(Entity):
                 event: actual event to be logged (co_deep_Ask, lo_deep_Ask...)
                 size: size of the order (if applicable)
         log_to_file: flag to write on disk or not the logged events
-    Agent Child Class attributes
+    TradingAgent Child Class attributes
         strategy: Is it a random agent? a RL agent?
         cash: cash of an agent
         Inventory: Initial inventory of an agent
         action_freq: what is the time period betweeen an agent's actions in seconds
-        on_trade: decides whether agent gets suscribed to new information every time a trade happens
+        
+        tradeNotif: decides whether agent gets suscribed to new information every time a trade happens
+        wake_on_MO: Does this agent get woken up when market orders happen
+        wake_on_Spread: does this agent get woken up when spread shifts
+
+        cashlimit: total cash limit ( a truncation condition)
+        inventorylimit: total inventory limit ( a truncation condition)
+        cash: starting cash level
         """
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, on_trade: bool=False, cashlimit=1000000) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000) -> None:
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
         self.Inventory=Inventory #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
-        self.on_trade: bool=on_trade #Does this agent get notified to make a trade whenever a trade happens
-        self.positions: Dict[str: List[Order]]={key: {} for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
+        #What trades is this agent notified to wakeup to
+        self.wake_on_MO=wake_on_MO #Does this agent get notified to make a trade whenever a trade happens
+        self.wake_on_Spread=wake_on_Spread
+        self.tradeNotif=self.wake_on_MO or self.wake_on_Spread
+        self.positions={key: {} for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
+        
+        #Truncation conditions
         self.cashlimit=cashlimit
+        self.inventorylimit=inventorylimit
         self.cash=cash
+
+        #private atributes
         self.profit=0
         self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -65,7 +80,7 @@ class TradingAgent(Entity):
         # Simulation attributes
         
         self.exchange=None
-        self.isterminated=False
+        self.istruncated=False
         #What time does the agent think it is?
         self.current_time: int = 0 
         
@@ -183,7 +198,7 @@ class TradingAgent(Entity):
         self.current_time=current_time
         super().receivemessage(current_time, senderID, message)
         #Check identity of the sender
-        logger.debug(f"Agent current state before processing msg: {self.statelog[-1]}\n")
+        #logger.debug(f"Agent current state before processing msg: {self.statelog[-1]}\n")
         if isinstance(message, OrderExecutedMsg):
             #update agent state
             order=message.order
@@ -219,8 +234,6 @@ class TradingAgent(Entity):
             self.profit=self.cash-self.statelog[0][1]
             self.updatestatelog()
             print(f"Statelog: {self.statelog[-1]}")
-            if self.cash<0:
-                self.isterminated=True
         elif isinstance(message, LimitOrderAcceptedMsg):
                 level=self.exchange.getlevel(price=message.order.price)
                 print(f"Level of limit Order is: {level} ")
@@ -255,10 +268,10 @@ class TradingAgent(Entity):
                     self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        if self.cash<0 or self.countInventory()<=0 or self.cash>self.cashlimit or self.countInventory()>10000:
-            self.isterminated=True
+        if self.cash<0 or self.countInventory()<=0 or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
+            self.istruncated=True
         
-    def wakeup(self, current_time: int) -> None:
+    def wakeup(self, current_time: int, delay=0) -> None:
         """
         Agents can request a wakeup call at a future simulation time using
         the Agent.set_wakeup(time) method
@@ -269,7 +282,7 @@ class TradingAgent(Entity):
             current_time: The simulation time at which the kernel is delivering this
                 message -- the agent should treat this as "now".
         """
-        super().wakeup(current_time)
+        super().wakeup(current_time, delay=delay)
         
     def peakLOB(self) -> Dict[str, Tuple[float, int]]:
         assert self.exchange is not None, f"Trading Agent: {self.id} is not linked to an exchange"
@@ -293,3 +306,7 @@ class TradingAgent(Entity):
              "Inventory": self.Inventory[self.exchange.symbol],
              "Positions": self.positions[self.exchange.symbol]}
         return rtn
+
+
+class RandomTradingAgent(TradingAgent):
+    pass
