@@ -307,6 +307,3 @@ class TradingAgent(Entity):
              "Positions": self.positions[self.exchange.symbol]}
         return rtn
 
-
-class RandomTradingAgent(TradingAgent):
-    pass

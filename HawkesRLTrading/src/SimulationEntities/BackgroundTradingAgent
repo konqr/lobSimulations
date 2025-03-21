@@ -1,0 +1,15 @@
+from HawkesRLTrading.src.SimulationEntities.Entity import Entity
+from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
+from typing import List, Tuple, Dict, Optional, Any
+from abc import abstractmethod, ABC
+class BackgroundTradingAgent(TradingAgent):
+    """Abstract class to inherit from to create usable specific Deterministic Background Agents """
+    pass
+
+class ReflexAgent(BackgroundTradingAgent):
+    def __init__(self, seed=1, log_events = True, log_to_file = False, strategy = "R", Inventory = None, cash = 5000, action_freq = 0.5, wake_on_MO = True, wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000):
+        super().__init__(seed, log_events, log_to_file, strategy, Inventory, cash, action_freq, wake_on_MO, wake_on_Spread, cashlimit, inventorylimit)
+
+
+class DirectionalAgent(BackgroundTradingAgent):
+    
