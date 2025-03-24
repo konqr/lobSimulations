@@ -661,6 +661,7 @@ class MarketMaking():
     def loss_phi_poisson(self, model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas):
         # Use autograd to calculate time derivative
         ts.requires_grad_(True)
+        print(ts.shape)
         output = model_phi(ts, Ss)
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
         ts.requires_grad_(False)
