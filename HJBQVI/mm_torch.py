@@ -669,6 +669,7 @@ class MarketMaking():
         phi_t.to(self.device)
         # Calculate integral term
         I_phi = torch.zeros_like(output)
+        I_phi.to(self.device)
         for i in range(self.NDIMS):
             # Calculate transition for event i
             Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
