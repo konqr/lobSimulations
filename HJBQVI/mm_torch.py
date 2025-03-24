@@ -675,7 +675,8 @@ class MarketMaking():
             Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
             Ss_transitioned.to(self.device)
             I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
-
+        print(phi_t.get_device())
+        print(I_phi.get_device())
         # Calculate generator term
         L_phi = phi_t + I_phi
 
