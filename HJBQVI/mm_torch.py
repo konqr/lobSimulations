@@ -609,10 +609,10 @@ class MarketMaking():
             # Store in interventions tensor
             indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
                                    torch.ones(batch_size, dtype=torch.int64) * u], dim=1)
-            interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1)
+            interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1).to(self.device)
 
         # Return the action with highest value
-        return torch.argmax(interventions, dim=1)
+        return torch.argmax(interventions, dim=1).to(self.device)
 
     def oracle_d(self, model_phi, model_u, ts, Ss):
         batch_size = ts.shape[0]
@@ -657,10 +657,10 @@ class MarketMaking():
             # Store in hjb tensor
             indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
                                    torch.ones(batch_size, dtype=torch.int64) * d], dim=1)
-            hjb[indices[:, 0], indices[:, 1]] = evaluation.reshape(-1)
+            hjb[indices[:, 0], indices[:, 1]] = evaluation.reshape(-1).to(self.device)
 
         # Return the decision with highest value
-        return torch.argmax(hjb, dim=1)
+        return torch.argmax(hjb, dim=1).to(self.device)
 
     def loss_phi_poisson(self, model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas):
         # Use autograd to calculate time derivative
