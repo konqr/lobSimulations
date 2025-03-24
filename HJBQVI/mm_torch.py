@@ -665,8 +665,9 @@ class MarketMaking():
         print(ts.shape)
         output = model_phi(ts, Ss)
         output.to(self.device)
-        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
-        phi_t.to(self.device)
+        print(output.get_device())
+        print(self.device)
+        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
         #ts.requires_grad_(False)
         print(phi_t.get_device())
 
