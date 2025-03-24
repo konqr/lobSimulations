@@ -684,7 +684,7 @@ class MarketMaking():
 
         # Calculate running cost
         f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
-        f = f.reshape(-1, 1)
+        f = f.reshape(-1, 1).to(self.device)
 
         # Get optimal decision and control
         ds, _ = model_d(ts, Ss)
@@ -694,6 +694,11 @@ class MarketMaking():
         M_phi = self.intervention(model_phi, ts, Ss, us)
 
         # Calculate HJB evaluation
+        print(ds.get_device())
+        print(L_phi.get_device())
+        print(f.get_device())
+        print(M_phi.get_device())
+        print(output.get_device())
         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
 
         # Interior loss
