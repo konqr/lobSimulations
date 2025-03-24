@@ -664,7 +664,7 @@ class MarketMaking():
         output = model_phi(ts, Ss)
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
         ts.requires_grad_(False)
-
+        phi_t.to(self.device)
         # Calculate integral term
         I_phi = torch.zeros_like(output)
         for i in range(self.NDIMS):
