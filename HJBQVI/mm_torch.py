@@ -621,36 +621,37 @@ class MarketMaking():
         hjb = torch.zeros((batch_size, 2), dtype=torch.float32)
 
         for d in [0, 1]:
-            # Use autograd to calculate time derivative
             ts.requires_grad_(True)
             output = model_phi(ts, Ss)
-            phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
-            ts.requires_grad_(False)
+            output.to(self.device)
+
+            phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
+            #ts.requires_grad_(False)
 
             # Calculate integral term
             I_phi = torch.zeros_like(output)
+            I_phi.to(self.device)
             for i in range(self.NDIMS):
                 # Calculate transition for event i
                 Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
-                I_phi += self.lambdas_poisson[i] * (model_phi(ts, Ss_transitioned) - output)
+                Ss_transitioned.to(self.device)
+                I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
 
             # Calculate generator term
             L_phi = phi_t + I_phi
 
             # Calculate running cost
             f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
-            f = f.reshape(-1, 1)
+            f = f.reshape(-1, 1).to(self.device)
 
-            # Decision tensor
+            # Get optimal decision and control
             ds = torch.ones((batch_size, 1), dtype=torch.float32) * d
-
-            # Get optimal control
             us, _ = model_u(ts, Ss)
 
             # Calculate intervention value
             M_phi = self.intervention(model_phi, ts, Ss, us)
 
-            # Calculate HJB value
+            # Calculate HJB evaluation
             evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
 
             # Store in hjb tensor
@@ -694,11 +695,6 @@ class MarketMaking():
         M_phi = self.intervention(model_phi, ts, Ss, us)
 
         # Calculate HJB evaluation
-        print(ds.get_device())
-        print(L_phi.get_device())
-        print(f.get_device())
-        print(M_phi.get_device())
-        print(output.get_device())
         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
 
         # Interior loss
@@ -707,7 +703,7 @@ class MarketMaking():
         # Boundary loss
         output_boundary = model_phi(Ts, S_boundarys)
         g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]  # Terminal condition
-        g = g.reshape(-1, 1)
+        g = g.reshape(-1, 1).to(self.device)
         boundary_loss = nn.MSELoss()(output_boundary, g)
 
         # Combine losses with potential weighting
