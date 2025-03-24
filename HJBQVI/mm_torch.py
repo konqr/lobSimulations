@@ -403,7 +403,7 @@ class MarketMaking():
         P_mids_updated = P_mids.clone()
 
         # Initialize profit tensor
-        inter_profit = torch.zeros(batch_size, device='cpu')
+        inter_profit = torch.zeros(batch_size, device=device)
 
         # Handle different intervention types using PyTorch operations
 
