@@ -176,7 +176,7 @@ class DGMNet(nn.Module):
         Run the DGM model and obtain fitted function value at the inputs (t,x)
         '''
         # Define input vector as time-space pairs
-        print(t.shape)
+
         X = torch.cat([t, x], 1)
         X = MinMaxScaler().fit_transform(X)
         # Call initial layer

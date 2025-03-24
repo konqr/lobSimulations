@@ -374,7 +374,7 @@ class MarketMaking():
         # Get batch size from inputs
         batch_size = ts.shape[0]
         device = ts.device
-
+        Ss = Ss.cpu()
         # Unpack state variables
         Xs = Ss[:, 0]
         Ys = Ss[:, 1]
@@ -402,7 +402,7 @@ class MarketMaking():
         P_mids_updated = P_mids.clone()
 
         # Initialize profit tensor
-        inter_profit = torch.zeros(batch_size, device=device)
+        inter_profit = torch.zeros(batch_size, device='cpu')
 
         # Handle different intervention types using PyTorch operations
 
@@ -586,6 +586,7 @@ class MarketMaking():
             qD_as_updated, qD_bs_updated, n_as_updated, n_bs_updated, P_mids_updated
         ], dim=1)
         Ss_intervened.to(self.device)
+        inter_profit.to(self.device)
         # Calculate new value function and add profit
         return model_phi(ts, Ss_intervened) + inter_profit.unsqueeze(1)
 
@@ -662,14 +663,11 @@ class MarketMaking():
     def loss_phi_poisson(self, model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas):
         # Use autograd to calculate time derivative
         ts.requires_grad_(True)
-        print(ts.shape)
         output = model_phi(ts, Ss)
         output.to(self.device)
-        print(output.get_device())
-        print(self.device)
+
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
         #ts.requires_grad_(False)
-        print(phi_t.get_device())
 
         # Calculate integral term
         I_phi = torch.zeros_like(output)
@@ -679,8 +677,7 @@ class MarketMaking():
             Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
             Ss_transitioned.to(self.device)
             I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
-        print(phi_t.get_device())
-        print(I_phi.get_device())
+
         # Calculate generator term
         L_phi = phi_t + I_phi
 
