@@ -20,6 +20,7 @@ class MarketMaking():
             n_a, n_b: queue priority,
             P_mid: mid-price
         '''
+        self.device = None
         self.SAMPLER = 'sim'
         self.TERMINATION_TIME = 23400
         self.NDIMS = 12
