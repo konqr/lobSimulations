@@ -703,7 +703,7 @@ class MarketMaking():
 
         return loss
 
-    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10):
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, device=None):
         # Setup for training
         lambdas = self.lambdas_poisson
 
@@ -716,6 +716,10 @@ class MarketMaking():
             Ts, S_boundarys = self.sampler_sim(num_points=self.NUM_POINTS, boundary=True)
         else:
             raise Exception('invalid sampler')
+        ts.to(device)
+        Ss.to(device)
+        Ts.to(device)
+        S_boundarys.to(device)
         # Train value function
         train_loss_phi = 0.0
 
@@ -841,12 +845,24 @@ class MarketMaking():
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
         model_manager = ModelManager(model_dir = model_dir, label = label)
 
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
         # Create models
         model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
         model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
         model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
 
-        # Load existing models if continuing training
+        if torch.cuda.device_count() > 1:
+            print("Let's use", torch.cuda.device_count(), "GPUs!")
+            # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            model_phi = nn.DataParallel(model_phi)
+            model_u = nn.DataParallel(model_u)
+            model_d = nn.DataParallel(model_d)
+        model_phi.to(device)
+        model_u.to(device)
+        model_d.to(device)
+
+# Load existing models if continuing training
         if continue_training:
             loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u, timestamp= checkpoint_label, epoch = continue_epoch)
             if loaded_phi is not None:
@@ -872,7 +888,7 @@ class MarketMaking():
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
-                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
+                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs, device=device
             )
 
             # Log losses
