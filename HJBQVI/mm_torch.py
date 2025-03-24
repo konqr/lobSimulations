@@ -858,9 +858,7 @@ class MarketMaking():
             model_phi = nn.DataParallel(model_phi)
             model_u = nn.DataParallel(model_u)
             model_d = nn.DataParallel(model_d)
-        model_phi.to(device)
-        model_u.to(device)
-        model_d.to(device)
+
 
 # Load existing models if continuing training
         if continue_training:
@@ -868,7 +866,9 @@ class MarketMaking():
             if loaded_phi is not None:
                 model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
                 print("Resuming training from previously saved models")
-
+        model_phi.to(device)
+        model_u.to(device)
+        model_d.to(device)
         # Define lambda function for the scheduler
         def lr_lambda(epoch):
             # Calculate decay rate
