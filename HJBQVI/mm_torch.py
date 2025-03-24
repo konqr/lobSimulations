@@ -375,6 +375,7 @@ class MarketMaking():
         batch_size = ts.shape[0]
         device = ts.device
         Ss = Ss.cpu()
+        us = us.cpu()
         # Unpack state variables
         Xs = Ss[:, 0]
         Ys = Ss[:, 1]
