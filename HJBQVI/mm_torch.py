@@ -667,7 +667,7 @@ class MarketMaking():
         output.to(self.device)
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0]
         phi_t.to(self.device)
-        ts.requires_grad_(False)
+        #ts.requires_grad_(False)
         print(phi_t.get_device())
 
         # Calculate integral term
