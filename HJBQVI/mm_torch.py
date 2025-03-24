@@ -703,7 +703,7 @@ class MarketMaking():
 
         return loss
 
-    def train_step(self, model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u):
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10):
         # Setup for training
         lambdas = self.lambdas_poisson
 
@@ -720,7 +720,7 @@ class MarketMaking():
         train_loss_phi = 0.0
 
         # Use gradient clipping to prevent exploding gradients
-        for j in range(100):
+        for j in range(phi_epochs):
             optimizer_phi.zero_grad()
             loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             loss_phi.backward()
@@ -729,6 +729,8 @@ class MarketMaking():
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
             optimizer_phi.step()
             train_loss_phi = loss_phi.item()
+            scheduler_phi.step()
+
 
             # Check for NaN or Inf
             if torch.isnan(loss_phi) or torch.isinf(loss_phi):
@@ -754,6 +756,7 @@ class MarketMaking():
             torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
             optimizer_u.step()
             train_loss_u = loss_u.item()
+            scheduler_u.step()
 
             # Check for NaN or Inf
             if torch.isnan(loss_u) or torch.isinf(loss_u):
@@ -779,7 +782,7 @@ class MarketMaking():
             torch.nn.utils.clip_grad_norm_(model_d.parameters(), 1.0)
             optimizer_d.step()
             train_loss_d = loss_d.item()
-
+            scheduler_d.step()
             # Check for NaN or Inf
             if torch.isnan(loss_d) or torch.isinf(loss_d):
                 print("Warning: NaN or Inf detected in loss value")
@@ -805,7 +808,8 @@ class MarketMaking():
             'label': None,
             'refresh_epoch' : 300,
             'lr' : 1e-3,
-            'sampler': 'sim'
+            'sampler': 'sim',
+            'phi_epochs' : 10
         }
 
         # Update defaults with provided kwargs
@@ -831,6 +835,7 @@ class MarketMaking():
         refresh_epoch = defaults['refresh_epoch']
         lr = defaults['lr']
         sampler = defaults['sampler']
+        phi_epochs = defaults['phi_epochs']
         self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -867,7 +872,7 @@ class MarketMaking():
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
-                model_phi, optimizer_phi, model_d, optimizer_d, model_u, optimizer_u
+                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
             )
 
             # Log losses
@@ -884,9 +889,6 @@ class MarketMaking():
             #     model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
             #     model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
             # Step learning rate schedulers
-            scheduler_phi.step()
-            scheduler_u.step()
-            scheduler_d.step()
 
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
