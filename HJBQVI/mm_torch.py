@@ -584,7 +584,7 @@ class MarketMaking():
             Xs_updated, Ys_updated, p_as_updated, p_bs_updated, q_as_updated, q_bs_updated,
             qD_as_updated, qD_bs_updated, n_as_updated, n_bs_updated, P_mids_updated
         ], dim=1)
-
+        Ss_intervened.to(self.device)
         # Calculate new value function and add profit
         return model_phi(ts, Ss_intervened) + inter_profit.unsqueeze(1)
 
@@ -670,6 +670,7 @@ class MarketMaking():
         for i in range(self.NDIMS):
             # Calculate transition for event i
             Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+            Ss_transitioned.to(self.device)
             I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
 
         # Calculate generator term
@@ -703,7 +704,7 @@ class MarketMaking():
 
         return loss
 
-    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, device=None):
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10):
         # Setup for training
         lambdas = self.lambdas_poisson
 
@@ -716,10 +717,10 @@ class MarketMaking():
             Ts, S_boundarys = self.sampler_sim(num_points=self.NUM_POINTS, boundary=True)
         else:
             raise Exception('invalid sampler')
-        ts.to(device)
-        Ss.to(device)
-        Ts.to(device)
-        S_boundarys.to(device)
+        ts.to(self.device)
+        Ss.to(self.device)
+        Ts.to(self.device)
+        S_boundarys.to(self.device)
         # Train value function
         train_loss_phi = 0.0
 
@@ -846,7 +847,7 @@ class MarketMaking():
         model_manager = ModelManager(model_dir = model_dir, label = label)
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        self.device=device
         # Create models
         model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
         model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
@@ -888,7 +889,7 @@ class MarketMaking():
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
-                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs, device=device
+                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
             )
 
             # Log losses
