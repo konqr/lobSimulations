@@ -731,15 +731,17 @@ class MarketMaking():
         # Train value function
         train_loss_phi = 0.0
 
-        # Use gradient clipping to prevent exploding gradients
-        for j in range(phi_epochs):
+        def closure():
             optimizer_phi.zero_grad()
             loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
             loss_phi.backward()
-
+            return loss_phi
+        # Use gradient clipping to prevent exploding gradients
+        for j in range(phi_epochs):
+            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
-            optimizer_phi.step()
+            optimizer_phi.step(closure)
             train_loss_phi = loss_phi.item()
             scheduler_phi.step()
 
