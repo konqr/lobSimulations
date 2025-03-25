@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import json
 from datetime import datetime
 import os
+from collections import OrderedDict
 
 class LSTMLayer(nn.Module):
     def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
@@ -478,9 +479,9 @@ class ModelManager:
                 metadata = json.load(f)
 
             # Load model states
-            model_phi.load_state_dict(torch.load(metadata['models']['phi']), strict=False)
-            model_d.load_state_dict(torch.load(metadata['models']['d']), strict=False)
-            model_u.load_state_dict(torch.load(metadata['models']['u']), strict=False)
+            model_phi.load_state_dict(torch.load(metadata['models']['phi']))
+            model_d.load_state_dict(torch.load(metadata['models']['d']))
+            model_u.load_state_dict(torch.load(metadata['models']['u']))
 
             print(f"Models loaded successfully from {meta_path}")
             return model_phi, model_d, model_u
@@ -488,8 +489,29 @@ class ModelManager:
             print(f"Model files not found at {meta_path}")
             return None, None, None
         except Exception as e:
-            print(f"Error loading models: {e}")
-            return None, None, None
+            try:
+                state_dict = torch.load(metadata['models']['phi'])
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    new_state_dict[k.replace("module.", "")] = v
+                model_phi.load_state_dict(new_state_dict)
+
+                state_dict = torch.load(metadata['models']['d'])
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    new_state_dict[k.replace("module.", "")] = v
+                model_d.load_state_dict(new_state_dict)
+
+                state_dict = torch.load(metadata['models']['u'])
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    new_state_dict[k.replace("module.", "")] = v
+                model_u.load_state_dict(new_state_dict)
+                print(f"Models loaded successfully from {meta_path}")
+                return model_phi, model_d, model_u
+            except Exception as e:
+                print(f"Error loading models: {e}")
+                return None, None, None
 
 def get_gpu_specs():
     """Print detailed information about available CUDA devices in PyTorch."""
