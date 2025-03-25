@@ -596,7 +596,7 @@ class MarketMaking():
         batch_size = ts.shape[0]
 
         # Initialize tensor to store intervention values for each action
-        interventions = torch.zeros((batch_size, len(self.U)), dtype=torch.float32)
+        interventions = torch.zeros((batch_size, len(self.U)), dtype=torch.float32, device=self.device)
 
         # Calculate value for each action
         for u in range(len(self.U)):
@@ -616,9 +616,9 @@ class MarketMaking():
 
     def oracle_d(self, model_phi, model_u, ts, Ss):
         batch_size = ts.shape[0]
-
+        lambdas = self.lambdas_poisson
         # Initialize tensor to store HJB values for each decision
-        hjb = torch.zeros((batch_size, 2), dtype=torch.float32)
+        hjb = torch.zeros((batch_size, 2), dtype=torch.float32, device=self.device)
 
         for d in [0, 1]:
             ts.requires_grad_(True)
@@ -645,7 +645,7 @@ class MarketMaking():
             f = f.reshape(-1, 1).to(self.device)
 
             # Get optimal decision and control
-            ds = torch.ones((batch_size, 1), dtype=torch.float32) * d
+            ds = torch.ones((batch_size, 1), dtype=torch.float32, device=self.device) * d
             us, _ = model_u(ts, Ss)
 
             # Calculate intervention value
