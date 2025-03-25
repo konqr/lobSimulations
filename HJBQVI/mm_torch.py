@@ -927,6 +927,16 @@ class MarketMaking():
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
 
+            if (epoch+1) == 1000:
+                optimizer_phi = optim.LBFGS(model_phi.parameters())
+                optimizer_u = optim.LBFGS(model_u.parameters())
+                optimizer_d = optim.LBFGS(model_d.parameters())
+
+                # Set up schedulers
+                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+                scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
+                scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
+
         # Save final model
         model_manager.save_models(model_phi, model_d, model_u)
 
