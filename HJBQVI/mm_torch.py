@@ -734,7 +734,7 @@ class MarketMaking():
         # Use gradient clipping to prevent exploding gradients
         for j in range(phi_epochs):
             optimizer_phi.zero_grad()
-            loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
             loss_phi.backward()
 
             # Clip gradients to prevent exploding values
@@ -884,7 +884,7 @@ class MarketMaking():
             return np.exp(decay_rate * epoch * 50)
 
         #Kentaro: use L-BFGS after first 1000 iterations
-        optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+        optimizer_phi = optim.LBGFS(model_phi.parameters(), lr=lr)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
@@ -927,11 +927,11 @@ class MarketMaking():
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
 
-            if (epoch+1) == continue_epoch + 1000:
-                print('Switching to LBFGS for Phi')
-                optimizer_phi = optim.LBFGS(model_phi.parameters())
-                # Set up schedulers
-                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+            # if (epoch+1) == continue_epoch + 1000:
+            #     print('Switching to LBFGS for Phi')
+            #     optimizer_phi = optim.LBFGS(model_phi.parameters())
+            #     # Set up schedulers
+            #     scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
         # Save final model
         model_manager.save_models(model_phi, model_d, model_u)
 
