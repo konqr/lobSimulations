@@ -868,7 +868,7 @@ class MarketMaking():
             model_d = nn.DataParallel(model_d)
 
 
-# Load existing models if continuing training
+        # Load existing models if continuing training
         if continue_training:
             loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u, timestamp= checkpoint_label, epoch = continue_epoch)
             if loaded_phi is not None:
@@ -883,6 +883,7 @@ class MarketMaking():
             decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
             return np.exp(decay_rate * epoch * 50)
 
+        #Kentaro: use L-BFGS after first 1000 iterations
         optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
@@ -895,6 +896,15 @@ class MarketMaking():
         # Training loop
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
+            #Kentaro: multiple nets are probably propagating errors - unite them.
+            #KJ: u and d can be united using a 'no-action' class of actions
+            #KJ: PoC needed for a simple LOB model - check the solution wrt real soln
+            #KJ: also useful would be Mguni et al. comparison
+            #KJ: 1. 2D poisson flow + impulse control using ansatz ala AS, using DGM and compare soln
+            #    2. 2D hawkes flow + impulse control using ansatz ala AS, using DGM and compare soln
+            #    3. 12D poisson + IC using DGM
+            #    4. 12D Hawkes + IC using DGM
+            #    5. Compare 4 w DRL approach of Mguni
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
                 model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
             )

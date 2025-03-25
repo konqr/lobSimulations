@@ -478,9 +478,9 @@ class ModelManager:
                 metadata = json.load(f)
 
             # Load model states
-            model_phi.load_state_dict(torch.load(metadata['models']['phi']))
-            model_d.load_state_dict(torch.load(metadata['models']['d']))
-            model_u.load_state_dict(torch.load(metadata['models']['u']))
+            model_phi.load_state_dict(torch.load(metadata['models']['phi']), strict=False)
+            model_d.load_state_dict(torch.load(metadata['models']['d']), strict=False)
+            model_u.load_state_dict(torch.load(metadata['models']['u']), strict=False)
 
             print(f"Models loaded successfully from {meta_path}")
             return model_phi, model_d, model_u
