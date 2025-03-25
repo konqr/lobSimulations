@@ -493,19 +493,19 @@ class ModelManager:
                 state_dict = torch.load(metadata['models']['phi'])
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
-                    new_state_dict[k.replace("module.", "")] = v
+                    new_state_dict["module."+k] = v
                 model_phi.load_state_dict(new_state_dict)
 
                 state_dict = torch.load(metadata['models']['d'])
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
-                    new_state_dict[k.replace("module.", "")] = v
+                    new_state_dict["module."+k] = v
                 model_d.load_state_dict(new_state_dict)
 
                 state_dict = torch.load(metadata['models']['u'])
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
-                    new_state_dict[k.replace("module.", "")] = v
+                    new_state_dict["module."+k] = v
                 model_u.load_state_dict(new_state_dict)
                 print(f"Models loaded successfully from {meta_path}")
                 return model_phi, model_d, model_u
