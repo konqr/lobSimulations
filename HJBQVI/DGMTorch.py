@@ -477,9 +477,23 @@ class ModelManager:
         try:
             with open(meta_path, 'r') as f:
                 metadata = json.load(f)
-
+            if not torch.cuda.is_available():
+                if model_phi is not None:
+                    model_phi.load_state_dict(torch.load(metadata['models']['phi'], map_location=torch.device('cpu')))
+                state_dict = torch.load(metadata['models']['u'], map_location=torch.device('cpu'))
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    new_state_dict[k.replace('module.','')] = v
+                model_u.load_state_dict(new_state_dict)
+                state_dict = torch.load(metadata['models']['d'], map_location=torch.device('cpu'))
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    new_state_dict[k.replace('module.','')] = v
+                model_d.load_state_dict(new_state_dict)
+                return model_phi, model_d, model_u
             # Load model states
-            model_phi.load_state_dict(torch.load(metadata['models']['phi']))
+            if model_phi is not None:
+                model_phi.load_state_dict(torch.load(metadata['models']['phi']))
             model_d.load_state_dict(torch.load(metadata['models']['d']))
             model_u.load_state_dict(torch.load(metadata['models']['u']))
 
@@ -490,11 +504,12 @@ class ModelManager:
             return None, None, None
         except Exception as e:
             try:
-                state_dict = torch.load(metadata['models']['phi'])
-                new_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    new_state_dict["module."+k] = v
-                model_phi.load_state_dict(new_state_dict)
+                if model_phi is not None:
+                    state_dict = torch.load(metadata['models']['phi'])
+                    new_state_dict = OrderedDict()
+                    for k, v in state_dict.items():
+                        new_state_dict["module."+k] = v
+                    model_phi.load_state_dict(new_state_dict)
 
                 state_dict = torch.load(metadata['models']['d'])
                 new_state_dict = OrderedDict()

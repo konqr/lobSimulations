@@ -2,11 +2,15 @@ import gymnasium as gym
 import numpy as np
 from typing import Any, Optional
 import logging
+import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
+from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
+import pickle
 logger=logging.getLogger(__name__)
+
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
@@ -71,6 +75,9 @@ class tradingEnv(gym.Env):
                 new_agent=None
                 if j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                elif j['strategy'] == 'ImpulseControl':
+                    new_agent = ImpulseControlAgent(j['label'], j['epoch'], j['model_dir'], seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+                                                    on_trade=j['on_trade'], cashlimit=j["cashlimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -160,37 +167,56 @@ class tradingEnv(gym.Env):
         return self.kernel.entity_registry[ID]
 
 if __name__=="__main__":
+    with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson", 'rb') as f:
+        kernelparams = pickle.load(f)
+    # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
+    #     tod = pickle.load(f)
+    cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+           "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    kernelparams = [[np.zeros((12,12))]*4, np.array([[kernelparams[c]] for c in cols])]
+    faketod = {}
+    for k in cols:
+        faketod[k] = {}
+        for k1 in np.arange(13):
+            faketod[k][k1] = 1.0
+    tod=np.zeros(shape=(len(cols), 13))
+    for i in range(len(cols)):
+        tod[i]=[faketod[cols[i]][k] for k in range(13)]
     kwargs={
                 "TradingAgent": [],
                 "GymTradingAgent": [{"cash": 1000000,
-                                    "strategy": "Random",
-                                     'on_trade':False,
+                                    "strategy": "ImpulseControl",
+                                     'on_trade':True,
                                     "action_freq": .2,
                                     "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
+                                    "Inventory": {"INTC":5},
                                     "log_to_file": True,
-                                    "cashlimit": 100000000}],
-                "Exchange": {"symbol": "XYZ",
+                                    "cashlimit": 100000000,
+                                     'label' : '20250325_160949_INTC_SIMESPPL',
+                                     'epoch':2180,
+                                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
+                "Exchange": {"symbol": "INTC",
                 "ticksize":0.01,
                 "LOBlevels": 2,
                 "numOrdersPerLevel": 10,
-                "PriceMid0": 45,
-                "spread0": 0.05},
+                "PriceMid0": 100,
+                "spread0": 0.03},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters": {"kernelparams": None, 
-                                            "tod": None, 
+                                  "parameters": {"kernelparams": kernelparams,
+                                            "tod": tod,
                                             "Pis": None, 
-                                            "beta": None, 
-                                            "avgSpread": None, 
+                                            "beta": 0.91,
+                                            "avgSpread": 0.0101,
                                             "Pi_Q0": None}}
 
             }
     
-    env=tradingEnv(stop_time=100, seed=1, **kwargs)
+    env=tradingEnv(stop_time=10, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
+    cash, inventory, t, actions = [], [], [], []
     while Simstate["Done"]==False and termination!=True:
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
@@ -205,5 +231,20 @@ if __name__=="__main__":
         Simstate, observations, termination=env.step(action=action) 
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
         i+=1
+        cash += [observations['Cash']]
+        inventory += [observations['Inventory']]
+        t += [Simstate['TimeCode']]
+        actions += [action[1][0]]
         print(f"ACTION DONE{i}")
-    
+    plt.figure(figsize=(12,8))
+    plt.subplot(221)
+    plt.plot(t, cash)
+    plt.title('Cash')
+    plt.subplot(222)
+    plt.plot(t, inventory)
+    plt.title('Inventory')
+    plt.subplot(223)
+    plt.scatter(t, actions)
+    plt.yticks(np.arange(0,13), agent.actions)
+    plt.title('Actions')
+    plt.show()
