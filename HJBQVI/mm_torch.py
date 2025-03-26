@@ -886,7 +886,7 @@ class MarketMaking():
             return np.exp(decay_rate * epoch * 50)
 
         #Kentaro: use L-BFGS after first 1000 iterations
-        optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr)
+        optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
