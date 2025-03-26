@@ -711,7 +711,7 @@ class MarketMaking():
 
         return loss
 
-    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10):
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, phi_optim='ADAM'):
         # Setup for training
         lambdas = self.lambdas_poisson
 
@@ -741,7 +741,12 @@ class MarketMaking():
             loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
-            optimizer_phi.step(closure)
+            if phi_optim == 'ADAM':
+                optimizer_phi.zero_grad()
+                loss_phi.backward()
+                optimizer_phi.step()
+            else:
+                optimizer_phi.step(closure)
             train_loss_phi = loss_phi.item()
             scheduler_phi.step()
 
@@ -823,7 +828,8 @@ class MarketMaking():
             'refresh_epoch' : 300,
             'lr' : 1e-3,
             'sampler': 'sim',
-            'phi_epochs' : 10
+            'phi_epochs' : 10,
+            'phi_optim' : 'ADAM'
         }
 
         # Update defaults with provided kwargs
@@ -850,6 +856,7 @@ class MarketMaking():
         lr = defaults['lr']
         sampler = defaults['sampler']
         phi_epochs = defaults['phi_epochs']
+        phi_optim = defaults['phi_optim']
         self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -884,9 +891,10 @@ class MarketMaking():
             # Calculate decay rate
             decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
             return np.exp(decay_rate * epoch * 50)
-
-        #Kentaro: use L-BFGS after first 1000 iterations
-        optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
+        if phi_optim == 'ADAM':
+            optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+        else:
+            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
@@ -908,7 +916,7 @@ class MarketMaking():
             #    4. 12D Hawkes + IC using DGM
             #    5. Compare 4 w DRL approach of Mguni
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
-                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
+                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs, phi_optim = phi_optim
             )
 
             # Log losses
