@@ -306,4 +306,8 @@ class TradingAgent(Entity):
              "Inventory": self.Inventory[self.exchange.symbol],
              "Positions": self.positions[self.exchange.symbol]}
         return rtn
+    
+    @abstractmethod
+    def get_action(self, data=None)-> str:
+        pass
 
