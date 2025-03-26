@@ -65,6 +65,7 @@ class Entity:
         """
         Sends a batch message to multiple recipients at the same time
         """
+        if len(recipientIDs) == 0: return None
         assert self.kernel is not None, f"Kernel not linked to {type(self).__name__} {self.id}"
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("At {}, entity {} sent batch message: {} to entities {}".format(self.current_time, self.id, message, recipientIDs))

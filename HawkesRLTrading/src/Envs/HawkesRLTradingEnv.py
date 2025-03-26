@@ -70,7 +70,7 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
                 if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=True, cashlimit=j["cashlimit"])
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -164,6 +164,7 @@ if __name__=="__main__":
                 "TradingAgent": [],
                 "GymTradingAgent": [{"cash": 1000000,
                                     "strategy": "Random",
+                                     'on_trade':False,
                                     "action_freq": .2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
