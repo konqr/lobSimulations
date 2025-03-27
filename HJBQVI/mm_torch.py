@@ -302,28 +302,29 @@ class MarketMaking():
             Ss_out[:, 6] = qD_as_updated
             Ss_out[:, 8] = n_as_updated
             Ss_out[:, 10] = P_mids_updated
-
+        spreads = p_as - p_bs
+        mask_spread = (spreads >= 0.015).flatten()
         # Event 5: lo_inspread_Ask
         mask = (eventID == 5)
         if mask.any():
             q_as_updated, qD_as_updated, n_as_updated, P_mids_updated, p_as_updated = self.tr_is(
-                1.0, q_as, qD_as, n_as, P_mids, p_as)
-            Ss_out[:, 2] = p_as_updated
-            Ss_out[:, 4] = q_as_updated
-            Ss_out[:, 6] = qD_as_updated
-            Ss_out[:, 8] = n_as_updated
-            Ss_out[:, 10] = P_mids_updated
+                1.0, q_as[mask_spread], qD_as[mask_spread], n_as[mask_spread], P_mids[mask_spread], p_as[mask_spread])
+            Ss_out[mask_spread, 2] = p_as_updated
+            Ss_out[mask_spread, 4] = q_as_updated
+            Ss_out[mask_spread, 6] = qD_as_updated
+            Ss_out[mask_spread, 8] = n_as_updated
+            Ss_out[mask_spread, 10] = P_mids_updated
 
         # Event 6: lo_inspread_Bid
         mask = (eventID == 6)
         if mask.any():
             q_bs_updated, qD_bs_updated, n_bs_updated, P_mids_updated, p_bs_updated = self.tr_is(
-                -1.0, q_bs, qD_bs, n_bs, P_mids, p_bs)
-            Ss_out[:, 3] = p_bs_updated
-            Ss_out[:, 5] = q_bs_updated
-            Ss_out[:, 7] = qD_bs_updated
-            Ss_out[:, 9] = n_bs_updated
-            Ss_out[:, 10] = P_mids_updated
+                -1.0, q_bs[mask_spread], qD_bs[mask_spread], n_bs[mask_spread], P_mids[mask_spread], p_bs[mask_spread])
+            Ss_out[mask_spread, 3] = p_bs_updated
+            Ss_out[mask_spread, 5] = q_bs_updated
+            Ss_out[mask_spread, 7] = qD_bs_updated
+            Ss_out[mask_spread, 9] = n_bs_updated
+            Ss_out[mask_spread, 10] = P_mids_updated
 
         # Event 7: mo_Bid
         mask = (eventID == 7)
@@ -541,6 +542,9 @@ class MarketMaking():
 
         # Limit order in-spread asks
         lo_is_asks_mask = (us == 4).flatten()
+        spreads = p_as - p_bs
+        mask_spread = (spreads >= 0.015).flatten()
+        lo_is_asks_mask = torch.logical_and(lo_is_asks_mask, mask_spread)
         if lo_is_asks_mask.any():
             lo_q_as = q_as[lo_is_asks_mask]
             lo_n_as = n_as[lo_is_asks_mask]
@@ -562,6 +566,7 @@ class MarketMaking():
 
         # Limit order in-spread bids
         lo_is_bids_mask = (us == 5).flatten()
+        lo_is_bids_mask = torch.logical_and(lo_is_bids_mask, mask_spread)
         if lo_is_bids_mask.any():
             lo_q_bs = q_bs[lo_is_bids_mask]
             lo_n_bs = n_bs[lo_is_bids_mask]
@@ -954,5 +959,5 @@ class MarketMaking():
         return model_phi, model_d, model_u
 
 # get_gpu_specs()
-# MM = MarketMaking(num_epochs=2000, num_points=10000)
-# MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
+MM = MarketMaking(num_epochs=2000, num_points=100)
+MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
