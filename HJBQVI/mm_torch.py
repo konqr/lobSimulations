@@ -51,7 +51,7 @@ class MarketMaking():
         Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
         Ys = np.round(10 * np.random.randn(num_points, 1), 2)
         P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
-        spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
+        spreads = 0.01 * (1+ np.random.geometric(.8, [num_points, 1]))
         p_as = np.round(P_mids + spreads / 2, 2)
         p_bs = np.round(P_mids - spreads / 2, 2)
         q_as = np.random.geometric(.002, [num_points, 1])
