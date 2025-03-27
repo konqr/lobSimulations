@@ -743,7 +743,7 @@ class MarketMaking():
             return loss_phi
         # Use gradient clipping to prevent exploding gradients
         for j in range(phi_epochs):
-            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
+            loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
             if phi_optim == 'ADAM':
@@ -946,11 +946,12 @@ class MarketMaking():
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
 
-            # if (epoch+1) == continue_epoch + 1000:
-            #     print('Switching to LBFGS for Phi')
-            #     optimizer_phi = optim.LBFGS(model_phi.parameters())
-            #     # Set up schedulers
-            #     scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+            if (epoch+1) == continue_epoch + 1000:
+                print('Switching to LBFGS for Phi')
+                optimizer_phi = optim.LBFGS(model_phi.parameters())
+                # Set up schedulers
+                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+                phi_optim = 'LBFGS'
         # Save final model
         model_manager.save_models(model_phi, model_d, model_u)
 
