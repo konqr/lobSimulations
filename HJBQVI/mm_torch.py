@@ -913,7 +913,7 @@ class MarketMaking():
         def lr_lambda(epoch):
             # Calculate decay rate
             decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
-            return np.exp(decay_rate * epoch * 50)
+            return np.exp(decay_rate * epoch )
         if phi_optim == 'ADAM':
             optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         else:
