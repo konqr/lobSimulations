@@ -959,5 +959,5 @@ class MarketMaking():
         return model_phi, model_d, model_u
 
 # get_gpu_specs()
-MM = MarketMaking(num_epochs=2000, num_points=100)
-MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
+# MM = MarketMaking(num_epochs=2000, num_points=100)
+# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
