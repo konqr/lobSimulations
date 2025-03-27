@@ -165,6 +165,7 @@ class MarketMaking():
             q_as_updated = q_as - 1.0
             # This is a simplification; in real code, you might need a differentiable alternative
             n_as_updated = torch.rand(n_as.shape, device=n_as.device) * (q_as_updated + qD_as + 1)
+            qD_as_updated =qD_as.clone()
         else:
             # For normal operation
             idxCO = torch.rand(q_as.shape, device=q_as.device) * q_as
@@ -180,8 +181,8 @@ class MarketMaking():
 
         # Handle queue depletion
         condition = q_as_updated == 0.0
-        q_as_final = torch.where(condition, qD_as, q_as_updated)
-        qD_as_final = torch.where(condition, self.sample_qd(), qD_as)
+        q_as_final = torch.where(condition, qD_as_updated, q_as_updated)
+        qD_as_final = torch.where(condition, self.sample_qd(), qD_as_updated)
         p_as_final = torch.where(condition, p_as + z * 0.01, p_as)
         P_mids_final = torch.where(condition, P_mids + z * 0.005, P_mids)
 
@@ -769,7 +770,7 @@ class MarketMaking():
         acc_u = 0.0
         loss_object_u = nn.CrossEntropyLoss()
 
-        for j in range(10):
+        for j in range(100):
             optimizer_u.zero_grad()
             pred_u, prob_us = model_u(ts, Ss)
             print(np.unique(gt_u.cpu(), return_counts=True))
@@ -797,7 +798,7 @@ class MarketMaking():
         acc_d = 0.0
         loss_object_d = nn.CrossEntropyLoss()
 
-        for j in range(10):
+        for j in range(100):
             optimizer_d.zero_grad()
             pred_d, prob_ds = model_d(ts, Ss)
             print(np.unique(gt_d.cpu(), return_counts=True))
