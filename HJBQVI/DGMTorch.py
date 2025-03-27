@@ -136,7 +136,7 @@ class DenseLayer(nn.Module):
 
 
 class DGMNet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, final_trans=None, typeNN = 'LSTM'):
+    def __init__(self, layer_width, n_layers, input_dim, output_dim = 1, final_trans=None, typeNN = 'LSTM'):
         '''
         Args:
             layer_width:
@@ -166,7 +166,7 @@ class DGMNet(nn.Module):
             raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
         self.typeNN = typeNN
         # Final layer as fully connected with a single output (function value)
-        self.final_layer = DenseLayer(1, layer_width, transformation=final_trans)
+        self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
 
     def forward(self, t, x):
         '''
@@ -252,6 +252,57 @@ class PIANet(nn.Module):
         # Call final layer
         result = self.final_layer(S)
 
+        # Get argmax and result
+        op = torch.argmax(result, 1)
+        op = op.reshape(op.shape[0], 1).float()
+
+        return op, result
+
+class DenseNet(nn.Module):
+    def __init__(self, input_dim, layer_width, n_layers, output_dim, model0, final_trans=None):
+        '''
+        Args:
+            layer_width:
+            n_layers:    number of intermediate LSTM layers
+            input_dim:   spatial dimension of input data (EXCLUDES time dimension)
+            num_classes: number of output classes
+            final_trans: transformation used in final layer
+
+        Returns: customized PyTorch model object representing DGM neural network
+        '''
+        super(DenseNet, self).__init__()
+        self.is_regression = (output_dim == 1)
+        # Initial layer as fully connected
+        # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
+        self.initial_layer = model0
+
+        # Intermediate LSTM layers
+        self.n_layers = n_layers
+        self.LayerList = nn.ModuleList([DenseLayer( layer_width,input_dim, transformation="tanh")] + [
+                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers-1)
+            ])
+        # Final layer as fully connected with multiple outputs (function values)
+        self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
+
+    def forward(self, t, x):
+        '''
+        Args:
+            t: sampled time inputs
+            x: sampled space inputs
+
+        Run the DGM model and obtain fitted function value at the inputs (t,x)
+        '''
+        # Define input vector as time-space pairs
+
+        # Call initial layer
+        S = self.initial_layer(t, x)
+
+        # Call intermediate LSTM layers
+        for layer in self.LayerList:
+            S = layer(S)
+        # Call final layer
+        result = self.final_layer(S)
+        if self.is_regression: return result
         # Get argmax and result
         op = torch.argmax(result, 1)
         op = op.reshape(op.shape[0], 1).float()

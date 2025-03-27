@@ -839,7 +839,9 @@ class MarketMaking():
             'lr' : 1e-3,
             'sampler': 'sim',
             'phi_epochs' : 10,
-            'phi_optim' : 'ADAM'
+            'phi_optim' : 'ADAM',
+            'unified': False,
+            'feature_width' : 25
         }
 
         # Update defaults with provided kwargs
@@ -867,6 +869,8 @@ class MarketMaking():
         sampler = defaults['sampler']
         phi_epochs = defaults['phi_epochs']
         phi_optim = defaults['phi_optim']
+        unified = defaults['unified']
+        feature_width = defaults['feature_width']
         self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -875,13 +879,21 @@ class MarketMaking():
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.device=device
         # Create models
-        model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
-        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
-        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
+        if unified:
+            model0 = DGM.DGMNet(layer_widths[0], n_layers[0], 11, output_dim= feature_width, typeNN = typeNN)
+            model_phi = DGM.DenseNet(feature_width, layer_widths[1], n_layers[1], 1, model0)
+            model_u = DGM.DenseNet(feature_width, layer_widths[2], n_layers[2], 10, model0)
+            model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0)
+        else:
+            model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
+            model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
 
         if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            if unified:
+                nn.DataParallel(model0)
             model_phi = nn.DataParallel(model_phi)
             model_u = nn.DataParallel(model_u)
             model_d = nn.DataParallel(model_d)
@@ -896,6 +908,7 @@ class MarketMaking():
         model_phi.to(device)
         model_u.to(device)
         model_d.to(device)
+        if unified: model0.to(device)
         # Define lambda function for the scheduler
         def lr_lambda(epoch):
             # Calculate decay rate
@@ -916,8 +929,6 @@ class MarketMaking():
         # Training loop
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
-            #Kentaro: multiple nets are probably propagating errors - unite them.
-            #KJ: u and d can be united using a 'no-action' class of actions
             #KJ: PoC needed for a simple LOB model - check the solution wrt real soln
             #KJ: also useful would be Mguni et al. comparison
             #KJ: 1. 2D poisson flow + impulse control using ansatz ala AS, using DGM and compare soln
@@ -962,4 +973,4 @@ class MarketMaking():
 
 # get_gpu_specs()
 # MM = MarketMaking(num_epochs=2000, num_points=100)
-# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
+# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*4, n_layers= [2]*4, unified=True, label = 'LSTM')
