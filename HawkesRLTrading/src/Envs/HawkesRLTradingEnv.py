@@ -1,8 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+
+
 import gymnasium as gym
 import numpy as np
 from typing import Any, Optional
 import logging
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
+from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -69,8 +75,10 @@ class tradingEnv(gym.Env):
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
-                if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                # if j["strategy"]=="Random":
+                #     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                if j["strategy"] == "TWAP":
+                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -162,14 +170,26 @@ class tradingEnv(gym.Env):
 if __name__=="__main__":
     kwargs={
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 1000000,
-                                    "strategy": "Random",
-                                     'on_trade':False,
-                                    "action_freq": .2,
-                                    "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True,
-                                    "cashlimit": 100000000}],
+                # "GymTradingAgent": [{"cash": 1000000,
+                #                     "strategy": "Random",
+                #                      'on_trade':False,
+                #                     "action_freq": .2,
+                #                     "rewardpenalty": 0.4,
+                #                     "Inventory": {"XYZ": 1000},
+                #                     "log_to_file": True,
+                #                     "cashlimit": 100000000}],
+                "GymTradingAgent": [{"cash":10000000,
+                                     "cashlimit": 1000000000,
+                                      "strategy": "TWAP",
+                                      "on_trade":False,
+                                      "total_order_size":750,
+                                      "order_target":"XYZ",
+                                      "total_time":150,
+                                      "window_size":15, #window size, measured in seconds
+                                      "side":"buy", #buy or sell
+                                      "action_freq":0.2, 
+                                      "Inventory": {"XYZ":1} #inventory cant be 0
+                                     }],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -186,7 +206,7 @@ if __name__=="__main__":
 
             }
     
-    env=tradingEnv(stop_time=100, seed=1, **kwargs)
+    env=tradingEnv(stop_time=450, wall_time_limit=23400, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
