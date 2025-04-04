@@ -770,7 +770,7 @@ class MarketMaking():
         acc_u = 0.0
         loss_object_u = nn.CrossEntropyLoss()
 
-        for j in range(100):
+        for j in range(phi_epochs):
             optimizer_u.zero_grad()
             pred_u, prob_us = model_u(ts, Ss)
             print(np.unique(gt_u.cpu(), return_counts=True))
