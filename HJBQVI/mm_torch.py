@@ -763,7 +763,8 @@ class MarketMaking():
                 break
 
             print(f'Model Phi loss: {train_loss_phi:0.4f}')
-
+            for param_group in optimizer_phi.param_groups:
+                print(f'Model Phi LR: {param_group['lr']}')
         # Train control function
         gt_u = self.oracle_u(model_phi, ts, Ss)
         train_loss_u = 0.0
@@ -792,6 +793,8 @@ class MarketMaking():
 
             print(f'Model u loss: {train_loss_u:0.4f}')
             print(f'Model u Acc: {acc_u:0.4f}')
+            for param_group in optimizer_u.param_groups:
+                print(f'Model u LR: {param_group['lr']}')
         # Train decision function
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
@@ -912,8 +915,10 @@ class MarketMaking():
         # Define lambda function for the scheduler
         def lr_lambda(epoch):
             # Calculate decay rate
-            decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
-            return np.max([1e-5,np.exp(decay_rate * epoch )])
+            #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
+            #return np.max([1e-5,np.exp(decay_rate * epoch )])
+            return 1 - 1e-5
+
         if phi_optim == 'ADAM':
             optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         else:
