@@ -764,7 +764,8 @@ class MarketMaking():
 
             print(f'Model Phi loss: {train_loss_phi:0.4f}')
             for param_group in optimizer_phi.param_groups:
-                print(f'Model Phi LR: {param_group['lr']}')
+                lr = param_group['lr']
+                print('Model Phi LR: '+str(lr))
         # Train control function
         gt_u = self.oracle_u(model_phi, ts, Ss)
         train_loss_u = 0.0
@@ -794,7 +795,8 @@ class MarketMaking():
             print(f'Model u loss: {train_loss_u:0.4f}')
             print(f'Model u Acc: {acc_u:0.4f}')
             for param_group in optimizer_u.param_groups:
-                print(f'Model u LR: {param_group['lr']}')
+                lr = param_group['lr']
+                print('Model U LR: '+str(lr))
         # Train decision function
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
