@@ -343,33 +343,71 @@ class MinMaxScaler:
         scale = (self.feature_range[1] - self.feature_range[0]) / denominator
         return (X_scaled - (self.feature_range[0] - self.data_min_ * scale)) / scale
 
-# Helper class for loss tracking and visualization
 class TrainingLogger:
-    def __init__(self, log_dir='./logs', layer_widths = [20]*3, n_layers= [5]*3, label=None):
+    def __init__(self, log_dir='./logs', layer_widths=[20]*3, n_layers=[5]*3, label=None):
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
-        self.hyperparams = {'layer_widths': layer_widths,
-                            'n_layers': n_layers}
+        self.hyperparams = {
+            'layer_widths': layer_widths,
+            'n_layers': n_layers
+        }
+
         # Initialize loss dictionaries
         self.losses = {
-            'hyperparams' : self.hyperparams,
-            'phi': [],
-            'd': [],
-            'u': [],
-            'acc_u' : [],
-            'acc_d' : []
+            'hyperparams': self.hyperparams,
+            'epochs': []
         }
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.label = ''
-        if label: self.label = str(label)
 
-    def log_losses(self, phi_loss, d_loss, u_loss, acc_d, acc_u):
-        """Log losses for each epoch"""
-        self.losses['phi'].append(phi_loss)
-        self.losses['d'].append(d_loss)
-        self.losses['u'].append(u_loss)
-        self.losses['acc_d'].append(acc_d)
-        self.losses['acc_u'].append(acc_u)
+        # Initialize tracking variables
+        self.networks = []
+        self.tracked_metrics = {}
+
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.label = '' if label is None else str(label)
+        self.current_epoch = 0
+
+    def log_losses(self, **metrics):
+        """
+        Log losses and accuracies flexibly
+
+        Args:
+            **metrics: Dictionary of metrics to log (e.g., phi_loss=0.1, u_loss=0.2, acc_u=0.85)
+        """
+        self.current_epoch += 1
+        self.losses['epochs'].append(self.current_epoch)
+
+        # Process each provided metric
+        for key, value in metrics.items():
+            # Extract network name and metric type
+            parts = key.split('_')
+
+            if len(parts) == 1:
+                # Just the network name (like 'phi') implies it's a loss
+                network = parts[0]
+                metric_type = 'loss'
+            else:
+                # Format like 'acc_u' or 'u_loss'
+                if parts[0] == 'acc':
+                    network = parts[1]
+                    metric_type = 'acc'
+                else:
+                    network = parts[0]
+                    metric_type = parts[1]
+
+            # Add network to tracking if it's new
+            if network not in self.networks:
+                self.networks.append(network)
+
+            # Create metric key
+            metric_key = f"{network}_{metric_type}"
+
+            # Initialize list for this metric if it doesn't exist
+            if metric_key not in self.losses:
+                self.losses[metric_key] = []
+                self.tracked_metrics[metric_key] = {'network': network, 'type': metric_type}
+
+            # Append the value
+            self.losses[metric_key].append(value)
 
     def save_logs(self):
         """Save logs to file"""
@@ -380,78 +418,70 @@ class TrainingLogger:
 
     def plot_losses(self, show=True, save=True):
         """Plot the loss curves with linear and log scales"""
-        plt.figure(figsize=(18, 12))  # Wider figure for two columns
+        # Count how many metrics we have to plot
+        loss_metrics = [m for m in self.tracked_metrics.keys() if 'loss' in m]
+        acc_metrics = [m for m in self.tracked_metrics.keys() if 'acc' in m]
+        total_metrics = len(loss_metrics) + len(acc_metrics)
 
-        epochs = range(1, len(self.losses['phi']) + 1)
+        # Calculate rows needed (each metric gets 2 plots side by side)
+        rows = max(total_metrics, 1)
 
-        # Value Function
-        plt.subplot(5, 2, 1)
-        plt.plot(epochs, self.losses['phi'], 'b-')
-        plt.title('Value Function Loss (Linear)')
-        plt.ylabel('Loss')
-        plt.grid(True)
+        plt.figure(figsize=(18, 4 * rows))  # Adjust height based on rows
 
-        plt.subplot(5, 2, 2)
-        plt.semilogy(epochs, self.losses['phi'], 'b-')
-        plt.title('Value Function Loss (Log Scale)')
-        plt.ylabel('Log Loss')
-        plt.grid(True)
+        epochs = self.losses['epochs']
+        plot_idx = 1
 
-        # Control Function Loss
-        plt.subplot(5, 2, 3)
-        plt.plot(epochs, self.losses['u'], 'g-')
-        plt.title('Control Function Loss (Linear)')
-        plt.ylabel('Loss')
-        plt.grid(True)
+        # Define colors for each network
+        colors = {'phi': 'b', 'u': 'g', 'd': 'r'}
 
-        plt.subplot(5, 2, 4)
-        plt.semilogy(epochs, self.losses['u'], 'g-')
-        plt.title('Control Function Loss (Log Scale)')
-        plt.ylabel('Log Loss')
-        plt.grid(True)
+        # Plot losses first
+        for metric in loss_metrics:
+            network = self.tracked_metrics[metric]['network']
+            color = colors.get(network, 'k')  # Default to black if network not in colors dict
 
-        # Control Function Accuracy
-        plt.subplot(5, 2, 5)
-        plt.plot(epochs, self.losses['acc_u'], 'g.')
-        plt.title('Control Function Acc (Linear)')
-        plt.ylabel('Accuracy')
-        plt.grid(True)
+            # Linear scale
+            plt.subplot(rows, 2, plot_idx)
+            plt.plot(epochs, self.losses[metric], f'{color}-')
+            plt.title(f'{network.capitalize()} Loss (Linear)')
+            plt.ylabel('Loss')
+            plt.grid(True)
 
-        plt.subplot(5, 2, 6)
-        plt.semilogy(epochs, self.losses['acc_u'], 'g.')
-        plt.title('Control Function Acc (Log Scale)')
-        plt.ylabel('Log Accuracy')
-        plt.grid(True)
+            # Log scale
+            plt.subplot(rows, 2, plot_idx + 1)
+            plt.semilogy(epochs, self.losses[metric], f'{color}-')
+            plt.title(f'{network.capitalize()} Loss (Log Scale)')
+            plt.ylabel('Log Loss')
+            plt.grid(True)
 
-        # Decision Function Loss
-        plt.subplot(5, 2, 7)
-        plt.plot(epochs, self.losses['d'], 'r-')
-        plt.title('Decision Function Loss (Linear)')
-        plt.ylabel('Loss')
-        plt.grid(True)
+            plot_idx += 2
 
-        plt.subplot(5, 2, 8)
-        plt.semilogy(epochs, self.losses['d'], 'r-')
-        plt.title('Decision Function Loss (Log Scale)')
-        plt.ylabel('Log Loss')
-        plt.grid(True)
+        # Then plot accuracies
+        for metric in acc_metrics:
+            network = self.tracked_metrics[metric]['network']
+            color = colors.get(network, 'k')
 
-        # Decision Function Accuracy
-        plt.subplot(5, 2, 9)
-        plt.plot(epochs, self.losses['acc_d'], 'r-')
-        plt.title('Decision Function Acc (Linear)')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.grid(True)
+            # Linear scale
+            plt.subplot(rows, 2, plot_idx)
+            plt.plot(epochs, self.losses[metric], f'{color}.-')
+            plt.title(f'{network.capitalize()} Accuracy (Linear)')
+            plt.ylabel('Accuracy')
+            plt.grid(True)
 
-        plt.subplot(5, 2, 10)
-        plt.semilogy(epochs, self.losses['acc_d'], 'r-')
-        plt.title('Decision Function Acc (Log Scale)')
-        plt.xlabel('Epochs')
-        plt.ylabel('Log Accuracy')
-        plt.grid(True)
+            # Log scale
+            plt.subplot(rows, 2, plot_idx + 1)
+            plt.semilogy(epochs, self.losses[metric], f'{color}.-')
+            plt.title(f'{network.capitalize()} Accuracy (Log Scale)')
+            plt.ylabel('Log Accuracy')
+            plt.grid(True)
 
-        plt.tight_layout(pad=3.0)  # Add more padding between subplots
+            plot_idx += 2
+
+        # Add epoch labels to bottom plots
+        for i in range(max(1, (plot_idx - 2)), plot_idx):
+            plt.subplot(rows, 2, i)
+            plt.xlabel('Epochs')
+
+        plt.tight_layout(pad=3.0)  # Add padding between subplots
 
         if save:
             plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}_{self.label}.png")
@@ -466,54 +496,68 @@ class TrainingLogger:
 
 # Model management helper class
 class ModelManager:
-    def __init__(self, model_dir='./models', label = None):
+    def __init__(self, model_dir='./models', label=None):
         self.model_dir = model_dir
         os.makedirs(model_dir, exist_ok=True)
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.label = ''
-        if label: self.label = str(label)
+        self.label = '' if label is None else str(label)
 
-    def save_models(self, model_phi, model_d, model_u, epoch=-1):
-        """Save models to files"""
+    def save_models(self, epoch=-1, **models):
+        """Save models to files
+
+        Args:
+            epoch (int): Current epoch number or -1 for final model
+            **models: Dictionary of models to save, e.g. phi=model_phi, u=model_u, d=model_d
+        """
         # Create epoch-specific or final save
         suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
 
-        # Save paths
-        phi_path = os.path.join(self.model_dir, f"model_phi{suffix}_{self.timestamp}_{self.label}.pt")
-        d_path = os.path.join(self.model_dir, f"model_d{suffix}_{self.timestamp}_{self.label}.pt")
-        u_path = os.path.join(self.model_dir, f"model_u{suffix}_{self.timestamp}_{self.label}.pt")
-
-        # Save model states
-        torch.save(model_phi.state_dict(), phi_path)
-        torch.save(model_d.state_dict(), d_path)
-        torch.save(model_u.state_dict(), u_path)
-
-        # Save model metadata
+        # Save model states and collect paths
         metadata = {
             'timestamp': self.timestamp,
             'epoch': epoch,
-            'models': {
-                'phi': phi_path,
-                'd': d_path,
-                'u': u_path
-            }
+            'models': {}
         }
 
-        meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{self.timestamp}_{self.label}.json")
+        for model_name, model in models.items():
+            if model is None:
+                continue
+
+            model_path = os.path.join(
+                self.model_dir,
+                f"model_{model_name}{suffix}_{self.timestamp}_{self.label}.pt"
+            )
+            torch.save(model.state_dict(), model_path)
+            metadata['models'][model_name] = model_path
+
+        # Save model metadata
+        meta_path = os.path.join(
+            self.model_dir,
+            f"model_metadata{suffix}_{self.timestamp}_{self.label}.json"
+        )
         with open(meta_path, 'w') as f:
             json.dump(metadata, f)
 
         return metadata
 
-    def load_models(self, model_phi, model_d, model_u, timestamp=None, epoch=-1):
-        """Load models from files"""
+    def load_models(self, timestamp=None, epoch=-1, **models):
+        """Load models from files
+
+        Args:
+            timestamp (str): Specific timestamp to load or None for latest
+            epoch (int): Specific epoch to load or -1 for final model
+            **models: Dictionary of model objects to load into, e.g. phi=model_phi, u=model_u
+
+        Returns:
+            dict: Dictionary of loaded models with same keys as input
+        """
         # Find latest model if timestamp not provided
         if timestamp is None:
             # List all metadata files and find the latest one
             meta_files = [f for f in os.listdir(self.model_dir) if f.startswith("model_metadata")]
             if not meta_files:
                 print("No saved models found.")
-                return None, None, None
+                return None
 
             # Get the latest timestamp
             meta_files.sort(reverse=True)
@@ -522,62 +566,62 @@ class ModelManager:
         else:
             # Use specified timestamp
             suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
-            meta_path = os.path.join(self.model_dir, f"model_metadata{suffix}_{timestamp}.json")
+            meta_path = os.path.join(
+                self.model_dir,
+                f"model_metadata{suffix}_{timestamp}_{self.label}.json"
+            )
 
         # Load metadata
         try:
             with open(meta_path, 'r') as f:
                 metadata = json.load(f)
-            if not torch.cuda.is_available():
-                if model_phi is not None:
-                    model_phi.load_state_dict(torch.load(metadata['models']['phi'], map_location=torch.device('cpu')))
-                state_dict = torch.load(metadata['models']['u'], map_location=torch.device('cpu'))
-                new_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    new_state_dict[k.replace('module.','')] = v
-                model_u.load_state_dict(new_state_dict)
-                state_dict = torch.load(metadata['models']['d'], map_location=torch.device('cpu'))
-                new_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    new_state_dict[k.replace('module.','')] = v
-                model_d.load_state_dict(new_state_dict)
-                return model_phi, model_d, model_u
-            # Load model states
-            if model_phi is not None:
-                model_phi.load_state_dict(torch.load(metadata['models']['phi']))
-            model_d.load_state_dict(torch.load(metadata['models']['d']))
-            model_u.load_state_dict(torch.load(metadata['models']['u']))
+
+            loaded_models = {}
+            device = 'cpu' if not torch.cuda.is_available() else 'cuda'
+
+            # Load each model if provided and available in metadata
+            for model_name, model in models.items():
+                if model is None or model_name not in metadata['models']:
+                    loaded_models[model_name] = None
+                    continue
+
+                try:
+                    state_dict = torch.load(
+                        metadata['models'][model_name],
+                        map_location=torch.device(device)
+                    )
+
+                    # Handle potential module prefix differences
+                    if not any(k.startswith('module.') for k in state_dict.keys()) and \
+                            any(k.startswith('module.') for k in model.state_dict().keys()):
+                        # Add module prefix
+                        new_state_dict = OrderedDict()
+                        for k, v in state_dict.items():
+                            new_state_dict["module." + k] = v
+                        state_dict = new_state_dict
+                    elif any(k.startswith('module.') for k in state_dict.keys()) and \
+                            not any(k.startswith('module.') for k in model.state_dict().keys()):
+                        # Remove module prefix
+                        new_state_dict = OrderedDict()
+                        for k, v in state_dict.items():
+                            new_state_dict[k.replace('module.', '')] = v
+                        state_dict = new_state_dict
+
+                    model.load_state_dict(state_dict)
+                    loaded_models[model_name] = model
+                except Exception as e:
+                    print(f"Error loading {model_name}: {e}")
+                    loaded_models[model_name] = None
 
             print(f"Models loaded successfully from {meta_path}")
-            return model_phi, model_d, model_u
+            return loaded_models
+
         except FileNotFoundError:
             print(f"Model files not found at {meta_path}")
-            return None, None, None
+            return None
         except Exception as e:
-            try:
-                if model_phi is not None:
-                    state_dict = torch.load(metadata['models']['phi'])
-                    new_state_dict = OrderedDict()
-                    for k, v in state_dict.items():
-                        new_state_dict["module."+k] = v
-                    model_phi.load_state_dict(new_state_dict)
-
-                state_dict = torch.load(metadata['models']['d'])
-                new_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    new_state_dict["module."+k] = v
-                model_d.load_state_dict(new_state_dict)
-
-                state_dict = torch.load(metadata['models']['u'])
-                new_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    new_state_dict["module."+k] = v
-                model_u.load_state_dict(new_state_dict)
-                print(f"Models loaded successfully from {meta_path}")
-                return model_phi, model_d, model_u
-            except Exception as e:
-                print(f"Error loading models: {e}")
-                return None, None, None
+            print(f"Error loading models: {e}")
+            return None
 
 def get_gpu_specs():
     """Print detailed information about available CUDA devices in PyTorch."""
