@@ -52,8 +52,8 @@ class TWAPGymTradingAgent(GymTradingAgent):
         
         #calculate the time elapsed in this window so far
         self.window_time_elapsed += self.action_freq
-
-        time_ratio = self.window_time_elapsed/self.window_size #this gives a ratio for how much time we have spent on this window
+        
+        time_ratio = self.window_time_elapsed/self.window_size  # this gives a ratio for how much time we have spent on this window
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
         #decrement the number of windows left, and reset all window-dependent variables
@@ -73,39 +73,46 @@ class TWAPGymTradingAgent(GymTradingAgent):
         self.old_volume = self.agent_volume
 
         #if we have traded more than or equal to how much we should have traded so far, cancel some of the most viable limit orders
-        if (self.traded_so_far >= self.total_order_size*(self.current_time/self.total_time) or self.traded_so_far >= self.total_order_size):
+        if (self.traded_so_far >= self.total_order_size*(self.current_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.total_volume_window):
             lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
             if len(data["Positions"][lvl]) > 0:
                  return(8, 0) if self.side == "buy" else (3, 0)
             #if we dont have any positions left, skip
             return (12, 0)
-            
-        if self.volume_traded_in_window >= self.total_volume_window:
-            #if we have already traded all of our volume for this window (i.e. all of our orders have "gone through") 
-            #or, if we have reached our goal trading volume
-            return (12, 0)
         
 
         
-        # #if we have gone through 50% of our window time and have less than a 90% execution rate
+        # #if we have gone through 75% of our window time and have less than a 90% execution rate
         if  time_ratio > 0.75 and self.volume_traded_in_window/(self.total_volume_window*time_ratio) < 0.9 and not self.urgent:
             self.urgent = True
         
         if not self.urgent: #place limit orders like usual 
             return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
-        
         #otherwise, place market orders
         else:
             lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
-            num_actions_left_this_window:int = round((self.window_size - self.window_time_elapsed) * self.actions_per_second)
-            if num_actions_left_this_window <= 0 : breakpoint()
+            time_left:int = self.window_size - self.window_time_elapsed
+            num_actions_left_this_window:int = round(time_left * self.actions_per_second)
+            if num_actions_left_this_window <= 0 : return(12, 0)
             self.market_order_size = round((self.total_volume_window - self.volume_traded_in_window)/num_actions_left_this_window)
             return(7, self.market_order_size) if self.side == "buy" else (4, self.market_order_size)
 
 
 class POVGymTradingAgent(GymTradingAgent):
-    def __init__(self, participation_rate, total_order_size, side):
+    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, side:str, order_target:str, participation_rate:int, on_trade:bool = False):
+        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade, cashlimit=cashlimit)
+        self.side:str = side
+        self.starting_inventory = self.Inventory[order_target]
+        self.partipation_rate:int = participation_rate
+        self.total_order_size:int = total_order_size
+        self.traded_so_far:int = 0
+
         pass
 
     def get_action(self, data):
+        self.traded_so_far:int = abs(data["Inventory"] - self.starting_inventory)
+        if(self.traded_so_far>=self.total_order_size):
+            return(12, 0)
+
+        # order_size:int = 
         pass

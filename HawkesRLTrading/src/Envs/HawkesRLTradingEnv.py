@@ -182,10 +182,10 @@ if __name__=="__main__":
                                      "cashlimit": 1000000000,
                                       "strategy": "TWAP",
                                       "on_trade":False,
-                                      "total_order_size":750,
+                                      "total_order_size":500,
                                       "order_target":"XYZ",
-                                      "total_time":150,
-                                      "window_size":15, #window size, measured in seconds
+                                      "total_time":100,
+                                      "window_size":20, #window size, measured in seconds
                                       "side":"buy", #buy or sell
                                       "action_freq":0.2, 
                                       "Inventory": {"XYZ":1} #inventory cant be 0
@@ -206,7 +206,7 @@ if __name__=="__main__":
 
             }
     
-    env=tradingEnv(stop_time=450, wall_time_limit=23400, seed=1, **kwargs)
+    env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination=env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
