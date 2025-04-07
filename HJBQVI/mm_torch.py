@@ -906,9 +906,9 @@ class MarketMaking():
 
         # Load existing models if continuing training
         if continue_training:
-            loaded_phi, loaded_d, loaded_u = model_manager.load_models(phi=model_phi, d=model_d, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
-            if loaded_phi is not None:
-                model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
+            loadedModels = model_manager.load_models(phi=model_phi, d=model_d, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
+            if loadedModels is not None:
+                model_phi, model_d, model_u = loadedModels['phi'], loadedModels['d'], loadedModels['u']
                 print("Resuming training from previously saved models")
         model_phi.to(device)
         model_u.to(device)
@@ -1245,9 +1245,9 @@ class MarketMakingUnifiedControl(MarketMaking):
 
         # Load existing models if continuing training
         if continue_training:
-            loaded_phi, loaded_u = model_manager.load_models(phi=model_phi, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
-            if loaded_phi is not None:
-                model_phi, model_u = loaded_phi, loaded_u
+            loadedModels = model_manager.load_models(phi=model_phi, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
+            if loadedModels is not None:
+                model_phi, model_u = loadedModels['phi'], loadedModels['u']
                 print("Resuming training from previously saved models")
         model_phi.to(device)
         model_u.to(device)
