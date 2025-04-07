@@ -557,7 +557,7 @@ class ModelManager:
             meta_files = [f for f in os.listdir(self.model_dir) if f.startswith("model_metadata")]
             if not meta_files:
                 print("No saved models found.")
-                return None
+                return [None]*len(models.keys())
 
             # Get the latest timestamp
             meta_files.sort(reverse=True)
@@ -568,7 +568,7 @@ class ModelManager:
             suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
             meta_path = os.path.join(
                 self.model_dir,
-                f"model_metadata{suffix}_{timestamp}_{self.label}.json"
+                f"model_metadata{suffix}_{timestamp}.json"
             )
 
         # Load metadata
@@ -618,10 +618,10 @@ class ModelManager:
 
         except FileNotFoundError:
             print(f"Model files not found at {meta_path}")
-            return None
+            return [None]*len(models.keys())
         except Exception as e:
             print(f"Error loading models: {e}")
-            return None
+            return [None]*len(models.keys())
 
 def get_gpu_specs():
     """Print detailed information about available CUDA devices in PyTorch."""
