@@ -139,12 +139,13 @@ class Kernel:
                 if rtn==None and self.exchange.Arrival_model.s>=self.nearest_action_time:
                     logger.debug(f"Updating Kernel current time {self.current_time} to nearest action time {self.nearest_action_time}")
                     self.current_time=self.nearest_action_time
-                    if self.current_time>=self.stop_time:
-                        self.isrunning=False
-                        break
-                    # if not self.isrunning:
-                    #     self.current_time = self.stop_time + 1 #random increase in current time to get correct final exit
-                    #     break # exit condition
+                    #if self.current_time>=self.stop_time:
+                    #    self.isrunning=False
+                    #    break
+                    
+                    if not self.isrunning:
+                        self.current_time = self.stop_time + 1 #random increase in current time to get correct final exit
+                        break # exit condition
                     recipientIDs=[agent.id for agent in self.gymagents if self.agents_current_times[agent.id]==self.current_time]
                     logger.debug(f"\nrecipientIDs for empty queue: {recipientIDs}")
                     message=BeginTradingMsg(time=self.current_time)
@@ -412,7 +413,10 @@ class Kernel:
             True - if a new wakeup time was set
             False - if the new wakeuptime is beyond simulation limits
         """
-    
+
+        if requested_time>self.stop_time:
+            self.isrunning = False #terminate
+            return False
         agent = TradingAgent.get_entity_by_id(agentID)
         if agent:
             if agentID in self.entity_registry.keys():
@@ -485,6 +489,8 @@ class Kernel:
         rtn["Cash"]=agentobs["Cash"]
         rtn["Inventory"]=agentobs["Inventory"]
         rtn["Positions"]=agentobs["Positions"]
+        rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
+        rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
         return rtn
     
     def getinfo(self, data: Dict={}):

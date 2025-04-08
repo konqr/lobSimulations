@@ -263,8 +263,9 @@ class HawkesArrival(ArrivalModel):
             self.s = 0
         hourIndex = min(12,int(self.s//1800)) #1800 seconds in 30 minutes
         self.todmult=self.tod[:, hourIndex].reshape((12, 1))
-        #todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2]) 
-        mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
+        #todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
+        if not np.sum(self.kernelparams[0][3]) == 0:
+            mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
         self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
         self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
         specRad = np.max(np.linalg.eig(mat)[0])
