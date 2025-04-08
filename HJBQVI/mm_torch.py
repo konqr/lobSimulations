@@ -117,6 +117,7 @@ class MarketMaking():
         qD_as = np.hstack(qD_as).reshape(-1,1)
         q_bs = np.hstack(q_bs).reshape(-1,1)
         qD_bs = np.hstack(qD_bs).reshape(-1,1)
+        #TODO: maybe better to use exp distri here?
         n_as = np.array([np.random.randint(0, b) for b in q_as + qD_as])
         n_bs = np.array([np.random.randint(0, b) for b in q_bs + qD_bs])
         # Convert to TensorFlow tensors immediately
