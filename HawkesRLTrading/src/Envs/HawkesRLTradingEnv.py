@@ -28,12 +28,16 @@ class tradingEnv(gym.Env):
         kwargs -- Simulation default parameters specified as following:
             Dictionary{
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 5000, 
+                "GymTradingAgent": [{"cash": 10000000, 
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True}],
+                                    "log_to_file": True, 
+                                    "cashlimit": 1000000000000,
+                                    "inventorylimit": 100000,
+                                    "wake_on_MO": True,
+                                    "wake_on_Spread": True}],
                 "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
@@ -75,6 +79,8 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
 
+                if j["strategy"]=="Random":
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
                 # if j["strategy"]=="Random":
                 #     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
                 if j["strategy"] == "TWAP":
@@ -120,8 +126,8 @@ class tradingEnv(gym.Env):
         Observations=self.getobservations()
         # rewards=self.calculaterewards()
         termination=self.isterminated()
-        # truncation=self.istruncated()
-        return simstate, Observations, termination
+        truncation=self.istruncated()
+        return simstate, Observations, termination, truncation
         # return Observations, rewards, termination, truncation
         #return observations, rewards, dones, infos    
         
@@ -160,10 +166,10 @@ class tradingEnv(gym.Env):
         for gymagent in self.kernel.gymagents:
             rewards[gymagent.id]=gymagent.calculaterewards()
         return rewards        
-    def isterminated(self):
-        return self.kernel.isterminated()==len(self.kernel.gymagents)
     def istruncated(self):
-        return self.kernel.istruncated()  
+        return all(self.kernel.istruncated())
+    def isterminated(self):
+        return self.kernel.isterminated()  
     def getinfo(self):
         """
         Returns auxiliary info: 
@@ -190,6 +196,17 @@ if __name__=="__main__":
         tod[i]=[faketod[cols[i]][k] for k in range(13)]
     kwargs={
                 "TradingAgent": [],
+
+                "GymTradingAgent": [{"cash": 2000, 
+                                    "strategy": "Random",
+                                    "action_freq": 2,
+                                    "rewardpenalty": 0.4,
+                                    "Inventory": {"XYZ": 500},
+                                    "log_to_file": True,
+                                    "cashlimit": 500000, 
+                                    "inventorylimit": 1000000,
+                                    "wake_on_MO": True,
+                                    "wake_on_Spread": False}],
                 # "GymTradingAgent": [{"cash": 1000000,
                 #                     "strategy": "Random",
                 #                      'on_trade':False,
@@ -198,18 +215,18 @@ if __name__=="__main__":
                 #                     "Inventory": {"XYZ": 1000},
                 #                     "log_to_file": True,
                 #                     "cashlimit": 100000000}],
-                "GymTradingAgent": [{"cash":10000000,
-                                     "cashlimit": 1000000000,
-                                      "strategy": "TWAP",
-                                      "on_trade":False,
-                                      "total_order_size":500,
-                                      "order_target":"XYZ",
-                                      "total_time":100,
-                                      "window_size":20, #window size, measured in seconds
-                                      "side":"buy", #buy or sell
-                                      "action_freq":0.2, 
-                                      "Inventory": {"XYZ":1} #inventory cant be 0
-                                     }],
+                #"GymTradingAgent": [{"cash":10000000,
+                #                     "cashlimit": 1000000000,
+                #                      "strategy": "TWAP",
+                #                      "on_trade":False,
+                #                      "total_order_size":500,
+                #                      "order_target":"XYZ",
+                #                      "total_time":100,
+                #                      "window_size":20, #window size, measured in seconds
+                #                      "side":"buy", #buy or sell
+                #                      "action_freq":0.2, 
+                #                      "Inventory": {"XYZ":1} #inventory cant be 0
+                #                     }],
                 "Exchange": {"symbol": "XYZ",
                 #"GymTradingAgent": [{"cash": 1000000,
                 #                    "strategy": "ImpulseControl",
@@ -239,11 +256,13 @@ if __name__=="__main__":
             }
     
 
+
     env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
-    Simstate, observations, termination=env.step(action=None)
+    Simstate, observations, termination, truncation =env.step(action=None)
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     i=0
+
     cash, inventory, t, actions = [], [], [], []
     while Simstate["Done"]==False and termination!=True:
         logger.debug(f"ENV TERMINATION: {termination}")
@@ -256,14 +275,22 @@ if __name__=="__main__":
         action=(agent.id, agent.get_action(data=observations))   
         print(f"Limit Order Book: {observations['LOB0']}")
         print(f"Action: {action}")
-        Simstate, observations, termination=env.step(action=action) 
-        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+        Simstate, observations, termination, truncation=env.step(action=action) 
+        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
         i+=1
         cash += [observations['Cash']]
         inventory += [observations['Inventory']]
         t += [Simstate['TimeCode']]
         actions += [action[1][0]]
         print(f"ACTION DONE{i}")
+
+    if termination:
+        print("Termination condition reached.")
+    elif truncation:
+        print("Truncation condition reached.")    
+    else:
+        pass
+
     plt.figure(figsize=(12,8))
     plt.subplot(221)
     plt.plot(t, cash)

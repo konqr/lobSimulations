@@ -1,0 +1,18 @@
+ID=-1: represents the kernel
+1: Random Gym Agent
+2: Exchange Entity
+
+At 26.2879663771609, entity 2 sent batch message: TradeNotificationMsg(message_id=90)
+so timesent of message ID90 is self.current time of exchange: 26.2879663771609
+self.current time: Updating Kernel current time 26.287966804134253 to ExchangeMsg89 timesent 26.287966804134253
+
+At message 89: self.current_time= kernel time updated to 26.287966804134253 Processing OrderExecutedMsg message with ID 89 from sender 2
+
+Non-Agent placed: MarketOrder(time_placed=np.float64(26.2879663771609)
+DEBUG - Processing Order 185
+
+(Done)Bugs: Termination error, running into multiple loop at the last action time -> happening due to the min function that chooses nearest action time
+Bug2: Implement Delay
+(Done) Autocancel only limit orders that leave top 2 levels upon inspread
+(Done) Flag for wake up messages, boolean for market orders + inspread shifts
+add noncontrollable randomagents non_gym
