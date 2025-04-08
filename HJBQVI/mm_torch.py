@@ -51,9 +51,9 @@ class MarketMaking():
         Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
         Ys = np.round(10 * np.random.randn(num_points, 1), 2)
         P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
-        spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
+        spreads = 0.01 *  np.random.geometric(.8, [num_points, 1])
         p_as = np.round(P_mids + spreads / 2, 2)
-        p_bs = np.round(P_mids - spreads / 2, 2)
+        p_bs = p_as - spreads
         q_as = np.random.geometric(.002, [num_points, 1])
         qD_as = np.random.geometric(.0015, [num_points, 1])
         q_bs = np.random.geometric(.002, [num_points, 1])
@@ -165,6 +165,7 @@ class MarketMaking():
             q_as_updated = q_as - 1.0
             # This is a simplification; in real code, you might need a differentiable alternative
             n_as_updated = torch.rand(n_as.shape, device=n_as.device) * (q_as_updated + qD_as + 1)
+            qD_as_updated =qD_as.clone()
         else:
             # For normal operation
             idxCO = torch.rand(q_as.shape, device=q_as.device) * q_as
@@ -180,8 +181,8 @@ class MarketMaking():
 
         # Handle queue depletion
         condition = q_as_updated == 0.0
-        q_as_final = torch.where(condition, qD_as, q_as_updated)
-        qD_as_final = torch.where(condition, self.sample_qd(), qD_as)
+        q_as_final = torch.where(condition, qD_as_updated, q_as_updated)
+        qD_as_final = torch.where(condition, self.sample_qd(), qD_as_updated)
         p_as_final = torch.where(condition, p_as + z * 0.01, p_as)
         P_mids_final = torch.where(condition, P_mids + z * 0.005, P_mids)
 
@@ -302,28 +303,29 @@ class MarketMaking():
             Ss_out[:, 6] = qD_as_updated
             Ss_out[:, 8] = n_as_updated
             Ss_out[:, 10] = P_mids_updated
-
+        spreads = p_as - p_bs
+        mask_spread = (spreads >= 0.015).flatten()
         # Event 5: lo_inspread_Ask
         mask = (eventID == 5)
         if mask.any():
             q_as_updated, qD_as_updated, n_as_updated, P_mids_updated, p_as_updated = self.tr_is(
-                1.0, q_as, qD_as, n_as, P_mids, p_as)
-            Ss_out[:, 2] = p_as_updated
-            Ss_out[:, 4] = q_as_updated
-            Ss_out[:, 6] = qD_as_updated
-            Ss_out[:, 8] = n_as_updated
-            Ss_out[:, 10] = P_mids_updated
+                1.0, q_as[mask_spread], qD_as[mask_spread], n_as[mask_spread], P_mids[mask_spread], p_as[mask_spread])
+            Ss_out[mask_spread, 2] = p_as_updated
+            Ss_out[mask_spread, 4] = q_as_updated
+            Ss_out[mask_spread, 6] = qD_as_updated
+            Ss_out[mask_spread, 8] = n_as_updated
+            Ss_out[mask_spread, 10] = P_mids_updated
 
         # Event 6: lo_inspread_Bid
         mask = (eventID == 6)
         if mask.any():
             q_bs_updated, qD_bs_updated, n_bs_updated, P_mids_updated, p_bs_updated = self.tr_is(
-                -1.0, q_bs, qD_bs, n_bs, P_mids, p_bs)
-            Ss_out[:, 3] = p_bs_updated
-            Ss_out[:, 5] = q_bs_updated
-            Ss_out[:, 7] = qD_bs_updated
-            Ss_out[:, 9] = n_bs_updated
-            Ss_out[:, 10] = P_mids_updated
+                -1.0, q_bs[mask_spread], qD_bs[mask_spread], n_bs[mask_spread], P_mids[mask_spread], p_bs[mask_spread])
+            Ss_out[mask_spread, 3] = p_bs_updated
+            Ss_out[mask_spread, 5] = q_bs_updated
+            Ss_out[mask_spread, 7] = qD_bs_updated
+            Ss_out[mask_spread, 9] = n_bs_updated
+            Ss_out[mask_spread, 10] = P_mids_updated
 
         # Event 7: mo_Bid
         mask = (eventID == 7)
@@ -541,6 +543,9 @@ class MarketMaking():
 
         # Limit order in-spread asks
         lo_is_asks_mask = (us == 4).flatten()
+        spreads = p_as - p_bs
+        mask_spread = (spreads >= 0.015).flatten()
+        lo_is_asks_mask = torch.logical_and(lo_is_asks_mask, mask_spread)
         if lo_is_asks_mask.any():
             lo_q_as = q_as[lo_is_asks_mask]
             lo_n_as = n_as[lo_is_asks_mask]
@@ -562,6 +567,7 @@ class MarketMaking():
 
         # Limit order in-spread bids
         lo_is_bids_mask = (us == 5).flatten()
+        lo_is_bids_mask = torch.logical_and(lo_is_bids_mask, mask_spread)
         if lo_is_bids_mask.any():
             lo_q_bs = q_bs[lo_is_bids_mask]
             lo_n_bs = n_bs[lo_is_bids_mask]
@@ -589,7 +595,7 @@ class MarketMaking():
         Ss_intervened.to(self.device)
         inter_profit.to(self.device)
         # Calculate new value function and add profit
-        return model_phi(ts, Ss_intervened) + inter_profit.unsqueeze(1).to(self.device)
+        return model_phi(ts, Ss_intervened) #+ inter_profit.unsqueeze(1).to(self.device)
 
     def oracle_u(self, model_phi, ts, Ss):
         # Use PyTorch operations to compute the best action
@@ -711,7 +717,7 @@ class MarketMaking():
 
         return loss
 
-    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10):
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, phi_optim='ADAM'):
         # Setup for training
         lambdas = self.lambdas_poisson
 
@@ -738,10 +744,15 @@ class MarketMaking():
             return loss_phi
         # Use gradient clipping to prevent exploding gradients
         for j in range(phi_epochs):
-            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
+            loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
-            optimizer_phi.step(closure)
+            if phi_optim == 'ADAM':
+                optimizer_phi.zero_grad()
+                loss_phi.backward()
+                optimizer_phi.step()
+            else:
+                optimizer_phi.step(closure)
             train_loss_phi = loss_phi.item()
             scheduler_phi.step()
 
@@ -752,16 +763,20 @@ class MarketMaking():
                 break
 
             print(f'Model Phi loss: {train_loss_phi:0.4f}')
-
+            for param_group in optimizer_phi.param_groups:
+                lr = param_group['lr']
+                print('Model Phi LR: '+str(lr))
         # Train control function
         gt_u = self.oracle_u(model_phi, ts, Ss)
         train_loss_u = 0.0
         acc_u = 0.0
         loss_object_u = nn.CrossEntropyLoss()
 
-        for j in range(10):
+        for j in range(phi_epochs):
             optimizer_u.zero_grad()
             pred_u, prob_us = model_u(ts, Ss)
+            print(np.unique(gt_u.cpu(), return_counts=True))
+            print(np.unique(pred_u.cpu(), return_counts=True))
             acc_u = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
             loss_u = loss_object_u(prob_us, gt_u)
             loss_u.backward()
@@ -779,16 +794,21 @@ class MarketMaking():
 
             print(f'Model u loss: {train_loss_u:0.4f}')
             print(f'Model u Acc: {acc_u:0.4f}')
+            for param_group in optimizer_u.param_groups:
+                lr = param_group['lr']
+                print('Model U LR: '+str(lr))
         # Train decision function
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
         acc_d = 0.0
         loss_object_d = nn.CrossEntropyLoss()
 
-        for j in range(10):
+        for j in range(100):
             optimizer_d.zero_grad()
             pred_d, prob_ds = model_d(ts, Ss)
-            acc_d = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
+            print(np.unique(gt_d.cpu(), return_counts=True))
+            print(np.unique(pred_d.cpu(), return_counts=True))
+            acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
             loss_d = loss_object_d(prob_ds, gt_d)
             loss_d.backward()
 
@@ -823,7 +843,10 @@ class MarketMaking():
             'refresh_epoch' : 300,
             'lr' : 1e-3,
             'sampler': 'sim',
-            'phi_epochs' : 10
+            'phi_epochs' : 10,
+            'phi_optim' : 'ADAM',
+            'unified': False,
+            'feature_width' : 25
         }
 
         # Update defaults with provided kwargs
@@ -850,6 +873,9 @@ class MarketMaking():
         lr = defaults['lr']
         sampler = defaults['sampler']
         phi_epochs = defaults['phi_epochs']
+        phi_optim = defaults['phi_optim']
+        unified = defaults['unified']
+        feature_width = defaults['feature_width']
         self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -858,13 +884,21 @@ class MarketMaking():
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.device=device
         # Create models
-        model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
-        model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
-        model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
+        if unified:
+            model0 = DGM.DGMNet(layer_widths[0], n_layers[0], 11, output_dim= feature_width, typeNN = typeNN)
+            model_phi = DGM.DenseNet(feature_width, layer_widths[1], n_layers[1], 1, model0)
+            model_u = DGM.DenseNet(feature_width, layer_widths[2], n_layers[2], 10, model0)
+            model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0)
+        else:
+            model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
+            model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
 
         if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            if unified:
+                nn.DataParallel(model0)
             model_phi = nn.DataParallel(model_phi)
             model_u = nn.DataParallel(model_u)
             model_d = nn.DataParallel(model_d)
@@ -872,21 +906,25 @@ class MarketMaking():
 
         # Load existing models if continuing training
         if continue_training:
-            loaded_phi, loaded_d, loaded_u = model_manager.load_models(model_phi, model_d, model_u, timestamp= checkpoint_label, epoch = continue_epoch)
-            if loaded_phi is not None:
-                model_phi, model_d, model_u = loaded_phi, loaded_d, loaded_u
+            loadedModels = model_manager.load_models(phi=model_phi, d=model_d, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
+            if loadedModels is not None:
+                model_phi, model_d, model_u = loadedModels['phi'], loadedModels['d'], loadedModels['u']
                 print("Resuming training from previously saved models")
         model_phi.to(device)
         model_u.to(device)
         model_d.to(device)
+        if unified: model0.to(device)
         # Define lambda function for the scheduler
         def lr_lambda(epoch):
             # Calculate decay rate
-            decay_rate = np.log(1e-4) / (self.EPOCHS - 1)
-            return np.exp(decay_rate * epoch * 50)
+            #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
+            #return np.max([1e-5,np.exp(decay_rate * epoch )])
+            return (1 - 1e-5)**epoch
 
-        #Kentaro: use L-BFGS after first 1000 iterations
-        optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
+        if phi_optim == 'ADAM':
+            optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+        else:
+            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
@@ -898,8 +936,6 @@ class MarketMaking():
         # Training loop
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
-            #Kentaro: multiple nets are probably propagating errors - unite them.
-            #KJ: u and d can be united using a 'no-action' class of actions
             #KJ: PoC needed for a simple LOB model - check the solution wrt real soln
             #KJ: also useful would be Mguni et al. comparison
             #KJ: 1. 2D poisson flow + impulse control using ansatz ala AS, using DGM and compare soln
@@ -908,16 +944,16 @@ class MarketMaking():
             #    4. 12D Hawkes + IC using DGM
             #    5. Compare 4 w DRL approach of Mguni
             model_phi, model_d, model_u, loss_phi, loss_d, loss_u, acc_u, acc_d = self.train_step(
-                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs
+                model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs, phi_optim = phi_optim
             )
 
             # Log losses
-            logger.log_losses(loss_phi, loss_d, loss_u, acc_d, acc_u)
+            logger.log_losses(phi_loss=loss_phi, d_loss=loss_d, u_loss=loss_u, acc_d=acc_d, acc_u=acc_u)
 
             # Save checkpoint at specified frequency
             if (epoch + 1) % checkpoint_frequency == 0:
                 print(f"Saving checkpoint at epoch {epoch+1}")
-                model_manager.save_models(model_phi, model_d, model_u, epoch=epoch+1)
+                model_manager.save_models(phi=model_phi, d=model_d, u=model_u, epoch=epoch+1)
                 # Save and plot losses
                 logger.save_logs()
                 logger.plot_losses(show=True, save=True)
@@ -929,18 +965,355 @@ class MarketMaking():
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
 
-            # if (epoch+1) == continue_epoch + 1000:
-            #     print('Switching to LBFGS for Phi')
-            #     optimizer_phi = optim.LBFGS(model_phi.parameters())
-            #     # Set up schedulers
-            #     scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+            if (epoch+1) == continue_epoch + 1000:
+                print('Switching to LBFGS for Phi')
+                optimizer_phi = optim.LBFGS(model_phi.parameters())
+                # Set up schedulers
+                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+                phi_optim = 'LBFGS'
         # Save final model
-        model_manager.save_models(model_phi, model_d, model_u)
+        model_manager.save_models(phi=model_phi, d=model_d, u=model_u)
 
         print("Training completed. Models saved and losses plotted.")
 
         return model_phi, model_d, model_u
 
+class MarketMakingUnifiedControl(MarketMaking):
+    def __init__(self, num_points=100, num_epochs=1000, ric='AAPL'):
+        super(MarketMakingUnifiedControl, self).__init__(num_points=num_points, num_epochs=num_epochs, ric=ric)
+
+    def oracle_u(self, model_phi, ts, Ss):
+        # Use PyTorch operations to compute the best action
+        batch_size = ts.shape[0]
+
+        # Initialize tensor to store intervention values for each action
+        interventions = torch.zeros((batch_size, len(self.U) + 1), dtype=torch.float32, device=self.device)
+
+        # Calculate value for each action
+        for u in range(len(self.U)):
+            # Create a tensor of action u for all batch items
+            u_tensor = torch.ones((batch_size, 1), dtype=torch.float32) * u
+
+            # Calculate intervention value
+            intervention_value = self.intervention(model_phi, ts, Ss, u_tensor)
+
+            # Store in interventions tensor
+            indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
+                                   torch.ones(batch_size, dtype=torch.int64) * u], dim=1)
+            interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1).to(self.device)
+
+        u_tensor = torch.ones((batch_size, 1), dtype=torch.float32) * len(self.U)
+
+        # Calculate value
+        ts.requires_grad_(True)
+        output = model_phi(ts, Ss)
+        output.to(self.device)
+
+        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
+        #ts.requires_grad_(False)
+
+        # Calculate integral term
+        I_phi = torch.zeros_like(output)
+        I_phi.to(self.device)
+        for i in range(self.NDIMS):
+            # Calculate transition for event i
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+            Ss_transitioned.to(self.device)
+            I_phi += self.lambdas_poisson[i] * (model_phi(ts, Ss_transitioned) - output)
+
+        # Calculate generator term
+        L_phi = phi_t + I_phi
+
+        # Calculate running cost
+        f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+        f = f.reshape(-1, 1).to(self.device)
+        intervention_value = L_phi + f
+
+        # Store in interventions tensor
+        indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
+                               torch.ones(batch_size, dtype=torch.int64) * len(self.U)], dim=1)
+        interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1).to(self.device)
+
+        # Return the action with highest value
+        return torch.argmax(interventions, dim=1).to(self.device)
+
+    def loss_phi_poisson(self, model_phi, model_u, ts, Ss, Ts, S_boundarys, lambdas):
+        # Use autograd to calculate time derivative
+        ts.requires_grad_(True)
+        output = model_phi(ts, Ss)
+        output.to(self.device)
+
+        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
+        #ts.requires_grad_(False)
+
+        # Calculate integral term
+        I_phi = torch.zeros_like(output)
+        I_phi.to(self.device)
+        for i in range(self.NDIMS):
+            # Calculate transition for event i
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+            Ss_transitioned.to(self.device)
+            I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
+
+        # Calculate generator term
+        L_phi = phi_t + I_phi
+
+        # Calculate running cost
+        f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+        f = f.reshape(-1, 1).to(self.device)
+
+        # Get optimal decision and control
+
+        us, _ = model_u(ts, Ss)
+        ds = torch.ones_like(us).to(self.device)
+        ds[torch.where(us == len(self.U))] = 0
+        us[torch.where(us == len(self.U))] = 0 # some default value
+        # Calculate intervention value
+        M_phi = self.intervention(model_phi, ts, Ss, us)
+
+        # Calculate HJB evaluation
+        evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
+
+        # Interior loss
+        interior_loss = nn.MSELoss()(evaluation, torch.zeros_like(evaluation))
+
+        # Boundary loss
+        output_boundary = model_phi(Ts, S_boundarys)
+        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]  # Terminal condition
+        g = g.reshape(-1, 1).to(self.device)
+        boundary_loss = nn.MSELoss()(output_boundary, g)
+
+        # Combine losses with potential weighting
+        loss = interior_loss + boundary_loss
+
+        return loss
+
+    def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_u, optimizer_u, scheduler_u, phi_epochs=10, phi_optim='ADAM'):
+        # Setup for training
+        lambdas = self.lambdas_poisson
+
+        # Generate sample data
+        if self.SAMPLER=='iid':
+            ts, Ss = self.sampler(self.NUM_POINTS)
+            Ts, S_boundarys = self.sampler(self.NUM_POINTS, boundary=True)
+        elif self.SAMPLER == 'sim':
+            ts, Ss = self.sampler_sim(num_points=self.NUM_POINTS)
+            Ts, S_boundarys = self.sampler_sim(num_points=self.NUM_POINTS, boundary=True)
+        else:
+            raise Exception('invalid sampler')
+        ts.to(self.device)
+        Ss.to(self.device)
+        Ts.to(self.device)
+        S_boundarys.to(self.device)
+        # Train value function
+        train_loss_phi = 0.0
+
+        def closure():
+            optimizer_phi.zero_grad()
+            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_u, ts, Ss, Ts, S_boundarys, lambdas))
+            loss_phi.backward()
+            return loss_phi
+        # Use gradient clipping to prevent exploding gradients
+        for j in range(phi_epochs):
+            loss_phi = self.loss_phi_poisson(model_phi, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
+            if phi_optim == 'ADAM':
+                optimizer_phi.zero_grad()
+                loss_phi.backward()
+                optimizer_phi.step()
+            else:
+                optimizer_phi.step(closure)
+            train_loss_phi = loss_phi.item()
+            scheduler_phi.step()
+
+
+            # Check for NaN or Inf
+            if torch.isnan(loss_phi) or torch.isinf(loss_phi):
+                print("Warning: NaN or Inf detected in loss value")
+                break
+
+            print(f'Model Phi loss: {train_loss_phi:0.4f}')
+            for param_group in optimizer_phi.param_groups:
+                lr = param_group['lr']
+                print('Model Phi LR: '+str(lr))
+        # Train control function
+        gt_u = self.oracle_u(model_phi, ts, Ss)
+        train_loss_u = 0.0
+        acc_u = 0.0
+        loss_object_u = nn.CrossEntropyLoss()
+
+        for j in range(phi_epochs):
+            optimizer_u.zero_grad()
+            pred_u, prob_us = model_u(ts, Ss)
+            print(np.unique(gt_u.cpu(), return_counts=True))
+            print(np.unique(pred_u.cpu(), return_counts=True))
+            acc_u = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
+            loss_u = loss_object_u(prob_us, gt_u)
+            loss_u.backward()
+
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
+            optimizer_u.step()
+            train_loss_u = loss_u.item()
+            scheduler_u.step()
+
+            # Check for NaN or Inf
+            if torch.isnan(loss_u) or torch.isinf(loss_u):
+                print("Warning: NaN or Inf detected in loss value")
+                break
+
+            print(f'Model u loss: {train_loss_u:0.4f}')
+            print(f'Model u Acc: {acc_u:0.4f}')
+            for param_group in optimizer_u.param_groups:
+                lr = param_group['lr']
+                print('Model U LR: '+str(lr))
+
+        return model_phi, model_u, train_loss_phi, train_loss_u, acc_u
+
+    def train(self, **kwargs):
+        # Default parameter values
+        defaults = {
+            'continue_training': False,
+            'checkpoint_label' : None,
+            'continue_epoch': 0,
+            'checkpoint_frequency': 50,
+            'layer_widths': [20, 20],
+            'n_layers': [5, 5],
+            'typeNN': 'LSTM',
+            'log_dir': './logs',
+            'model_dir': './models',
+            'label': None,
+            'refresh_epoch' : 300,
+            'lr' : 1e-3,
+            'sampler': 'sim',
+            'phi_epochs' : 10,
+            'phi_optim' : 'ADAM',
+            'unified': False,
+            'feature_width' : 25
+        }
+
+        # Update defaults with provided kwargs
+        for key, value in kwargs.items():
+            if key in defaults:
+                defaults[key] = value
+
+        # Extract parameters for use
+        continue_training = defaults['continue_training']
+        checkpoint_label = defaults['checkpoint_label']
+        continue_epoch = defaults['continue_epoch']
+        checkpoint_frequency = defaults['checkpoint_frequency']
+        layer_widths = defaults['layer_widths']
+        n_layers = defaults['n_layers']
+        typeNN = defaults['typeNN']
+        typeNN2= typeNN
+        if type(typeNN) == list:
+            typeNN2 =typeNN[1]
+            typeNN = typeNN[0]
+        log_dir = defaults['log_dir']
+        model_dir = defaults['model_dir']
+        label = defaults['label']
+        refresh_epoch = defaults['refresh_epoch']
+        lr = defaults['lr']
+        sampler = defaults['sampler']
+        phi_epochs = defaults['phi_epochs']
+        phi_optim = defaults['phi_optim']
+        unified = defaults['unified']
+        feature_width = defaults['feature_width']
+        self.SAMPLER = sampler
+        # Initialize logger and model manager
+        logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+        model_manager = ModelManager(model_dir = model_dir, label = label)
+
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device=device
+        # Create models
+        if unified:
+            model0 = DGM.DGMNet(layer_widths[0], n_layers[0], 11, output_dim= feature_width, typeNN = typeNN)
+            model_phi = DGM.DenseNet(feature_width, layer_widths[1], n_layers[1], 1, model0)
+            model_u = DGM.DenseNet(feature_width, layer_widths[2], n_layers[2], 10+1, model0)
+        else:
+            model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10 + 1, typeNN = typeNN2)
+        if torch.cuda.device_count() > 1:
+            print("Let's use", torch.cuda.device_count(), "GPUs!")
+            # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            if unified:
+                nn.DataParallel(model0)
+            model_phi = nn.DataParallel(model_phi)
+            model_u = nn.DataParallel(model_u)
+
+        # Load existing models if continuing training
+        if continue_training:
+            loadedModels = model_manager.load_models(phi=model_phi, u=model_u, timestamp= checkpoint_label, epoch = continue_epoch)
+            if loadedModels is not None:
+                model_phi, model_u = loadedModels['phi'], loadedModels['u']
+                print("Resuming training from previously saved models")
+        model_phi.to(device)
+        model_u.to(device)
+        if unified: model0.to(device)
+        # Define lambda function for the scheduler
+        def lr_lambda(epoch):
+            # Calculate decay rate
+            #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
+            #return np.max([1e-5,np.exp(decay_rate * epoch )])
+            return (1 - 1e-5)**epoch
+
+        if phi_optim == 'ADAM':
+            optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+        else:
+            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
+        optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
+
+        # Set up schedulers
+        scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+        scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
+
+        # Training loop
+        for epoch in range(continue_epoch, self.EPOCHS):
+            print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
+            #KJ: PoC needed for a simple LOB model - check the solution wrt real soln
+            #KJ: also useful would be Mguni et al. comparison
+            #KJ: 1. 2D poisson flow + impulse control using ansatz ala AS, using DGM and compare soln
+            #    2. 2D hawkes flow + impulse control using ansatz ala AS, using DGM and compare soln
+            #    3. 12D poisson + IC using DGM
+            #    4. 12D Hawkes + IC using DGM
+            #    5. Compare 4 w DRL approach of Mguni
+            model_phi, model_u, loss_phi, loss_u, acc_u = self.train_step(
+                model_phi, optimizer_phi, scheduler_phi, model_u, optimizer_u, scheduler_u, phi_epochs = phi_epochs, phi_optim = phi_optim
+            )
+
+            # Log losses
+            logger.log_losses(phi_loss=loss_phi, u_loss=loss_u, acc_u=acc_u)
+
+            # Save checkpoint at specified frequency
+            if (epoch + 1) % checkpoint_frequency == 0:
+                print(f"Saving checkpoint at epoch {epoch+1}")
+                model_manager.save_models(phi=model_phi, u=model_u, epoch=epoch+1)
+                # Save and plot losses
+                logger.save_logs()
+                logger.plot_losses(show=True, save=True)
+            # if (epoch+1) == refresh_epoch:
+            #     model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN)
+            #     model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN)
+            # Step learning rate schedulers
+
+            # Print epoch summary
+            print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, U Loss: {loss_u:.4f}")
+
+            if (epoch+1) == continue_epoch + 1000:
+                print('Switching to LBFGS for Phi')
+                optimizer_phi = optim.LBFGS(model_phi.parameters())
+                # Set up schedulers
+                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+                phi_optim = 'LBFGS'
+        # Save final model
+        model_manager.save_models(phi=model_phi, u=model_u)
+
+        print("Training completed. Models saved and losses plotted.")
+
+        return model_phi, model_u
+
 # get_gpu_specs()
-# MM = MarketMaking(num_epochs=2000, num_points=10000)
-# MM.train(log_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/logs', model_dir = '/SAN/fca/Konark_PhD_Experiments/hjbqvi/models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, label = 'LSTM')
+# MM = MarketMakingUnifiedControl(num_epochs=2000, num_points=100)
+# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*2, n_layers= [2]*2, unified=False, label = 'LSTM')

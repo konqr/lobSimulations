@@ -460,6 +460,8 @@ class Kernel:
         rtn["Cash"]=agentobs["Cash"]
         rtn["Inventory"]=agentobs["Inventory"]
         rtn["Positions"]=agentobs["Positions"]
+        rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
+        rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
         return rtn
     
     def getinfo(self, data: Dict={}):

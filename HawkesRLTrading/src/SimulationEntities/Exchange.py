@@ -622,6 +622,17 @@ class Exchange(Entity):
             string = f"Bid_L{i}: {self.bidprices[f'Bid_L{i}']}, ({sum([j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]])}, {[j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]]})"
             rtn+=string
         return rtn
+
+    def returnlob(self):
+        rtn= {}
+        for i in range(self.LOBlevels, 0, -1):
+            rtn[f"Ask_L{i}"] = (self.askprices[f'Ask_L{i}'],
+                                ([j.size for j in self.asks[self.askprices[f'Ask_L{i}']]]))
+
+        for i in range(1, self.LOBlevels+1):
+            rtn[f"Bid_L{i}"] = (self.bidprices[f'Bid_L{i}'],
+                                ([j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]]))
+        return rtn
     
     @property
     def spread(self):

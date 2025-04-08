@@ -67,7 +67,7 @@ class TradingAgent(Entity):
         self.exchange=None
         self.isterminated=False
         #What time does the agent think it is?
-        self.current_time: int = 0 
+        self.current_time: int = 0
         
         #Agents will maintain a log of their activities, events will likely be stored in the format of (time, event_type, eventname, size)
         self.log: List[Tuple[int, Order, Dict[str, int], int]]=[] #Tuple(time, order, inventory, cash)
