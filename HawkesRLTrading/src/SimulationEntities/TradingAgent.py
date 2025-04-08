@@ -293,3 +293,69 @@ class TradingAgent(Entity):
              "Inventory": self.Inventory[self.exchange.symbol],
              "Positions": self.positions[self.exchange.symbol]}
         return rtn
+    
+class TradingAgent(TradingAgent):
+
+    def _mostCompetitiveOrder(self, side:str, positions:list):
+        return min(positions, key=lambda position:position.price) if side == "Ask" else max(positions, key=lambda position:position.price)
+
+    def action_to_order(self, action: Optional[Tuple[int, int]]=None, symbol: str=None) -> Optional[Order]:
+        """
+        Converts an action to an order object
+        Action is a (k, size) tuple where k refers to the event, or None.
+        Symbol is the stock symbol
+        cancelID takes on non-none values when the event is a cancel order.
+        """
+        if action==None:
+            raise ValueError("Action should not be none")
+        if action[0]==12:
+            return None
+        k=action[0]
+        size=action[1]
+        if k<0 or k>11:
+            raise IndexError(f"Event index is out of bounds. Expected 0<=k<=11, but received k={k}")
+        order=None
+        lob=self.peakLOB()
+        if "Ask" in self.actions[k]:
+            side="Ask"
+        else:
+            side="Bid"
+        if self.actions[k][0:2]=="lo":
+            level=self.actionsToLevels[self.actions[k]]
+            if k==5: #inspread ask
+                price=lob["Ask_L1"][0]-self.exchange.ticksize
+            elif k==6: #inspread bid
+                price=lob["Bid_L1"][0]+self.exchange.ticksize
+            else:    
+                if side=="Ask":
+                    price=lob[level][0]
+                else:
+                    price=lob[level][0]
+            price=np.round(price ,2)
+            order=LimitOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, price=price, _level=level)
+            
+        elif self.actions[k][0:2]=="mo":
+            #marketorder
+            level=self.actionsToLevels[self.actions[k]]
+            if "Ask" in level:
+                assert self.Inventory[self.exchange.symbol]>=size, f"Agent {self.id} does not have sufficient inventory for ASK Market Orders of size {size}."
+            order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, _level=level)
+
+        else:
+            logger.debug("GYM Agent is creating cancel order")
+            print(f"action type is {k}")
+            #cancelorder
+            level=self.actionsToLevels[self.actions[k]]
+            if side=="Ask":
+                price=lob[level][0]
+            else:
+                price=lob[level][0]
+            positions=self.positions[self.exchange.symbol][level]
+            if len(positions)==0:
+                raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
+            else:
+                # tocancel: LimitOrder=np.random.choice(positions)
+                tocancel:LimitOrder = self._mostCompetitiveOrder(side, positions)
+            price=np.round(price ,2)
+            order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  price=price, cancelID=tocancel.order_id, _level=level)
+        return order
