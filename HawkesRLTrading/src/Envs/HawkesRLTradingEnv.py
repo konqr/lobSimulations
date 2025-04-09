@@ -70,9 +70,9 @@ class tradingEnv(gym.Env):
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
-                # if j["strategy"]=="Random":
-                #     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
-                if j["strategy"] == "TWAP":
+                if j["strategy"]=="Random":
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                elif j["strategy"] == "TWAP":
                      new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
@@ -177,7 +177,7 @@ if __name__=="__main__":
                                      "cashlimit": 1000000000,
                                       "strategy": "TWAP",
                                       "on_trade":False,
-                                      "total_order_size":500,
+                                      "total_order_size":5000,
                                       "order_target":"XYZ",
                                       "total_time":100,
                                       "window_size":20, #window size, measured in seconds
