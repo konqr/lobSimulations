@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
+from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -78,18 +79,18 @@ class tradingEnv(gym.Env):
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
-
                 if j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
-                # if j["strategy"]=="Random":
-                #     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
-                if j["strategy"] == "TWAP":
+                elif j["strategy"] == "TWAP":
                      new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
                 elif j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
                 elif j['strategy'] == 'ImpulseControl':
                     new_agent = ImpulseControlAgent(j['label'], j['epoch'], j['model_dir'], seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                                                     on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                elif j['strategy'] == 'ICRL':
+                    new_agent = ICRLAgent(self.getobservations(), self, seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+                                     on_trade=j['on_trade'], cashlimit=j["cashlimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
