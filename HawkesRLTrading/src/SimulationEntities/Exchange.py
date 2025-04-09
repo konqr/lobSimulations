@@ -93,7 +93,10 @@ class Exchange(Entity):
             self.agents={j.id: j for j in agents}
             self.agentcount=len(self.agentIDs)
             #Keep a registry of which agents have a subscription to trade notifs
-            self.agentswithTradeNotifs=[j.id for j in agents if j.on_trade==True]
+            self.agentswithTradeNotifs=[j.id for j in agents if j.tradeNotif==True]
+            self.agentswithTradeOnMO=[id for id in self.agentswithTradeNotifs if self.agents[id].wake_on_MO]
+            self.agentswithTradeOnSpread=[id for id in self.agentswithTradeNotifs if self.agents[id].wake_on_Spread]
+            print(f"Agent with tradenotifs: {self.agentswithTradeNotifs}")
         if Arrival_model is None:
             raise ValueError("Please specify Arrival_model for Exchange")
         else:
@@ -114,7 +117,7 @@ class Exchange(Entity):
             else:
                 raise AssertionError(f"Level is not an ASK or BID string")
         logger.debug("Stock Exchange initalized")
-        #Send a message to agents to begin trading
+        #Send a message to agents to Tr trading
                 
     def generate_orders_in_queue(self, loblevel) -> List[LimitOrder]:
         assert self.Arrival_model is not None, "Arrival_model is not provided"
@@ -175,9 +178,10 @@ class Exchange(Entity):
         """
         Called by the kernel: Takes an order in the form (t, k, s) and processes it in the limit order book, performing the correct matching as necessary. It also updates the arrival_model history
         """
-        print("Before processing order: \n")
-        print(self.printlob())
+        #print("Before processing order: \n")
+        #print(self.printlob())
         logger.debug(f"Processing Order {order.order_id}\n")
+        assert self.current_time<=order.time_placed,  f"Order {order.order_id} time placed: {order.time_placed} but exchange is in the future at {self.current_time}"
         self.current_time=order.time_placed
         #process the order
         order_type=None
@@ -193,11 +197,12 @@ class Exchange(Entity):
             totalvalue=self.processMarketOrder(order)
             order.total_value=totalvalue
             if order.agent_id==-1:
-                tmp=TradeNotificationMsg(time=self.current_time)
-                self.sendbatchmessage(recipientIDs=self.agentswithTradeNotifs, message=tmp)
+                if len(self.agentswithTradeOnMO)>0:
+                    tmp=TradeNotificationMsg(time=self.current_time)
+                    self.sendbatchmessage(recipientIDs=self.agentswithTradeOnMO, message=tmp)
             else:
                 #Agent doesn't get a chance to trade again
-                recipientIDs=[j for j in self.agentswithTradeNotifs if j!=order.agent_id]
+                recipientIDs=[j for j in self.agentswithTradeOnMO if j!=order.agent_id]
                 if len(recipientIDs)>0:
                     tmp=TradeNotificationMsg(time=self.current_time)
                     self.sendbatchmessage(recipientIDs=recipientIDs, message=tmp)
@@ -214,8 +219,8 @@ class Exchange(Entity):
         else:
             raise InvalidOrderType(f"Invalid Order type with ID {order.order_id} passed to exchange")
             pass
-        print("After processing order: \n")
-        print(self.printlob(), "\n")
+        #print("After processing order: \n")
+        #print(self.printlob(), "\n")
         if order.agent_id==-1:
             pass
         else:
@@ -233,11 +238,12 @@ class Exchange(Entity):
                 pass
             else:
                 if order.agent_id==-1:
-                    message=SpreadNotificationMsg(time=self.current_time)
-                    self.sendbatchmessage(recipientIDs=self.agentswithTradeNotifs, message=message)
+                    if len(self.agentswithTradeOnSpread)>0:
+                        message=SpreadNotificationMsg(time=self.current_time)
+                        self.sendbatchmessage(recipientIDs=self.agentswithTradeOnSpread, message=message)
                 else:
                     message=SpreadNotificationMsg(time=self.current_time)
-                    recipientIDs=[j for j in self.agentswithTradeNotifs if j!=order.agent_id]
+                    recipientIDs=[j for j in self.agentswithTradeOnSpread if j!=order.agent_id]
                     if len(recipientIDs)>0:
                         self.sendbatchmessage(recipientIDs=recipientIDs, message=message)
         
@@ -292,7 +298,7 @@ class Exchange(Entity):
                         pass
                     else:
                         logger.debug(f"Order price: {order.price}, bidprice: {self.bidprice}\n")
-                        print(self.lob0)
+                        #print(self.lob0)
 
                         raise InvalidOrderType(f"Order {order.order_id} is an invalid inspread limit order")
                 todelete=self.bids[self.bidprices[lastlvl]]
@@ -621,6 +627,17 @@ class Exchange(Entity):
             rtn+="\n"
             string = f"Bid_L{i}: {self.bidprices[f'Bid_L{i}']}, ({sum([j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]])}, {[j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]]})"
             rtn+=string
+        return rtn
+
+    def returnlob(self):
+        rtn= {}
+        for i in range(self.LOBlevels, 0, -1):
+            rtn[f"Ask_L{i}"] = (self.askprices[f'Ask_L{i}'],
+                                ([j.size for j in self.asks[self.askprices[f'Ask_L{i}']]]))
+
+        for i in range(1, self.LOBlevels+1):
+            rtn[f"Bid_L{i}"] = (self.bidprices[f'Bid_L{i}'],
+                                ([j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]]))
         return rtn
     
     @property

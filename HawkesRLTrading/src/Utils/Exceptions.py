@@ -10,3 +10,5 @@ class LOBProcessingError(Exception):
     pass
 class TimeSyncError(Exception):
     pass
+class AgentInFutureError(Exception):
+    pass
