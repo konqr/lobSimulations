@@ -293,8 +293,11 @@ class TradingAgent(Entity):
              "Inventory": self.Inventory[self.exchange.symbol],
              "Positions": self.positions[self.exchange.symbol]}
         return rtn
-    
-class TradingAgent(TradingAgent):
+    #extra function for dynamically assigned action_to_order implementation
+    def _mostCompetitiveOrder(self, side:str, positions:list):
+        return min(positions, key=lambda position:position.price) if side == "Ask" else max(positions, key=lambda position:position.price)
+
+class CTradingAgent(TradingAgent):
 
     def _mostCompetitiveOrder(self, side:str, positions:list):
         return min(positions, key=lambda position:position.price) if side == "Ask" else max(positions, key=lambda position:position.price)
@@ -355,7 +358,11 @@ class TradingAgent(TradingAgent):
                 raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
             else:
                 # tocancel: LimitOrder=np.random.choice(positions)
+                if len(positions) > 5:
+                    breakpoint()
                 tocancel:LimitOrder = self._mostCompetitiveOrder(side, positions)
             price=np.round(price ,2)
             order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  price=price, cancelID=tocancel.order_id, _level=level)
         return order
+    
+TradingAgent.action_to_order = CTradingAgent.action_to_order
