@@ -26,7 +26,7 @@ class MarketMaking():
         self.NDIMS = 12
         self.NUM_POINTS = num_points
         self.EPOCHS = num_epochs
-        self.eta = 125  # inventory penalty
+        self.eta = 0.005  # inventory penalty
         self.E = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
                   "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid", "lo_deep_Bid"]
         self.U = ["lo_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
@@ -52,7 +52,7 @@ class MarketMaking():
 
         # Generate sample data using NumPy
         Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
-        Ys = np.round(10 * np.random.randn(num_points, 1), 2)
+        Ys = np.round(2 * np.random.randn(num_points, 1), 0)
         P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
         spreads = 0.01 *  np.random.geometric(.8, [num_points, 1])
         p_as = np.round(P_mids + spreads / 2, 2)
@@ -81,7 +81,7 @@ class MarketMaking():
         files = [f for f in files if ('poisson' in f)&(ric in f)]
         files = np.random.choice(files, 10)
         Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
-        Ys = np.round(10 * np.random.randn(num_points, 1), 2)
+        Ys = np.round(2 * np.random.randn(num_points, 1), 0)
         P_mids = []
         p_as = []
         p_bs = []
@@ -648,7 +648,7 @@ class MarketMaking():
             interventions[indices[:, 0], indices[:, 1]] = intervention_value.reshape(-1).to(self.device)
 
         # Return the highest value
-        return torch.max(interventions, dim=1).to(self.device)
+        return torch.max(interventions, 1)[0].reshape((batch_size, 1)).to(self.device)
 
     def oracle_d(self, model_phi, model_u, ts, Ss):
         batch_size = ts.shape[0]
@@ -685,7 +685,7 @@ class MarketMaking():
             us, _ = model_u(ts, Ss)
 
             # Calculate intervention value
-            M_phi = self.sup_intervention(ts, Ss) #model_phi(ts, self.intervention( ts, Ss, us))
+            M_phi = self.sup_intervention(model_phi, ts, Ss) #model_phi(ts, self.intervention( ts, Ss, us))
 
             # Calculate HJB evaluation
             evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
@@ -728,7 +728,7 @@ class MarketMaking():
         us, _ = model_u(ts, Ss)
 
         # Calculate intervention value
-        M_phi = self.sup_intervention(ts, Ss) #model_phi(ts, self.intervention(ts, Ss, us))
+        M_phi = self.sup_intervention(model_phi, ts, Ss) #model_phi(ts, self.intervention(ts, Ss, us))
 
         # Calculate HJB evaluation
         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
@@ -888,6 +888,7 @@ class MarketMaking():
             pred_d, prob_ds = model_d(ts, Ss)
             print(np.unique(gt_d.cpu(), return_counts=True))
             print(np.unique(pred_d.cpu(), return_counts=True))
+            print(np.unique(self.oracle_u(model_phi, ts, Ss).cpu(), return_counts=True))
             acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
             loss_d = loss_object_d(prob_ds, gt_d)
             loss_d.backward()
@@ -1395,5 +1396,5 @@ class MarketMakingUnifiedControl(MarketMaking):
         return model_phi, model_u
 
 # get_gpu_specs()
-# MM = MarketMakingUnifiedControl(num_epochs=2000, num_points=100)
-# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*2, n_layers= [2]*2, unified=False, label = 'LSTM')
+# MM = MarketMaking(num_epochs=2000, num_points=100)
+# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
