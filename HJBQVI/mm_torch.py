@@ -882,7 +882,7 @@ class MarketMaking():
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
         acc_d = 0.0
-        loss_object_d = nn.CrossEntropyLoss()
+
 
         for j in range(phi_epochs):
             optimizer_d.zero_grad()
@@ -891,6 +891,9 @@ class MarketMaking():
             print(np.unique(pred_d.cpu(), return_counts=True))
             print(np.unique(self.oracle_u(model_phi, ts, Ss).cpu(), return_counts=True))
             acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
+            weight = np.max(np.unique(gt_d.cpu(), return_counts=True)[1])/torch.tensor(np.unique(gt_d.cpu(), return_counts=True)[1])
+            if len(weight) == 1: weight = torch.tensor([1.,1.])
+            loss_object_d = nn.CrossEntropyLoss(weight=weight)
             loss_d = loss_object_d(prob_ds, gt_d)
 
             loss_d.backward()
