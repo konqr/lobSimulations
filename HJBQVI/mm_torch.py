@@ -724,9 +724,10 @@ class MarketMaking():
         f = f.reshape(-1, 1).to(self.device)
 
         # Get optimal decision and control
-        ds, _ = model_d(ts, Ss)
+        ds, logits_d = model_d(ts, Ss)
         us, _ = model_u(ts, Ss)
-
+        ds = torch.argmax(logits_d, 1)
+        ds = ds.reshape(ds.shape[0], 1).float().to(self.device)
         # Calculate intervention value
         M_phi = self.sup_intervention(model_phi, ts, Ss) #model_phi(ts, self.intervention(ts, Ss, us))
 
@@ -881,7 +882,7 @@ class MarketMaking():
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
         acc_d = 0.0
-        #loss_object_d = nn.CrossEntropyLoss()
+        loss_object_d = nn.CrossEntropyLoss()
 
         for j in range(phi_epochs):
             optimizer_d.zero_grad()
@@ -890,11 +891,9 @@ class MarketMaking():
             print(np.unique(pred_d.cpu(), return_counts=True))
             print(np.unique(self.oracle_u(model_phi, ts, Ss).cpu(), return_counts=True))
             acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
-            # loss_d = loss_object_d(prob_ds, gt_d)
-            _, loss_object_d = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
-            loss_d = -1*torch.sum(loss_object_d)
-            loss_d.backward()
+            loss_d = loss_object_d(prob_ds, gt_d)
 
+            loss_d.backward()
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_d.parameters(), 1.0)
             optimizer_d.step()
@@ -1398,5 +1397,5 @@ class MarketMakingUnifiedControl(MarketMaking):
         return model_phi, model_u
 
 # get_gpu_specs()
-# MM = MarketMaking(num_epochs=2000, num_points=100)
-# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
+MM = MarketMaking(num_epochs=2000, num_points=100)
+MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
