@@ -745,7 +745,7 @@ class MarketMaking():
         # Combine losses with potential weighting
         loss = interior_loss + boundary_loss
 
-        return loss
+        return loss, evaluation
 
     def loss_phi_hawkes(self, model_phi, model_d, model_u, ts, Ss, lambdas, Ts, S_boundarys, lambdas_boundary):
         # Use autograd to calculate time derivative
@@ -819,12 +819,12 @@ class MarketMaking():
 
         def closure():
             optimizer_phi.zero_grad()
-            loss_phi = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
+            loss_phi, _ = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
             loss_phi.backward()
             return loss_phi
         # Use gradient clipping to prevent exploding gradients
         for j in range(phi_epochs):
-            loss_phi = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
             if phi_optim == 'ADAM':
@@ -881,8 +881,8 @@ class MarketMaking():
         gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
         train_loss_d = 0.0
         acc_d = 0.0
-        loss_object_d = nn.CrossEntropyLoss()
-
+        #loss_object_d = nn.CrossEntropyLoss()
+        _, loss_object_d = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
         for j in range(phi_epochs):
             optimizer_d.zero_grad()
             pred_d, prob_ds = model_d(ts, Ss)
@@ -890,7 +890,8 @@ class MarketMaking():
             print(np.unique(pred_d.cpu(), return_counts=True))
             print(np.unique(self.oracle_u(model_phi, ts, Ss).cpu(), return_counts=True))
             acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
-            loss_d = loss_object_d(prob_ds, gt_d)
+            # loss_d = loss_object_d(prob_ds, gt_d)
+            loss_d = -1*torch.sum(loss_object_d)
             loss_d.backward()
 
             # Clip gradients to prevent exploding values
