@@ -9,20 +9,23 @@ from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseCo
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
+<<<<<<< Updated upstream
 import pickle
+=======
+from gymnasium.spaces import Discrete, Dict, Box
+>>>>>>> Stashed changes
 logger=logging.getLogger(__name__)
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
     
-    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=1, log_to_file=True,**kwargs):
+    def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, seed=1, log_to_file=True,**kwargs):
         """
         Initiates a trading environment. Arrivalmodel contains the simulation of the trading orders and params contains all other relevant information
         Relevant arguments:
         render_mode
         stop_time: simulation stop time in simulationseconds
-        wall_time_limit: simulation wall time limit
-        kernel_name: for human readability 
+        wall_time_limit: simulation wall time limit (Currently not implemented)
         seed
         log_to_file
         kwargs -- Simulation default parameters specified as following:
@@ -54,22 +57,37 @@ class tradingEnv(gym.Env):
 
             }
 
-        """               
-        # self.observation_space=Dict({
-        #     "Cash": Box(low=0, high=100000),
-        #     "Inventory": Box(low=0, high=10000),
-        #     "LOB_State": Dict({
-        #         "Ask_L2": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
-        #         "Ask_L1": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
-        #         "Bid_L1": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000))),
-        #         "Bid_L2": Tuple(Box(low=0, high=2000), Sequence(Box(low=0, high=10000)))}),
-        #     "Current_Positions": Sequence(Tuple(Text(), Box(low=0), Box(low=0)))
-        # })
-        # self.action_space=Tuple(Discrete(13), Box(0, 5000))
-        
+        """  
+        super().__init__()
+        self.stop_time=stop_time            
+        self.wall_time_limit=wall_time_limit 
+        self.log_to_file=log_to_file
+
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Render mode must be None, human or rgb_array or text"
         self.seed=seed
-        
+        self.action_space=Discrete(13, seed=self.seed)
+        #Note observation space is not the state space!!!! Agent only needs to observe the LOB, Spread, Inventory from the environment!
+
+        # self.observation_space=Dict({
+        #     "cash": Box(low=-np.inf, high=np.inf),
+        #     "Inventory": Box(low=0, high=np.inf),
+        #     "PNL": Box(low=0, high=np.inf),
+        #     "Spread": Box(low=0, high=np.inf),
+        #     "LOB_levels": Box(low=np.array([0,0,0,0]), high=np.array([np.inf, np.inf, np.inf, np.Inf]) )
+        # })
+
+        #Why is stable baselines does not take dictionaries so need to flatten to a box or discrete
+        self.observation_space=Dict({
+            "cash": Box(low=-1000, high=1000, shape=(1,), dtype=np.float64),
+            "Spread": Box(low=-20, high=20, shape=(1,), dtype=int),
+            "LOB_levels": Box(low=0, high=np.inf, shape=(4,), dtype=int),
+            "AskBidPrices=": Box(low=0, high=np.inf, shape=(2,), dtype=int)
+        })
+        self.kwargs=kwargs
+        #Construct Exchange:
+        ExchangeKwargs=self.kwargs.get("Exchange")
+        exchange=Exchange(**ExchangeKwargs)
+        print("Exchange ID: "+ str(exchange.id))
         #Construct agents: Right now only compatible with 1 trading agent
         assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
         self.agents=[]
@@ -94,10 +112,6 @@ class tradingEnv(gym.Env):
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
         print("Agent IDs: " + str([agent.id for agent in self.agents]))
-        #Construct Exchange:
-        ExchangeKwargs=kwargs.get("Exchange")
-        exchange=Exchange(**ExchangeKwargs)
-        print("Exchange ID: "+ str(exchange.id))
         #Arrival Model setup
         Arrival_model=None
         if kwargs.get("Arrival_model"):
@@ -108,10 +122,8 @@ class tradingEnv(gym.Env):
                 raise Exception("Program currently only supports Hawkes Arrival model")
         else:
             raise ValueError("Please specify Arrival model for exchange")
-            
-               
-        
-        self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, kernel_name=kernel_name, stop_time=stop_time, wall_time_limit=wall_time_limit, log_to_file=log_to_file, Arrival_model=Arrival_model)
+
+        self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, stop_time=self.stop_time, wall_time_limit=self.wall_time_limit, log_to_file=self.log_to_file, Arrival_model=Arrival_model)
         self.kernel.initialize_kernel()
         np.random.seed(self.seed)
             
@@ -124,11 +136,10 @@ class tradingEnv(gym.Env):
         #Observations=cash, inventory, LOB state, current positions
         simstate=self.kernel.run(action=action)
         Observations=self.getobservations()
-        # rewards=self.calculaterewards()
+        rewards=self.calculaterewards()
         termination=self.isterminated()
         truncation=self.istruncated()
-        return simstate, Observations, termination, truncation
-        # return Observations, rewards, termination, truncation
+        return simstate, Observations, rewards, termination, truncation
         #return observations, rewards, dones, infos    
         
         
@@ -138,10 +149,29 @@ class tradingEnv(gym.Env):
         Params: Seed
         Output: Observations, info
         """
-        self.kernel.reset(seed=seed)
-        observations=self.kernel.getobservations()
-        info=self.kernel.getinfos()
-        return observations
+        super().reset(seed=self.seed)
+        ExchangeKwargs=self.kwargs.get("Exchange")
+        exchange=Exchange(**ExchangeKwargs)
+        for agent in self.agents:
+            agent.reset()
+        del self.kernel
+        #Reset the Arrival Model
+        Arrival_model=None
+        if kwargs.get("Arrival_model"):
+            if kwargs["Arrival_model"].get("name") == "Hawkes":
+                params = kwargs["Arrival_model"]["parameters"]
+                Arrival_model=HawkesArrival(spread0=exchange.spread, seed=self.seed, **params)
+            else:
+                raise Exception("Program currently only supports Hawkes Arrival model")
+        else:
+            raise ValueError("Please specify Arrival model for exchange")
+        #Make the kernel
+        self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, stop_time=self.stop_time, wall_time_limit=self.wall_time_limit, log_to_file=self.log_to_file, Arrival_model=Arrival_model)
+        self.kernel.initialize_kernel()
+        np.random.seed(self.seed)
+        observations=self.getobservations()
+        infos=self.getinfo()
+        return observations, infos
     
     def render(self):
         """
@@ -157,10 +187,26 @@ class tradingEnv(gym.Env):
     
     #Wrappers
     def getobservations(self):
+        #Wrapper to convert kernel observations to gym observations
+        tmp=self.getstate()
+        observations={
+            "cash": tmp["Cash"],
+            "Inventory": tmp["Inventory"],
+            "PNL": None,
+            "Spread": None,
+            "LOB_levels": None
+        }
+        return observations
+
+        
+    def getstate(self):
         """
+        Returns kernel state
         Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
         """
-        return self.kernel.getobservations(agentID=self.agents[0].id)
+        return self.kernel.getobservations(agentID=self.agents[0].id) 
+        
+        
     def calculaterewards(self):
         rewards={}
         for gymagent in self.kernel.gymagents:
@@ -174,7 +220,7 @@ class tradingEnv(gym.Env):
         """
         Returns auxiliary info: 
         """
-        return None
+        return {}
     def getAgent(self, ID):
         return self.kernel.entity_registry[ID]
 
@@ -254,52 +300,61 @@ if __name__=="__main__":
                                             "Pi_Q0": None}}
 
             }
-    
+    from stable_baselines3.common.env_checker import check_env
+    env=tradingEnv(stop_time=500, seed=2, **kwargs)
+    print("Retriving State")
+    print(env.getstate())
+    print("Done")
+    #check_env(env)
 
 
-    env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
-    print("Initial Observations"+ str(env.getobservations()))
-    Simstate, observations, termination, truncation =env.step(action=None)
-    logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
-    i=0
 
-    cash, inventory, t, actions = [], [], [], []
-    while Simstate["Done"]==False and termination!=True:
-        logger.debug(f"ENV TERMINATION: {termination}")
-        AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-        print(f"Agents with IDs {AgentsIDs} have an action available")
-        if len(AgentsIDs)>1:
-            raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
-        agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-        assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-        action=(agent.id, agent.get_action(data=observations))   
-        print(f"Limit Order Book: {observations['LOB0']}")
-        print(f"Action: {action}")
-        Simstate, observations, termination, truncation=env.step(action=action) 
-        logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-        i+=1
-        cash += [observations['Cash']]
-        inventory += [observations['Inventory']]
-        t += [Simstate['TimeCode']]
-        actions += [action[1][0]]
-        print(f"ACTION DONE{i}")
 
-    if termination:
-        print("Termination condition reached.")
-    elif truncation:
-        print("Truncation condition reached.")    
-    else:
-        pass
 
-    plt.figure(figsize=(12,8))
-    plt.subplot(221)
-    plt.plot(t, cash)
-    plt.title('Cash')
-    plt.subplot(222)
-    plt.plot(t, inventory)
-    plt.title('Inventory')
-    plt.subplot(223)
-    plt.scatter(t, actions)
-    plt.yticks(np.arange(0,13), agent.actions)
-    plt.title('Actions')
-    plt.show()
+    ##########
+    # env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
+    # print("Initial Observations"+ str(env.getobservations()))
+    # Simstate, observations, termination, truncation =env.step(action=None)
+    # logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+    # i=0
+
+    # cash, inventory, t, actions = [], [], [], []
+    # while Simstate["Done"]==False and termination!=True:
+    #     logger.debug(f"ENV TERMINATION: {termination}")
+    #     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+    #     print(f"Agents with IDs {AgentsIDs} have an action available")
+    #     if len(AgentsIDs)>1:
+    #         raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
+    #     agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+    #     assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+    #     action=(agent.id, agent.get_action(data=observations))   
+    #     print(f"Limit Order Book: {observations['LOB0']}")
+    #     print(f"Action: {action}")
+    #     Simstate, observations, termination, truncation=env.step(action=action) 
+    #     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
+    #     i+=1
+    #     cash += [observations['Cash']]
+    #     inventory += [observations['Inventory']]
+    #     t += [Simstate['TimeCode']]
+    #     actions += [action[1][0]]
+    #     print(f"ACTION DONE{i}")
+
+    # if termination:
+    #     print("Termination condition reached.")
+    # elif truncation:
+    #     print("Truncation condition reached.")    
+    # else:
+    #     pass
+
+    # plt.figure(figsize=(12,8))
+    # plt.subplot(221)
+    # plt.plot(t, cash)
+    # plt.title('Cash')
+    # plt.subplot(222)
+    # plt.plot(t, inventory)
+    # plt.title('Inventory')
+    # plt.subplot(223)
+    # plt.scatter(t, actions)
+    # plt.yticks(np.arange(0,13), agent.actions)
+    # plt.title('Actions')
+    # plt.show()

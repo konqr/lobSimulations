@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, ClassVar, List, Dict
 import pandas as pd
 import logging
-import copy
+from copy import copy, deepcopy
 from HawkesRLTrading.src.Utils.logging_config import *
 from HawkesRLTrading.src.Orders import *
 from HawkesRLTrading.src.Messages.Message import *
@@ -45,7 +45,8 @@ class TradingAgent(Entity):
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
-        self.Inventory=Inventory #Dictionary of how many shares the agent is holding
+        self.startstate={"Inventory": Inventory, "cash": cash}
+        self.Inventory=self.startstate["Inventory"].copy() #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         #What trades is this agent notified to wakeup to
         self.wake_on_MO=wake_on_MO #Does this agent get notified to make a trade whenever a trade happens
@@ -60,7 +61,7 @@ class TradingAgent(Entity):
 
         #private atributes
         self.profit=0
-        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
+        self.statelog=[(0, self.cash, self.profit, copy(Inventory), deepcopy(self.positions))] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid", None]
         self.actionsToLevels = {
@@ -119,7 +120,7 @@ class TradingAgent(Entity):
                 message=MarketOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             else:
-                message=CancelOrderMsg(order=order)
+                # message=CancelOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             return 0
         
@@ -293,13 +294,24 @@ class TradingAgent(Entity):
         return sum([self.Inventory[j] for j in self.Inventory.keys()])     
     
     def reset(self) -> None:
+        #State attributes
+        self.profit=0
+        self.cash=self.startstate["cash"]
+        self.Inventory=self.startstate["Inventory"]
+        self.positions=self.positions={key: {} for key in self.Inventory.keys()} 
+        self.statelog=[(0, self.cash, self.profit, copy(self.startstate["Inventory"]), deepcopy(self.positions))] #List of [timecode, cash, #realized profit, inventory, positions]
+
+        ##Simulation attributes
+        self.exchange=None
+        self.istruncated=False
+        #What time does the agent think it is?
+        self.current_time: int = 0 
         pass
 
     def updatestatelog(self):
         if self.statelog[-1][0]==self.current_time:
-            logger.info(f"Last agent LOG is {self.statelog[-1]} and new log to be appended is {(self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy())}")
-            return False
-        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy()))
+            logger.error(f"New log time same as previous log time")
+        self.statelog.append((self.current_time, self.cash, self.profit, copy(self.Inventory), deepcopy(self.positions)))
     
     def getobservations(self):
         rtn={"Cash":self.cash,

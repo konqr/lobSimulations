@@ -4,6 +4,8 @@ from HawkesRLTrading.src.Stochastic_Processes.Stochastic_Models import Stochasti
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
 import logging
 from HawkesRLTrading.src.Utils import logging_config
+import os
+import pickle
 logger = logging.getLogger(__name__)
 class ArrivalModel(StochasticModel, ABC):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
@@ -58,6 +60,8 @@ class HawkesArrival(ArrivalModel):
                          10: "Bid_L2",
                          11: "Bid_L2"}
         required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "Pi_Q0"]
+        #required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "Pi_Q0", "kernelparamspath", "todpath"]
+
         missing_keys = [key for key in required_keys if (key not in params.keys()) or params.get(key) is None]
         if len(missing_keys)>0:
             defaultparams=self.generatefakeparams()
@@ -185,6 +189,59 @@ class HawkesArrival(ArrivalModel):
         defaultparams["kernelparams"]=[fakekernelparams, baselines]
         return defaultparams  
     
+    def read_params_from_pickle(self, paramsPath:  str="AAPL.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", todPath: str="INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", kernel='powerlaw'):
+        """Takes in params and todpath and spits out corresponding vectorised numpy arrays
+
+        Returns:
+        tod: a [12, 13] matrix containing values of f(Q_t), the time multiplier for the 13 different 30 min bins of the trading day.
+        params=[kernelparams, baselines]
+            kernelparams=params[0]: an array of [12, 12] matrices consisting of mask, alpha0, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
+            So mask=params[0][0], alpha0=params[0][1], beta=params[0][2], gamma=params[0][3]
+            baselines=params[1]: a vector of dim=(num_nodes, 1) consisting of baseline intensities
+        """
+
+        cols = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        os.path.exists("")
+        with open(todPath, "rb") as f:
+            data = pickle.load(f)
+        tod=np.zeros(shape=(self.num_nodes, 13))
+        for i in range(self.num_nodes):
+            tod[i]=[data[cols[i]][k] for k in range(13)]
+        params={}
+        params["tod"]=tod
+
+        with open(paramsPath, "rb") as f:
+            data=pickle.load(f)
+        baselines=np.zeros(shape=(self.num_nodes, 1)) #vectorising baselines
+        for i in range(self.num_nodes):
+            baselines[i]=data[cols[i]]
+            #baselines[i]=data.pop(cols[i], None)
+
+        if kernel == 'powerlaw':
+            #params=[mask, alpha, beta, gamma] where each is a 12x12 matrix
+            mask, alpha, beta, gamma=[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(4)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(cols[i] + "->" + cols[j], None)
+                    mask[i][j]=kernelParams[0]
+                    alpha[i][j]=kernelParams[1][0]
+                    beta[i][j]=kernelParams[1][1]
+                    gamma[i][j]=kernelParams[1][2]
+            kernelparams=[mask, alpha, beta, gamma]
+        elif kernel == 'exp':
+            mask, alpha, beta =[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(3)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(cols[i] + "->" + cols[j], None)
+                    mask[i][j]=kernelParams[0]
+                    alpha[i][j]=kernelParams[1][0]
+                    beta[i][j]=kernelParams[1][1]
+            kernelparams=[mask, alpha, beta]
+        params['kernelparams']=[kernelparams, baselines]
+        return params
+    
+
     def generate_actionsize(self, actionlevel) -> int:
         pi = self.Pis[actionlevel] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
         p = pi[0]

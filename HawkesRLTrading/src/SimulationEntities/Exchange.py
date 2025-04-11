@@ -617,7 +617,7 @@ class Exchange(Entity):
         return rtn
     
     def printlob(self):
-        rtn="LOB: "
+        #rtn="LOB: "
         for i in range(self.LOBlevels, 0, -1):
             rtn+="\n"
             string = f"Ask_L{i}: {self.askprices[f'Ask_L{i}']}, ({sum([j.size for j in self.asks[self.askprices[f'Ask_L{i}']]])}, {[j.size for j in self.asks[self.askprices[f'Ask_L{i}']]]})"
