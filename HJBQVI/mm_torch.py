@@ -893,7 +893,7 @@ class MarketMaking():
             acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
             weight = np.max(np.unique(gt_d.cpu(), return_counts=True)[1])/torch.tensor(np.unique(gt_d.cpu(), return_counts=True)[1])
             if len(weight) == 1: weight = torch.tensor([1.,1.])
-            loss_object_d = nn.CrossEntropyLoss(weight=weight)
+            loss_object_d = nn.CrossEntropyLoss(weight=weight.to(self.device))
             loss_d = loss_object_d(prob_ds, gt_d)
 
             loss_d.backward()
@@ -1400,5 +1400,5 @@ class MarketMakingUnifiedControl(MarketMaking):
         return model_phi, model_u
 
 # get_gpu_specs()
-MM = MarketMaking(num_epochs=2000, num_points=100)
-MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
+# MM = MarketMaking(num_epochs=2000, num_points=100)
+# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
