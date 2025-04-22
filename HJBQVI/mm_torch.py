@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import DGMTorch as DGM
-from DGMTorch import TrainingLogger, ModelManager, get_gpu_specs
+from utils import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
 import os
@@ -1010,7 +1010,7 @@ class MarketMaking():
         if phi_optim == 'ADAM':
             optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
         else:
-            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*10000)
+            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*100)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
