@@ -835,7 +835,8 @@ class MarketMaking():
             else:
                 optimizer_phi.step(closure)
             train_loss_phi = loss_phi.item()
-            scheduler_phi.step()
+            if scheduler_phi is not None:
+                scheduler_phi.step()
 
 
             # Check for NaN or Inf
@@ -1018,8 +1019,9 @@ class MarketMaking():
             optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
             scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
         else:
-            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*100)
-            scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda_lbfgs)
+            optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*100, line_search_fn ='strong_wolfe')
+            # scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda_lbfgs)
+            scheduler_phi = None
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
@@ -1060,12 +1062,12 @@ class MarketMaking():
             # Print epoch summary
             print(f"Epoch {epoch+1} summary - Phi Loss: {loss_phi:.4f}, D Loss: {loss_d:.4f}, U Loss: {loss_u:.4f}")
 
-            if (epoch+1) == continue_epoch + 1000:
-                print('Switching to LBFGS for Phi')
-                optimizer_phi = optim.LBFGS(model_phi.parameters())
-                # Set up schedulers
-                scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
-                phi_optim = 'LBFGS'
+            # if (epoch+1) == continue_epoch + 1000:
+            #     print('Switching to LBFGS for Phi')
+            #     optimizer_phi = optim.LBFGS(model_phi.parameters())
+            #     # Set up schedulers
+            #     scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+            #     phi_optim = 'LBFGS'
         # Save final model
         model_manager.save_models(phi=model_phi, d=model_d, u=model_u)
 
