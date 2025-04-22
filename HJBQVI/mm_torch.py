@@ -1007,15 +1007,24 @@ class MarketMaking():
             #return (1 - 1e-5)**epoch
             return 0.1**(epoch//1000)
 
+        def lr_lambda_lbfgs(epoch):
+            # Calculate decay rate
+            #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
+            #return np.max([1e-5,np.exp(decay_rate * epoch )])
+            #return (1 - 1e-5)**epoch
+            return 0.1**(epoch//10)
+
         if phi_optim == 'ADAM':
             optimizer_phi = optim.Adam(model_phi.parameters(), lr=lr)
+            scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
         else:
             optimizer_phi = optim.LBFGS(model_phi.parameters(), lr=lr*100)
+            scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda_lbfgs)
         optimizer_u = optim.Adam(model_u.parameters(), lr=lr)
         optimizer_d = optim.Adam(model_d.parameters(), lr=lr)
 
         # Set up schedulers
-        scheduler_phi = optim.lr_scheduler.LambdaLR(optimizer_phi, lr_lambda)
+
         scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
         scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
 
