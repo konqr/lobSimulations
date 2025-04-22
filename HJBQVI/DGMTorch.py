@@ -60,6 +60,92 @@ class DenseLayer(nn.Module):
 
         return S
 
+## backwd compatibility
+class BaseLayer(nn.Module):
+    """Base class for neural network layers."""
+
+    def _initialize_weights(self, weights, biases=None):
+        """Initialize weights and biases.
+
+        Args:
+            weights (list): List of weight parameters.
+            biases (list, optional): List of bias parameters.
+        """
+        # Xavier initialization for weights
+        for param in weights:
+            nn.init.xavier_normal_(param)
+
+        # Initialize biases to zero
+        if biases:
+            for param in biases:
+                nn.init.zeros_(param)
+
+class LSTMLayer(BaseLayer):
+    def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
+        '''
+        Args:
+            input_dim (int):       dimensionality of input data
+            output_dim (int):      number of outputs for LSTM layers
+            trans1, trans2 (str):  activation functions used inside the layer;
+                                   one of: "tanh" (default), "relu" or "sigmoid"
+
+        Returns: customized PyTorch layer object used as intermediate layers in DGM
+        '''
+        super(LSTMLayer, self).__init__()
+
+        # Add properties for layer including activation functions
+        self.output_dim = output_dim
+        self.input_dim = input_dim
+
+        # Get activation functions
+        self.trans1 = get_activation_function(trans1) or torch.tanh
+        self.trans2 = get_activation_function(trans2) or torch.tanh
+
+        # LSTM layer parameters
+        # u vectors (weighting vectors for inputs original inputs x)
+        self.Uz = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
+        self.Ug = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
+        self.Ur = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
+        self.Uh = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
+
+        # w vectors (weighting vectors for output of previous layer)
+        self.Wz = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
+        self.Wg = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
+        self.Wr = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
+        self.Wh = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
+
+        # bias vectors
+        self.bz = nn.Parameter(torch.empty(1, self.output_dim))
+        self.bg = nn.Parameter(torch.empty(1, self.output_dim))
+        self.br = nn.Parameter(torch.empty(1, self.output_dim))
+        self.bh = nn.Parameter(torch.empty(1, self.output_dim))
+
+        # Initialize parameters
+        weights = [self.Uz, self.Ug, self.Ur, self.Uh, self.Wz, self.Wg, self.Wr, self.Wh]
+        biases = [self.bz, self.bg, self.br, self.bh]
+        self._initialize_weights(weights, biases)
+
+    def forward(self, S, X):
+        '''Compute output of a LSTMLayer for a given inputs S,X.
+
+        Args:
+            S: output of previous layer
+            X: data input
+
+        Returns: customized PyTorch layer output
+        '''
+        # Compute components of LSTM layer output
+        Z = self.trans1(torch.add(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)), self.bz))
+        G = self.trans1(torch.add(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)), self.bg))
+        R = self.trans1(torch.add(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)), self.br))
+
+        H = self.trans2(torch.add(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)), self.bh))
+
+        # Compute LSTM layer output
+        S_new = torch.add(torch.mul(torch.sub(torch.ones_like(G), G), H), torch.mul(Z, S))
+
+        return S_new
+##
 
 class BaseNet(nn.Module):
     """Base class for neural network models."""
@@ -197,12 +283,15 @@ class NeuralNet(BaseNet):
         # Intermediate layers
         if typeNN == 'LSTM':
             # Use PyTorch's built-in LSTM layer
-            self.lstm = nn.LSTM(
-                input_size=input_size + layer_width,  # Concatenated input and previous layer output
-                hidden_size=layer_width,
-                num_layers=n_layers,
-                batch_first=True
-            )
+            # self.lstm = nn.LSTM(
+            #     input_size=input_size + layer_width,  # Concatenated input and previous layer output
+            #     hidden_size=layer_width,
+            #     num_layers=n_layers,
+            #     batch_first=True
+            # )
+            self.LayerList = nn.ModuleList([
+                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
+            ])
         elif typeNN == 'Dense':
             self.layers = nn.ModuleList([
                 DenseLayer(layer_width, layer_width, activation=hidden_activation)
