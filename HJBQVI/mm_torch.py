@@ -820,7 +820,7 @@ class MarketMaking():
 
         def closure():
             optimizer_phi.zero_grad()
-            loss_phi, _ = torch.log(self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas))
+            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
             loss_phi.backward()
             return loss_phi
         # Use gradient clipping to prevent exploding gradients
