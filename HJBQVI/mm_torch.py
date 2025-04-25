@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import DGMTorch_old as DGM
+import DGMTorch as DGM
 from utils import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
@@ -932,7 +932,8 @@ class MarketMaking():
             'phi_epochs' : 10,
             'phi_optim' : 'ADAM',
             'unified': False,
-            'feature_width' : 25
+            'feature_width' : 25,
+            'activation' : 'tanh'
         }
 
         # Update defaults with provided kwargs
@@ -962,6 +963,7 @@ class MarketMaking():
         phi_optim = defaults['phi_optim']
         unified = defaults['unified']
         feature_width = defaults['feature_width']
+        activation = defaults['activation']
         self.SAMPLER = sampler
         # Initialize logger and model manager
         logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -971,14 +973,14 @@ class MarketMaking():
         self.device=device
         # Create models
         if unified:
-            model0 = DGM.DGMNet(layer_widths[0], n_layers[0], 11, output_dim= feature_width, typeNN = typeNN)
-            model_phi = DGM.DenseNet(feature_width, layer_widths[1], n_layers[1], 1, model0)
-            model_u = DGM.DenseNet(feature_width, layer_widths[2], n_layers[2], 10, model0)
-            model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0)
+            model0 = DGM.DGMNet(layer_widths[0], n_layers[0], 11, output_dim= feature_width, typeNN = typeNN, hidden_activation=activation)
+            model_phi = DGM.DenseNet(feature_width, layer_widths[1], n_layers[1], 1, model0, hidden_activation=activation)
+            model_u = DGM.DenseNet(feature_width, layer_widths[2], n_layers[2], 10, model0, hidden_activation=activation)
+            model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0, hidden_activation=activation)
         else:
-            model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN)
-            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
-            model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
+            model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN, hidden_activation=activation)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2, hidden_activation=activation)
+            model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2, hidden_activation=activation)
 
         if torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -1006,7 +1008,7 @@ class MarketMaking():
             #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
             #return np.max([1e-5,np.exp(decay_rate * epoch )])
             #return (1 - 1e-5)**epoch
-            return 0.1**(epoch//1000)
+            return np.max([1e-4,0.1**(epoch//1000)])
 
         def lr_lambda_lbfgs(epoch):
             # Calculate decay rate
