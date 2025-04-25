@@ -979,7 +979,7 @@ class MarketMaking():
             model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0, hidden_activation=activation)
         else:
             model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN, hidden_activation=activation)
-            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2, hidden_activation=activation)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = 'Dense', hidden_activation=activation)
             model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2, hidden_activation=activation)
 
         if torch.cuda.device_count() > 1:
