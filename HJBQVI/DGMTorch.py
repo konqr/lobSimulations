@@ -329,22 +329,20 @@ class NeuralNet(BaseNet):
 
         # Process through intermediate layers
         if self.typeNN == 'LSTM':
-            # # For LSTM, we need to reshape and concatenate the inputs
-            # batch_size = X.size(0)
-            #
-            # # Concatenate the current state S with input X
-            # combined = torch.cat([S, X], dim=1)
-            #
-            # # Reshape for LSTM: (batch, seq_len=1, features)
-            # combined = combined.unsqueeze(1)
-            #
-            # # Process through LSTM
-            # output, _ = self.lstm(combined)
-            #
-            # # Extract the output of the last time step
-            # S = output[:, -1, :]
-            for layer in self.layers:
-                S = layer(S, X)
+            # For LSTM, we need to reshape and concatenate the inputs
+            batch_size = X.size(0)
+
+            # Concatenate the current state S with input X
+            combined = torch.cat([S, X], dim=1)
+
+            # Reshape for LSTM: (batch, seq_len=1, features)
+            combined = combined.unsqueeze(1)
+
+            # Process through LSTM
+            output, _ = self.lstm(combined)
+
+            # Extract the output of the last time step
+            S = output[:, -1, :]
         elif self.typeNN == 'Dense':
             for layer in self.layers:
                 S = layer(S)
