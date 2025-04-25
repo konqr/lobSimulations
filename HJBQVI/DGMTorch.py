@@ -266,7 +266,7 @@ class NeuralNet(BaseNet):
 
         # Default transformer config
         default_transformer_config = {
-            'nhead': 8,  # Number of attention heads
+            'nhead': 5,  # Number of attention heads
             'dim_feedforward': 2048,  # Dimension of feedforward network
             'dropout': 0.1,  # Dropout rate
         }
