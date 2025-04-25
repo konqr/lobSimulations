@@ -1,3 +1,5 @@
+import os
+os.environ["PYTORCH_ENABLE_MEM_EFFICIENT_SDPA"] = "0"
 import torch
 import torch.nn as nn
 from utils import MinMaxScaler
@@ -199,7 +201,8 @@ class TransformerEncoder(nn.Module):
             dim_feedforward=dim_feedforward,
             dropout=dropout,
             activation=activation,
-            batch_first=True
+            batch_first=True,
+            norm_first=True
         )
 
         # Stack encoder layers
@@ -223,7 +226,7 @@ class TransformerEncoder(nn.Module):
         x = x + self.pos_encoder
 
         # Apply transformer encoder
-        x = self.transformer_encoder(x)
+        x = self.transformer_encoder(x, mask=None)
 
         # Get the final token representation
         x = x[:, -1, :]  # Take the last token for sequence representation
