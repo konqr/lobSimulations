@@ -201,7 +201,7 @@ class DGMNet(nn.Module):
         input_size = input_dim + 1
 
         # Initial layer as fully connected
-        self.initial_layer = DenseLayer(layer_width, input_size, activation=hidden_activation)
+        self.initial_layer = DenseLayer(layer_width, input_size, transformation=hidden_activation)
 
         # Default transformer config
         default_transformer_config = {
