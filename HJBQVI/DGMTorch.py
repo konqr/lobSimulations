@@ -337,9 +337,9 @@ class NeuralNet(BaseNet):
 
             # Reshape for LSTM: (batch, seq_len=1, features)
             combined = combined.unsqueeze(1)
-
-            # Process through LSTM
-            output, _ = self.lstm(combined)
+            with torch.backends.cudnn.flags(enabled=False):
+                # Process through LSTM
+                output, _ = self.lstm(combined)
 
             # Extract the output of the last time step
             S = output[:, -1, :]
