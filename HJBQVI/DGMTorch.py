@@ -236,6 +236,60 @@ class TransformerEncoder(nn.Module):
 
         return x
 
+# Replace your TransformerEncoder with this more manual implementation
+class CustomTransformerEncoder(nn.Module):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, dropout=0.1, activation='relu'):
+        super(CustomTransformerEncoder, self).__init__()
+        self.input_projection = nn.Linear(input_dim, d_model)
+        self.pos_encoder = nn.Parameter(torch.empty(1, 1, d_model))
+        nn.init.normal_(self.pos_encoder, mean=0, std=0.02)
+
+        self.layers = nn.ModuleList([
+            nn.Sequential(
+                nn.LayerNorm(d_model),
+                nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True),
+                nn.Dropout(dropout),
+                nn.LayerNorm(d_model),
+                nn.Linear(d_model, dim_feedforward),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(dim_feedforward, d_model),
+                nn.Dropout(dropout)
+            ) for _ in range(num_layers)
+        ])
+
+        self.output_projection = nn.Linear(d_model, d_model)
+        self.final_norm = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        x = self.input_projection(x)
+        batch_size, seq_len = x.shape[0], x.shape[1]
+        pos_encoding = self.pos_encoder.expand(batch_size, seq_len, -1)
+        x = x + pos_encoding
+
+        for layer in self.layers:
+            norm1, attn, dropout1, norm2, linear1, relu, dropout2, linear2, dropout3 = layer
+
+            # First sublayer (attention)
+            residual = x
+            x = norm1(x)
+            x_attn, _ = attn(x, x, x)
+            x = residual + dropout1(x_attn)
+
+            # Second sublayer (feedforward)
+            residual = x
+            x = norm2(x)
+            x = linear1(x)
+            x = relu(x)
+            x = dropout2(x)
+            x = linear2(x)
+            x = residual + dropout3(x)
+
+        x = self.final_norm(x)
+        x = x[:, -1, :]  # Take the last token
+        x = self.output_projection(x)
+        return x
+
 
 class NeuralNet(BaseNet):
     def __init__(self, layer_width, n_layers, input_dim, output_dim=1, final_activation=None,
@@ -298,7 +352,7 @@ class NeuralNet(BaseNet):
                 for _ in range(n_layers)
             ])
         elif typeNN == 'Transformer':
-            self.transformer = TransformerEncoder(
+            self.transformer = CustomTransformerEncoder(
                 input_dim=input_size + layer_width,  # Concatenated input and previous layer output
                 d_model=layer_width,
                 nhead=transformer_config['nhead'],
