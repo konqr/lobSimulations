@@ -282,16 +282,13 @@ class NeuralNet(BaseNet):
 
         # Intermediate layers
         if typeNN == 'LSTM':
-            # Use PyTorch's built-in LSTM layer
-            # self.lstm = nn.LSTM(
-            #     input_size=input_size + layer_width,  # Concatenated input and previous layer output
-            #     hidden_size=layer_width,
-            #     num_layers=n_layers,
-            #     batch_first=True
-            # )
-            self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1) for _ in range(n_layers)
-            ])
+            #Use PyTorch's built-in LSTM layer
+            self.lstm = nn.LSTM(
+                input_size=input_size + layer_width,  # Concatenated input and previous layer output
+                hidden_size=layer_width,
+                num_layers=n_layers,
+                batch_first=True
+            )
         elif typeNN == 'Dense':
             self.layers = nn.ModuleList([
                 DenseLayer(layer_width, layer_width, activation=hidden_activation)
