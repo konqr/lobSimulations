@@ -130,9 +130,61 @@ class DenseLayer(nn.Module):
 
         return S
 
+class CustomTransformerEncoder(nn.Module):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, dropout=0.1, activation='relu'):
+        super(CustomTransformerEncoder, self).__init__()
+        self.input_projection = nn.Linear(input_dim, d_model)
+        self.pos_encoder = nn.Parameter(torch.empty(1, 1, d_model))
+        nn.init.normal_(self.pos_encoder, mean=0, std=0.02)
+
+        self.layers = nn.ModuleList([
+            nn.Sequential(
+                nn.LayerNorm(d_model),
+                nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True),
+                nn.Dropout(dropout),
+                nn.LayerNorm(d_model),
+                nn.Linear(d_model, dim_feedforward),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(dim_feedforward, d_model),
+                nn.Dropout(dropout)
+            ) for _ in range(num_layers)
+        ])
+
+        self.output_projection = nn.Linear(d_model, d_model)
+        self.final_norm = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        x = self.input_projection(x)
+        batch_size, seq_len = x.shape[0], x.shape[1]
+        pos_encoding = self.pos_encoder.expand(batch_size, seq_len, -1)
+        x = x + pos_encoding
+
+        for layer in self.layers:
+            norm1, attn, dropout1, norm2, linear1, relu, dropout2, linear2, dropout3 = layer
+
+            # First sublayer (attention)
+            residual = x
+            x = norm1(x)
+            x_attn, _ = attn(x, x, x)
+            x = residual + dropout1(x_attn)
+
+            # Second sublayer (feedforward)
+            residual = x
+            x = norm2(x)
+            x = linear1(x)
+            x = relu(x)
+            x = dropout2(x)
+            x = linear2(x)
+            x = residual + dropout3(x)
+
+        x = self.final_norm(x)
+        x = x[:, -1, :]  # Take the last token
+        x = self.output_projection(x)
+        return x
 
 class DGMNet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, output_dim = 1, final_trans=None, typeNN = 'LSTM'):
+    def __init__(self, layer_width, n_layers, input_dim, output_dim = 1, final_trans=None, typeNN = 'LSTM', hidden_activation='tanh', transformer_config=None):
         '''
         Args:
             layer_width:
@@ -146,21 +198,47 @@ class DGMNet(nn.Module):
 
         # Initial layer as fully connected
         # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
-        self.initial_layer = DenseLayer(layer_width, input_dim+1, transformation="tanh")
+        input_size = input_dim + 1
+
+        # Initial layer as fully connected
+        self.initial_layer = DenseLayer(layer_width, input_size, activation=hidden_activation)
+
+        # Default transformer config
+        default_transformer_config = {
+            'nhead': 5,  # Number of attention heads
+            'dim_feedforward': 256,  # Dimension of feedforward network
+            'dropout': 0.1,  # Dropout rate
+        }
+
+        # Use provided transformer config or default
+        if transformer_config is None:
+            transformer_config = default_transformer_config
+        else:
+            # Update default with provided config
+            for key, value in default_transformer_config.items():
+                if key not in transformer_config:
+                    transformer_config[key] = value
 
         # Intermediate LSTM layers
         self.n_layers = n_layers
         if typeNN == 'LSTM':
             self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
+                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2=hidden_activation) for _ in range(self.n_layers)
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
+                DenseLayer(layer_width, layer_width, transformation=hidden_activation) for _ in range(self.n_layers)
             ])
         elif typeNN == 'Transformer':
-            #TODO
-            return
+            self.transformer = CustomTransformerEncoder(
+                input_dim=input_size + layer_width,  # Concatenated input and previous layer output
+                d_model=layer_width,
+                nhead=transformer_config['nhead'],
+                num_layers=n_layers,
+                dim_feedforward=transformer_config['dim_feedforward'],
+                activation=hidden_activation,
+                dropout=transformer_config['dropout']
+            )
         else:
             raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
         self.typeNN = typeNN
@@ -182,20 +260,29 @@ class DGMNet(nn.Module):
         # Call initial layer
         S = self.initial_layer(X)
 
-        # Call intermediate LSTM layers
-        for layer in self.LayerList:
-            if self.typeNN == 'LSTM':
-                S = layer(S, X)
-            elif self.typeNN == 'Dense':
-                S = layer(S)
+
+        if self.typeNN == 'Transformer':
+            # For Transformer, reshape and concatenate similar to LSTM
+            combined = torch.cat([S, X], dim=1)
+            combined = combined.unsqueeze(1)  # Add sequence dimension (batch, seq_len=1, features)
+
+            # Process through Transformer
+            S = self.transformer(combined)
+        else:
+            # Call intermediate LSTM layers
+            for layer in self.LayerList:
+                if self.typeNN == 'LSTM':
+                    S = layer(S, X)
+                elif self.typeNN == 'Dense':
+                    S = layer(S)
 
         # Call final layer
         result = self.final_layer(S)
 
         return result
 
-class PIANet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None, typeNN = 'LSTM'):
+class PIANet(DGMNet):
+    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None, typeNN = 'LSTM',hidden_activation='tanh',transformer_config=None):
         '''
         Args:
             layer_width:
@@ -206,27 +293,15 @@ class PIANet(nn.Module):
 
         Returns: customized PyTorch model object representing DGM neural network
         '''
-        super(PIANet, self).__init__()
-
-        # Initial layer as fully connected
-        # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
-        self.initial_layer = DenseLayer(layer_width, input_dim+1, transformation="tanh")
-
-        # Intermediate LSTM layers
-        self.n_layers = n_layers
-        if typeNN == 'LSTM':
-            self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
-            ])
-        elif typeNN == 'Dense':
-            self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
-            ])
-        else:
-            raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
-        self.typeNN = typeNN
-        # Final layer as fully connected with multiple outputs (function values)
-        self.final_layer = DenseLayer(num_classes, layer_width, transformation=final_trans)
+        super(PIANet, self).__init__(
+            layer_width=layer_width,
+            n_layers=n_layers,
+            input_dim=input_dim,
+            output_dim=num_classes,
+            typeNN=typeNN,
+            hidden_activation=hidden_activation,
+            transformer_config=transformer_config
+        )
 
     def forward(self, t, x):
         '''
@@ -236,20 +311,7 @@ class PIANet(nn.Module):
 
         Run the DGM model and obtain fitted function value at the inputs (t,x)
         '''
-        # Define input vector as time-space pairs
-        X = torch.cat([t, x], 1)
-        X = MinMaxScaler().fit_transform(X)
-        # Call initial layer
-        S = self.initial_layer(X)
-
-        # Call intermediate LSTM layers
-        for layer in self.LayerList:
-            if self.typeNN == 'LSTM':
-                S = layer(S, X)
-            elif self.typeNN == 'Dense':
-                S = layer(S)
-        # Call final layer
-        result = self.final_layer(S)
+        result = super(PIANet, self).forward(t,x)
 
         # Get argmax and result
         op = torch.argmax(result, 1)

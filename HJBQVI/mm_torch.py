@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import DGMTorch as DGM
+import DGMTorch_old as DGM
 from utils import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
