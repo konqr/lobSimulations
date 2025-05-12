@@ -4,7 +4,8 @@ from typing import Any, List, Optional, Tuple, ClassVar
 import pandas as pd
 import logging
 from HawkesRLTrading.src.Messages.Message import Message
-
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 class Entity:
     """

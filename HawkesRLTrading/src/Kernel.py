@@ -13,7 +13,8 @@ from HawkesRLTrading.src.Messages.AgentMessages import *
 from HawkesRLTrading.src.Messages.ExchangeMessages import *
 from HawkesRLTrading.src.Utils.Exceptions import *
 from typing import Any, Dict, List, Optional, Tuple
-
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.INFO)
 logger=logging.getLogger(__name__)
 
 # trial=Message()
@@ -491,6 +492,7 @@ class Kernel:
         rtn["Positions"]=agentobs["Positions"]
         rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
         rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
+        rtn['current_intensity'] = self.entity_registry[self.exchange.id].returnintensity()
         return rtn
     
     def getinfo(self, data: Dict={}):

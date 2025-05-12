@@ -2,7 +2,7 @@ import os
 os.environ["PYTORCH_ENABLE_MEM_EFFICIENT_SDPA"] = "0"
 import torch
 import torch.nn as nn
-from utils import MinMaxScaler
+from HJBQVI.utils import MinMaxScaler
 
 def get_activation_function(activation_name):
     """Get activation function by name.
@@ -44,7 +44,7 @@ class DenseLayer(nn.Module):
 
         # Use PyTorch's built-in Linear layer
         self.linear = nn.Linear(input_dim, output_dim)
-
+        torch.nn.init.xavier_normal_(self.linear.weight)
         # Set activation function
         self.activation = get_activation_function(activation)
 
@@ -519,3 +519,127 @@ class DenseNet(BaseNet):
         op = op.reshape(op.shape[0], 1).float()
 
         return op, result
+
+class MLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers, output_dim,
+                 final_activation=None, hidden_activation="tanh"):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            output_dim:        dimensionality of output
+            model0:            initial model to use
+            final_activation:  activation function used in final layer
+            hidden_activation: activation function for hidden layers
+
+        Returns: customized PyTorch model using another model's output as input
+        '''
+        super(MLP, self).__init__()
+
+        self.is_regression = (output_dim == 1)
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Use PyTorch's Sequential for cleaner implementation of dense layers
+        layers = [DenseLayer(layer_width, layer_width, activation=hidden_activation)]
+        for _ in range(n_layers - 1):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.layers = nn.Sequential(*layers)
+
+        # Final layer
+        self.final_layer = DenseLayer(output_dim, layer_width, activation=final_activation)
+        self.final_activation = final_activation
+    def forward(self, x):
+        '''
+        Args:
+            x: sampled space inputs
+
+        Run the model and obtain predictions
+        '''
+        # Call initial layer (which is another model)
+        # x = MinMaxScaler().fit_transform(x)
+        S = self.initial_layer(x)
+
+        # Call intermediate layers
+        S = self.layers(S)
+
+        # Call final layer
+        if self.final_activation != 'softmax':
+            result = self.final_layer(S)
+        else:
+            # print(S - torch.max(S))
+            result = self.final_layer(S) # - torch.max(S))
+
+        if self.is_regression:
+            return result
+
+        # For classification, get argmax and result
+        op = torch.argmax(result.clone(), 1)
+        op = op.reshape(op.shape[0], 1).float()
+
+        return op, result
+
+class ActorCriticMLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 actor_output_dim, actor_activation="softmax",
+                 hidden_activation="tanh", q_function = True):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            actor_output_dim:  dimensionality of actor output (action space)
+            actor_activation:  activation function used in actor's output layer
+            hidden_activation: activation function for hidden layers
+
+        Returns: A shared MLP network with separate heads for actor and critic
+        '''
+        super(ActorCriticMLP, self).__init__()
+
+        # Shared feature extraction layers
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build shared hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.shared_layers = nn.Sequential(*layers)
+
+        # Actor output layer (policy network)
+        self.actor_output = DenseLayer(actor_output_dim, layer_width, activation=actor_activation)
+
+        # Critic output layer (value function) - always outputs a single value
+        opDim = actor_output_dim if q_function else 1
+        self.critic_output = DenseLayer(opDim, layer_width, activation=None)
+
+        self.actor_activation = actor_activation
+
+    def forward(self, x):
+        '''
+        Process inputs through the shared network, then through
+        separate actor and critic heads
+
+        Args:
+            x: input state
+
+        Returns:
+            actor_output: policy distribution or action
+            critic_output: value estimate
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor head
+        actor_output = self.actor_output(features)
+
+        # Critic head (value function)
+        critic_output = self.critic_output(features)
+
+        # For classification policy, get argmax action
+        if self.actor_activation == 'softmax':
+            action = torch.argmax(actor_output.clone(), 1)
+            action = action.reshape(action.shape[0], 1).float()
+            return action, actor_output, critic_output
+
+        return actor_output, critic_output

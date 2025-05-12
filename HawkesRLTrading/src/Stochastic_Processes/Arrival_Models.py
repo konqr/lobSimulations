@@ -82,6 +82,7 @@ class HawkesArrival(ArrivalModel):
         self.lamb = None
         self.left=None
         self.pointcount=0
+        self.current_intensity = np.random.rand(len(self.cols)) # start with correct dims
         
     def generatefakeparams(self):
         """
@@ -266,6 +267,7 @@ class HawkesArrival(ArrivalModel):
         #todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
         if not np.sum(self.kernelparams[0][3]) == 0:
             mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
+        mat = np.nan_to_num(mat)
         self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
         self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
         specRad = np.max(np.linalg.eig(mat)[0])
@@ -327,13 +329,14 @@ class HawkesArrival(ArrivalModel):
                 decays[5] = decays[6] = 0
             self.lamb = float(sum(decays))
             #print("LAMBDA: ", lamb)
-            
+
             """Testing candidate point"""
             D=np.random.uniform(0, 1)
             #print("Candidate D: ", D)
             #logger.debug(f"Candidate: {self.s}")
             if D*lamb_bar<=self.lamb:
                 pointcount+=1
+                self.current_intensity = decays.copy()
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
                 k=0
                 total=decays[k]
@@ -342,8 +345,6 @@ class HawkesArrival(ArrivalModel):
                     total+=decays[k]
                 """dimension is cols[k]"""   
                 """Update values of lambda for next simulation loop and append point to Ts"""
-                if k in [5, 6]:
-                    self.spread=self.spread-0.01      
                 
                 """Precalc next value of lambda_bar"""    
                 newdecays=self.todmult * self.kernelparams[0][0][k].reshape(12, 1)*self.kernelparams[0][1][k].reshape(12, 1)
@@ -373,7 +374,8 @@ class HawkesArrival(ArrivalModel):
                     self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
                 self.pointcount+=pointcount
                 return pointcount
-        return pointcount        
+        return pointcount
+
     def orderwrapper(self, time:float, k: int, size: int):
         """
         Takes in an event tuple of (time, event) and wraps it into information compatible with the exchange
