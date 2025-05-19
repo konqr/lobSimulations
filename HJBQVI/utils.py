@@ -78,18 +78,8 @@ class TrainingLogger:
             # Extract network name and metric type
             parts = key.split('_')
 
-            if len(parts) == 1:
-                # Just the network name (like 'phi') implies it's a loss
-                network = parts[0]
-                metric_type = 'loss'
-            else:
-                # Format like 'acc_u' or 'u_loss'
-                if parts[0] == 'acc':
-                    network = parts[1]
-                    metric_type = 'acc'
-                else:
-                    network = parts[0]
-                    metric_type = parts[1]
+            network = parts[0]
+            metric_type = 'loss' if 'loss' in key else 'acc'
 
             # Add network to tracking if it's new
             if network not in self.networks:
