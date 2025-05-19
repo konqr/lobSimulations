@@ -1384,7 +1384,7 @@ class PPOAgent(GymTradingAgent):
 
         # Scaling the state
         if len(self.trajectory_buffer) > 10:
-            states = torch.cat([torch.cat([tr[0] for tr in self.trajectory_buffer])])
+            states = torch.cat([torch.cat([tr[1][0] for tr in self.trajectory_buffer])])
             self.mmscaler.fit(states)
             state = self.mmscaler.transform(state)
         else:
