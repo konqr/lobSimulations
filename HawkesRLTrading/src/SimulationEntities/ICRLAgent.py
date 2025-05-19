@@ -1292,7 +1292,7 @@ class PPOAgent(GymTradingAgent):
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
-                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95):
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1337,7 +1337,7 @@ class PPOAgent(GymTradingAgent):
         self.n_layers = n_layers
         self.lr = 1e-3
         self.gamma = 0.99  # discount factor
-        self.rewardpenalty = 0.1  # inventory penalty
+        self.rewardpenalty = rewardpenalty  # inventory penalty
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity

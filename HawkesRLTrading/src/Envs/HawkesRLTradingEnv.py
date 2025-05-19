@@ -409,13 +409,13 @@ if __name__=="__main__":
         episodic_rewards = []
         r=0
         tmp = agent.trajectory_buffer[0][0]
-        for i in agent.trajectory_buffer:
-            if i[0] == tmp:
-                r+=i[1][3]
+        for ij in agent.trajectory_buffer:
+            if ij[0] == tmp:
+                r+=ij[1][3]
             else:
                 episodic_rewards.append(r)
-                r = i[1][3]
-                tmp=i[0]
+                r = ij[1][3]
+                tmp=ij[0]
         avgEpisodicRewards.append(np.mean(episodic_rewards))
         stdEpisodicRewards.append(np.std(episodic_rewards))
         plt.figure(figsize=(12,8))
