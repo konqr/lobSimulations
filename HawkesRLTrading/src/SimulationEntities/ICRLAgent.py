@@ -1555,9 +1555,9 @@ class PPOAgent(GymTradingAgent):
         :return: Advantages and returns for both networks
         """
         advantages_d = []
-        returns_d = []
+        returns_d = [0]
         advantages_u = []
-        returns_u = []
+        returns_u = [0]
         gae_d = 0
         gae_u = 0
 
@@ -1572,21 +1572,21 @@ class PPOAgent(GymTradingAgent):
                        values_d[i])
             gae_d = delta_d + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_d
             advantages_d.insert(0, gae_d)
-            returns_d.insert(0, gae_d + values_d[i])
-
+            # returns_d.insert(0, gae_d + values_d[i])
+            returns_d.insert(0, rewards[i] + returns_d[0])
             # Utility network GAE
             delta_u = (rewards[i] +
                        self.gamma * values_u[i+1] * (1 - dones[i]) -
                        values_u[i])
             gae_u = delta_u + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_u
             advantages_u.insert(0, gae_u)
-            returns_u.insert(0, gae_u + values_u[i])
-
+            # returns_u.insert(0, gae_u + values_u[i])
+            returns_u.insert(0, rewards[i] + returns_u[0])
         # Convert to tensors
         advantages_d = torch.tensor(advantages_d, dtype=torch.float32).to(self.device)
-        returns_d = torch.tensor(returns_d, dtype=torch.float32).to(self.device)
+        returns_d = torch.tensor(returns_d[:-1], dtype=torch.float32).to(self.device)
         advantages_u = torch.tensor(advantages_u, dtype=torch.float32).to(self.device)
-        returns_u = torch.tensor(returns_u, dtype=torch.float32).to(self.device)
+        returns_u = torch.tensor(returns_u[:-1], dtype=torch.float32).to(self.device)
 
         # Normalize advantages
         advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
