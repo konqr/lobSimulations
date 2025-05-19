@@ -3,7 +3,6 @@ from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP
 from HJBQVI.utils import MinMaxScaler
 from typing import Dict, Optional, Any
 import torch
-from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
@@ -1292,7 +1291,7 @@ class PPOAgent(GymTradingAgent):
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
-                 buffer_capacity=10000, batch_size=64, epochs=1000, clip_ratio=0.2,
+                 buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
@@ -1334,6 +1333,8 @@ class PPOAgent(GymTradingAgent):
         self.gae_lambda = gae_lambda
 
         # Training parameters
+        self.layer_widths = layer_widths
+        self.n_layers = n_layers
         self.lr = 1e-3
         self.gamma = 0.99  # discount factor
         self.rewardpenalty = 0.1  # inventory penalty
@@ -1394,7 +1395,7 @@ class PPOAgent(GymTradingAgent):
     def setupTraining(self, net):
         def lr_lambda(epoch):
             # Learning rate schedule
-            return np.max([1e-4, 0.1**(epoch//200)])
+            return np.max([1e-6, 0.1**(epoch//10000)])
 
         optimizer = optim.Adam(net.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
@@ -1411,8 +1412,8 @@ class PPOAgent(GymTradingAgent):
         state_dim = len(data0[0])
 
         # Initialize main networks with shared architecture
-        self.Actor_Critic_d = ActorCriticMLP(state_dim, 128, 3, 2, actor_activation='tanh', hidden_activation='leaky_relu', q_function = False)
-        self.Actor_Critic_u = ActorCriticMLP(state_dim, 128, 3, 12, actor_activation='tanh', hidden_activation='leaky_relu',q_function = False)
+        self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation='leaky_relu', q_function = False)
+        self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation='leaky_relu',q_function = False)
 
         # Move all models to appropriate device
         self.Actor_Critic_d.to(self.device)
@@ -1441,7 +1442,7 @@ class PPOAgent(GymTradingAgent):
         :return: Chosen action and its log probabilities
         """
         origData = data.copy()
-        state = self.getState(data)
+        state = self.readData(data)
 
         # Exploration
         if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
@@ -1709,6 +1710,8 @@ class PPOAgent(GymTradingAgent):
             print(f'Decision Network - Policy Loss: {d_policy_loss.item():.4f}, '
                   f'Value Loss: {d_value_loss.item():.4f}, '
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
+
+            return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
 
         # Clear trajectory buffer after training
         while len(self.trajectory_buffer) > self.buffer_capacity:

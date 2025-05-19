@@ -10,6 +10,7 @@ from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, I
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
+from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
 import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
@@ -217,6 +218,11 @@ def preprocessdata(kernelparams):
     return  params
 
 if __name__=="__main__":
+    log_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/logs'
+    model_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/models'
+    label = 'PPO_ICRL'
+    layer_widths=128
+    n_layers=3
     with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
         kernelparams = pickle.load(f)
     kernelparams = preprocessdata(kernelparams)
@@ -284,7 +290,7 @@ if __name__=="__main__":
                 #                      "total_time":100,
                 #                      "window_size":20, #window size, measured in seconds
                 #                      "side":"buy", #buy or sell
-                #                      "action_freq":0.2, 
+                #                      "action_freq":0.2,
                 #                      "Inventory": {"XYZ":1} #inventory cant be 0
                 #                     }],
                 "Exchange": {"symbol": "INTC",
@@ -316,11 +322,13 @@ if __name__=="__main__":
             }
     j = kwargs['GymTradingAgent'][0]
     agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-               wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256)
+               wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers)
     j['agent_instance'] = agentInstance
     kwargs['GymTradingAgent'] = [j]
     i=0
     cash, inventory, t, actions = [], [], [], []
+    # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+    # model_manager = ModelManager(model_dir = model_dir, label = label)
     for episode in range(500):
         env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
@@ -371,7 +379,11 @@ if __name__=="__main__":
         else:
             pass
         for epoch in range(100):
-            agent.train()
+            d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
+            # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
+        # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
+        # logger.save_logs()
+        # logger.plot_losses(show=False, save=True)
         # ER = agent.experience_replay
         agent.current_time = 0
         agent.istruncated = False
@@ -381,15 +393,15 @@ if __name__=="__main__":
         j['agent_instance'] = agent
         kwargs['GymTradingAgent'] = [j]
 
-    plt.figure(figsize=(12,8))
-    plt.subplot(221)
-    plt.plot(np.arange(len(cash)), cash)
-    plt.title('Cash')
-    plt.subplot(222)
-    plt.plot(np.arange(len(cash)), inventory)
-    plt.title('Inventory')
-    plt.subplot(223)
-    plt.scatter(np.arange(len(cash)), actions)
-    plt.yticks(np.arange(0,13), agent.actions)
-    plt.title('Actions')
-    plt.show()
+        plt.figure(figsize=(12,8))
+        plt.subplot(221)
+        plt.plot(np.arange(len(cash)), cash)
+        plt.title('Cash')
+        plt.subplot(222)
+        plt.plot(np.arange(len(cash)), inventory)
+        plt.title('Inventory')
+        plt.subplot(223)
+        plt.scatter(np.arange(len(cash)), actions)
+        plt.yticks(np.arange(0,13), agent.actions)
+        plt.title('Actions')
+        plt.savefig(log_dir + label+'_policy.png')
