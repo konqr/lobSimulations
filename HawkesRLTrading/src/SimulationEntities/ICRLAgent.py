@@ -1573,7 +1573,7 @@ class PPOAgent(GymTradingAgent):
             gae_d = delta_d + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_d
             advantages_d.insert(0, gae_d)
             # returns_d.insert(0, gae_d + values_d[i])
-            returns_d.insert(0, rewards[i] + returns_d[0])
+            returns_d.insert(0, rewards[i] + self.gamma*returns_d[0])
             # Utility network GAE
             delta_u = (rewards[i] +
                        self.gamma * values_u[i+1] * (1 - dones[i]) -
@@ -1581,7 +1581,7 @@ class PPOAgent(GymTradingAgent):
             gae_u = delta_u + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_u
             advantages_u.insert(0, gae_u)
             # returns_u.insert(0, gae_u + values_u[i])
-            returns_u.insert(0, rewards[i] + returns_u[0])
+            returns_u.insert(0, rewards[i] + self.gamma*returns_u[0])
         # Convert to tensors
         advantages_d = torch.tensor(advantages_d, dtype=torch.float32).to(self.device)
         returns_d = torch.tensor(returns_d[:-1], dtype=torch.float32).to(self.device)
