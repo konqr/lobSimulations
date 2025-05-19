@@ -1,5 +1,5 @@
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
-from HJBQVI.DGMTorch import MLP, ActorCriticMLP
+from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP
 from HJBQVI.utils import MinMaxScaler
 from typing import Dict, Optional, Any
 import torch
@@ -175,6 +175,27 @@ def get_queue_priority(data, pos, label):
 #         return deltaPNL - penalty
 
 
+'''
+         For discrete actions
+            logits = self.actor(states)
+            probs = F.softmax(logits, dim=-1)
+            
+            # Compute advantage
+            values = self.critic(states)
+            
+            # Use one-hot encoding for actions
+            actions_onehot = F.one_hot(actions.long().squeeze(-1), num_classes=logits.size(-1)).float()
+            
+            # Compute log probabilities
+            log_probs = torch.log(probs + 1e-10) * actions_onehot
+            log_probs = log_probs.sum(dim=-1, keepdim=True)
+            
+            # Detach values to avoid backprop through critic
+            advantages = (rewards + (1 - dones) * self.gamma * self.critic_target(next_states) - values).detach()
+            
+            # Policy gradient loss
+            actor_loss = -(log_probs * advantages).mean()
+        '''
 
 class ICRLAgent(GymTradingAgent):
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
@@ -505,28 +526,6 @@ class ICRLAgent(GymTradingAgent):
         td_errors_d = (rewards + self.gamma*(1-dones)*self.Critic_d_target(next_states) - self.Critic_d(states)).detach()
         log_probs_d = torch.log(torch.stack([logits_d[0][d] for logits_d, d in zip(logits_d_batch.clone(), d_values)]) + 1e-10)
         actor_loss_d = -torch.mean(log_probs_d * td_errors_d.squeeze())
-
-        '''
-         For discrete actions
-            logits = self.actor(states)
-            probs = F.softmax(logits, dim=-1)
-            
-            # Compute advantage
-            values = self.critic(states)
-            
-            # Use one-hot encoding for actions
-            actions_onehot = F.one_hot(actions.long().squeeze(-1), num_classes=logits.size(-1)).float()
-            
-            # Compute log probabilities
-            log_probs = torch.log(probs + 1e-10) * actions_onehot
-            log_probs = log_probs.sum(dim=-1, keepdim=True)
-            
-            # Detach values to avoid backprop through critic
-            advantages = (rewards + (1 - dones) * self.gamma * self.critic_target(next_states) - values).detach()
-            
-            # Policy gradient loss
-            actor_loss = -(log_probs * advantages).mean()
-        '''
 
         # Update actor_d
         optim_Ad.zero_grad()
@@ -1056,48 +1055,660 @@ class ICRL2(ICRLAgent):
         if self.last_action != 12:  # Only step u scheduler if action was taken
             self.scheduler_u.step()
 
-'''
-# SAC Recommendations for Sparse Reward RL Problems
+class ICRLSG(ICRL2):
 
-Soft Actor-Critic (SAC) can be effective for sparse reward environments with some modifications. Here are my recommendations:
+    '''problem: this is made for cts action spaces : https://arxiv.org/pdf/2209.10081 '''
 
-## Core SAC Adaptations for Sparse Rewards
+    def setupNNs(self, data0):
+        self.alpha = 0.5
+        # Get state dimensions
+        data0 = self.getState(data0)
+        state_dim = len(data0[0])
 
-1. **Entropy-Based Exploration**: Leverage SAC's built-in entropy maximization, but tune the temperature parameter α carefully - higher values promote more exploration in sparse reward settings.
+        # Initialize main networks with shared architecture
+        self.Actor_Critic_d = ActorCriticSGMLP(state_dim, 128, 3, 2, hidden_activation='leaky_relu')
+        self.Actor_Critic_u = ActorCriticSGMLP(state_dim, 128, 3, 12,  hidden_activation='leaky_relu')
 
-2. **Reward Shaping**: Consider temporary auxiliary rewards that guide learning without changing the optimal policy:
-   - Potential-based shaping functions to maintain policy invariance
-   - Distance-based rewards toward subgoals
-   - Curiosity signals based on prediction errors
+        # Initialize target networks with shared architecture
+        self.Actor_Critic_d_target = ActorCriticSGMLP(state_dim, 128, 3, 2, hidden_activation='leaky_relu')
+        self.Actor_Critic_u_target = ActorCriticSGMLP(state_dim, 128, 3, 12, hidden_activation='leaky_relu')
 
-3. **Replay Buffer Modifications**:
-   - Prioritized Experience Replay (PER) with higher priority for rare reward events
-   - Hindsight Experience Replay (HER) to learn from "failed" trajectories
+        # Move all models to appropriate device
+        self.Actor_Critic_d.to(self.device)
+        self.Actor_Critic_u.to(self.device)
+        self.Actor_Critic_d_target.to(self.device)
+        self.Actor_Critic_u_target.to(self.device)
 
-4. **Network Architecture Adjustments**:
-   - Deeper networks with appropriate regularization
-   - Larger initial policy variance to promote exploration
-   - Consider using distributional critics to better capture reward uncertainty
+        # Copy parameters from main networks to target networks
+        self._hard_update(self.Actor_Critic_d, self.Actor_Critic_d_target)
+        self._hard_update(self.Actor_Critic_u, self.Actor_Critic_u_target)
 
-5. **Hyperparameter Tuning**:
-   - Lower discount factor (γ) for short-horizon sparse tasks
-   - Higher learning rates initially, with appropriate scheduling
-   - Larger batch sizes to increase stability
+        # Setup optimizers
+        self.optimizer_d, self.scheduler_d = self.setupTraining(self.Actor_Critic_d)
+        self.optimizer_u, self.scheduler_u = self.setupTraining(self.Actor_Critic_u)
 
-## Advanced Techniques
+    def get_action(self, data, epsilon=0.1):
+        """
+        Epsilon-greedy policy to balance exploitation with exploration.
 
-1. **Curriculum Learning**: Start with denser rewards or simpler tasks, gradually transitioning to the sparse reward structure.
+        Args:
+            data: The input data
+            epsilon: Probability of choosing a random action (default: 0.1)
 
-2. **Hierarchical Approaches**: Combine SAC with hierarchical RL frameworks:
-   - Higher-level policy selects subgoals
-   - Lower-level SAC policies learn to achieve these subgoals
+        Returns:
+            action, size, action_probs_d, action_probs_u
+        """
+        size = 1
+        origData = data.copy()
+        data = self.getState(data)
 
-3. **Self-supervised auxiliary tasks**: Add auxiliary prediction tasks that share representation with the main task.
+        # Store current state for learning
+        self.last_state = data
 
-4. **Intrinsic Motivation**: Implement curiosity or novelty bonuses such as:
-   - Random Network Distillation (RND)
-   - Forward dynamics prediction error
-   - State visitation counts (pseudo-counts)
+        # Generate random number to decide between exploration and exploitation
+        if (random.random() < epsilon) or (len(self.replay_buffer) < 10):
+            print('RANDOM ACTION')
+            # EXPLORATION: Choose a random action
+            # Get all valid actions in the current state
+            valid_actions = []
 
-'''
+            # Get decision distribution from the shared network
+            _, (d_mean, d_log_std, d_log_prob), _ = self.Actor_Critic_d(data)
 
+            # Check which actions are valid
+            potential_actions = list(range(12))  # Actions 0-11
+
+            # Filter out invalid actions based on state conditions
+            for action in potential_actions:
+                # Cancel orders check
+                if action in [1, 3, 8, 10] and len(origData['Positions'][self.actionsToLevels[self.actions[action]]]) == 0:
+                    continue
+
+                # Inspread checks
+                if action in [5, 6]:
+                    p_a, q_a = origData['LOB0']['Ask_L1']
+                    p_b, q_b = origData['LOB0']['Bid_L1']
+                    if p_a - p_b < 0.015:  # reject if inspread not possible
+                        continue
+
+                # Ask market order check
+                if action == 4 and self.countInventory() < 1:
+                    continue
+
+                valid_actions.append(action)
+
+            # Add the "do nothing" action as always valid
+            valid_actions.append(12)
+
+            # Choose a random valid action
+            random_action = random.choice(valid_actions)
+
+            # Calculate action probabilities just for logging/learning purposes
+            if random_action != 12:
+                # Get action distribution from the action network
+                _, (u_mean, u_log_std, u_log_prob), _ = self.Actor_Critic_u(data)
+                self.last_action_probs = (d_mean, u_mean)
+            else:
+                self.last_action_probs = (d_mean, torch.zeros_like(d_mean))
+
+            self.last_action = random_action
+            return random_action, size, d_mean, self.last_action_probs[1]
+
+        else:
+            # EXPLOITATION: Use the policy networks
+            # Get decision from decision network (soft decision based on tanh)
+            d, (d_mean, d_log_std, d_log_prob), _ = self.Actor_Critic_d(data)
+
+            # Check if decision is to take an action (convert from tanh-squashed action to binary decision)
+            if torch.abs(d.item()) > 0.5:  # Decision is to take an action
+                # Get action from action network
+                u, (u_mean, u_log_std, u_log_prob), _ = self.Actor_Critic_u(data)
+
+                # Scale the squashed action from [-1, 1] to [0, 11]
+                action_index = int((u.item() + 1) * 5.5)
+
+                # Validate the selected action
+                if action_index in [1, 3, 8, 10]:  # cancels
+                    a = self.actions[action_index]
+                    lvl = self.actionsToLevels[a]
+                    if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                        self.last_action = 12
+                        self.last_action_probs = (d_mean, torch.zeros_like(d_mean))
+                        return 12, size, d_mean, torch.zeros_like(d_mean)
+
+                if action_index in [5, 6]:  # inspread checks
+                    p_a, q_a = origData['LOB0']['Ask_L1']
+                    p_b, q_b = origData['LOB0']['Bid_L1']
+                    if p_a - p_b < 0.015:  # reject if inspread not possible
+                        self.last_action = 12
+                        self.last_action_probs = (d_mean, torch.zeros_like(d_mean))
+                        return 12, size, d_mean, torch.zeros_like(d_mean)
+
+                if (action_index == 4) and (self.countInventory() < 1):  # ask market order
+                    self.last_action = 12
+                    self.last_action_probs = (d_mean, torch.zeros_like(d_mean))
+                    return 12, size, d_mean, torch.zeros_like(d_mean)
+
+                # If action is valid, return it
+                self.last_action = action_index
+                self.last_action_probs = (d_mean, u_mean)
+                return action_index, size, d_mean, u_mean
+
+            else:  # Decision is to do nothing
+                self.last_action = 12
+                self.last_action_probs = (d_mean, torch.zeros_like(d_mean))
+                return 12, size, d_mean, torch.zeros_like(d_mean)
+
+    def learnSAC(self):
+        """
+        Soft Actor-Critic (SAC) learning from a single transition with target networks
+        using shared actor-critic architecture and squashed Gaussian policy.
+        """
+        if self.last_state is None or self.last_action is None or len(self.replay_buffer) < self.batch_size:
+            return
+
+        # Sample a batch from replay buffer if available
+        batch = self.sample_batch()
+        # Process the batch
+        states, actions, rewards, next_states, dones = batch
+        actions_u = actions.clone()
+        actions_u[actions_u == 12] = -1
+        actions_d = actions.clone()
+        actions_d[actions_d != 12] = 1
+        actions_d[actions_d == 12] = 0
+        networks = [(self.Actor_Critic_d, self.Actor_Critic_d_target, self.optimizer_d, actions_d),
+                    (self.Actor_Critic_u, self.Actor_Critic_u_target, self.optimizer_u, actions_u)]
+
+        # Process each network (decision and/or action)
+        states = self.getState(states)
+        next_states = self.getState(next_states)
+        networks_to_process = networks
+
+        for current_network, current_target, current_optimizer, actions in networks_to_process:
+            # =================== SAC LEARNING ALGORITHM ===================
+            valid_idxs = torch.where(actions != -1)[0]
+            states = states[valid_idxs, :]
+            actions = actions[valid_idxs, :]
+            next_states = next_states[valid_idxs,:]
+            dones = dones[valid_idxs,:]
+            rewards = rewards[valid_idxs, :]
+
+            # 1. Get current Q-values and policy distribution
+            sampled_actions, (actor_mean, actor_log_std, log_probs), q_values = current_network(states)
+
+            # 2. Calculate entropy term (using pre-computed log probabilities)
+            entropy = -log_probs
+
+            # 3. Get target Q-values
+            with torch.no_grad():
+                # For target value, we use the target network
+                next_sampled_actions, (next_actor_mean, next_actor_log_std, next_log_probs), next_q_values = current_target(next_states)
+
+                # Calculate the expected Q-value for the sampled next actions
+                next_batch_indices = torch.arange(next_q_values.size(0)).to(self.device)
+                next_q = next_q_values[next_batch_indices].unsqueeze(1)
+
+                # Include entropy term in the target for maximum entropy RL
+                next_value = next_q + self.alpha * (-next_log_probs)
+
+                # Compute the target Q value: r + γ(1-d)(Q + αH)
+                target_q = rewards + (1 - dones) * self.gamma * next_value
+
+            # 4. Critic loss: MSE between current Q and target Q
+            batch_indices = torch.arange(q_values.size(0)).to(self.device)
+            current_q = q_values[batch_indices].unsqueeze(1)
+
+            critic_loss = F.mse_loss(current_q, target_q.detach())
+
+            # 5. Actor loss: Policy gradient with entropy regularization
+            # Compute log probabilities for the current actions
+            action_log_probs = current_network.get_log_prob(states, actions)
+
+            # Actor loss with entropy regularization
+            actor_loss = torch.mean(self.alpha * (-action_log_probs) - current_q.detach())
+
+            # 6. Combined loss and optimization step
+            total_loss = actor_loss + critic_loss
+
+            current_optimizer.zero_grad()
+            total_loss.backward()
+            current_optimizer.step()
+
+            # 7. Soft update of the target networks
+            self._soft_update(current_network, current_target)
+
+            # 8. Print losses for monitoring
+            if current_network == self.Actor_Critic_d:
+                print(f'd Losses: total: {total_loss.item(): 0.4f}, Actor_d: {actor_loss.item():0.4f}, Critic_d: {critic_loss.item():0.4f}')
+            else:
+                print(f'u Losses: total: {total_loss.item(): 0.4f}, Actor_u: {actor_loss.item():0.4f}, Critic_u: {critic_loss.item():0.4f}')
+
+        # Step the schedulers
+        self.scheduler_d.step()
+        if self.last_action != 12:  # Only step u scheduler if action was taken
+            self.scheduler_u.step()
+
+class PPOAgent(GymTradingAgent):
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
+                 Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
+                 wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
+                 buffer_capacity=10000, batch_size=64, epochs=1000, clip_ratio=0.2,
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95):
+        """
+        PPO Agent with Generalized Advantage Estimation (GAE)
+        Maintains two networks: one for decision (d) and one for utility (u)
+
+        :param seed: Random seed
+        :param log_events: Whether to log events
+        :param log_to_file: Whether to log to file
+        :param strategy: Trading strategy
+        :param Inventory: Initial inventory
+        :param cash: Initial cash
+        :param action_freq: Action frequency
+        :param wake_on_MO: Wake on market order
+        :param wake_on_Spread: Wake on spread
+        :param cashlimit: Cash limit
+        :param buffer_capacity: Maximum size of trajectory buffer
+        :param batch_size: Size of batch for training
+        :param epochs: Number of epochs for PPO update
+        :param clip_ratio: PPO clipping parameter
+        :param value_loss_coef: Coefficient for value loss
+        :param entropy_coef: Coefficient for entropy bonus
+        :param max_grad_norm: Maximum gradient norm for clipping
+        :param gae_lambda: GAE lambda parameter
+        """
+        super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
+                         Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
+
+        self.resetseed(seed)
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # PPO Hyperparameters
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.clip_ratio = clip_ratio
+        self.value_loss_coef = value_loss_coef
+        self.entropy_coef = entropy_coef
+        self.max_grad_norm = max_grad_norm
+        self.gae_lambda = gae_lambda
+
+        # Training parameters
+        self.lr = 1e-3
+        self.gamma = 0.99  # discount factor
+        self.rewardpenalty = 0.1  # inventory penalty
+        # Trajectory storage
+        self.trajectory_buffer = []
+        self.buffer_capacity = buffer_capacity
+
+        # State scaler
+        self.mmscaler = MinMaxScaler()
+
+        # Enable anomaly detection for debugging
+        torch.autograd.set_detect_anomaly(True)
+
+    def readData(self, data):
+        """
+        Read and preprocess trading data
+
+        :param data: Input trading data
+        :return: Processed state tensor
+        """
+        p_a, q_a = data['LOB0']['Ask_L1']
+        p_b, q_b = data['LOB0']['Bid_L1']
+        self.mid = 0.5*(p_a + p_b)
+        _, qD_a = data['LOB0']['Ask_L2']
+        _, qD_b = data['LOB0']['Bid_L2']
+        pos = data['Positions']
+        n_as = get_queue_priority(data, pos, 'Ask_L1')
+        n_as = np.append(n_as, get_queue_priority(data, pos, 'Ask_L2'))
+        n_as = np.append(n_as, [q_a+qD_a])
+        n_bs = get_queue_priority(data, pos, 'Bid_L1')
+        n_bs = np.append(n_bs, get_queue_priority(data, pos, 'Bid_L2'))
+        n_bs = np.append(n_bs, [q_b+qD_b])
+        n_a, n_b = np.min(n_as), np.min(n_bs)
+        lambdas = data['current_intensity']
+        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten())], dtype=torch.float32)
+        return state
+
+    def getState(self, state):
+        """
+        Scale and transform state
+
+        :param state: Input state
+        :return: Scaled state
+        """
+        if type(state) == dict:
+            state = self.readData(state)
+
+        # Scaling the state
+        if len(self.trajectory_buffer) > 10:
+            states = torch.cat([torch.cat([tr[0] for tr in self.trajectory_buffer])])
+            self.mmscaler.fit(states)
+            state = self.mmscaler.transform(state)
+        else:
+            state = self.mmscaler.fit_transform(state)
+
+        return state
+
+    def setupTraining(self, net):
+        def lr_lambda(epoch):
+            # Learning rate schedule
+            return np.max([1e-4, 0.1**(epoch//200)])
+
+        optimizer = optim.Adam(net.parameters(), lr=self.lr)
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+        return optimizer, scheduler
+
+    def setupNNs(self, data0):
+        """
+        Setup neural networks for PPO with two networks (d and u)
+
+        :param data0: Initial data for determining state dimensions
+        """
+        # Get state dimensions
+        data0 = self.getState(data0)
+        state_dim = len(data0[0])
+
+        # Initialize main networks with shared architecture
+        self.Actor_Critic_d = ActorCriticMLP(state_dim, 128, 3, 2, actor_activation='tanh', hidden_activation='leaky_relu', q_function = False)
+        self.Actor_Critic_u = ActorCriticMLP(state_dim, 128, 3, 12, actor_activation='tanh', hidden_activation='leaky_relu',q_function = False)
+
+        # Move all models to appropriate device
+        self.Actor_Critic_d.to(self.device)
+        self.Actor_Critic_u.to(self.device)
+
+        # Setup optimizers
+        self.optimizer_d, self.scheduler_d = self.setupTraining(self.Actor_Critic_d)
+        self.optimizer_u, self.scheduler_u = self.setupTraining(self.Actor_Critic_u)
+
+    def calculaterewards(self, termination) -> Any:
+        penalty = self.rewardpenalty * (self.countInventory()**2)
+        self.profit = self.cash - self.statelog[0][1]
+        self.updatestatelog()
+        deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
+        if self.istruncated or termination:
+            deltaPNL += self.countInventory() * self.mid
+        if self.last_action != 12: penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
+        return deltaPNL - penalty
+
+    def get_action(self, data, epsilon=0.1):
+        """
+        Get action using current policy with epsilon-greedy exploration
+
+        :param data: Input trading data
+        :param epsilon: Exploration probability
+        :return: Chosen action and its log probabilities
+        """
+        origData = data.copy()
+        state = self.getState(data)
+
+        # Exploration
+        if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
+            # Random decision
+            d = random.randint(0, 1)
+            u = random.randint(0, 11)
+
+            # Compute dummy logits for logging
+            d_logits, d_value = self.Actor_Critic_d(state)
+            u_logits, u_value = self.Actor_Critic_u(state)
+
+            # Get log probabilities
+            d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
+            u_log_prob = torch.log_softmax(u_logits, dim=1)[0, u]
+
+            # Validation checks (similar to original implementation)
+            if int(u) in [1, 3, 8, 10]:  # cancels
+                a = self.actions[int(u)]
+                lvl = self.actionsToLevels[a]
+                if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                    self.last_action = 12
+                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            if int(u) in [5, 6]:
+                p_a, q_a = origData['LOB0']['Ask_L1']
+                p_b, q_b = origData['LOB0']['Bid_L1']
+                if p_a - p_b < 0.015:  # reject if inspread not possible
+                    self.last_action = 12
+                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo
+                self.last_action = 12
+                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            self.last_action = u
+            return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+        # Exploitation
+        with torch.no_grad():
+            # Decision network
+            d_logits, d_value = self.Actor_Critic_d(state)
+            d_probs = torch.softmax(d_logits, dim=1).squeeze()
+            d = torch.multinomial(d_probs, 1).item()
+            d_log_prob = torch.log(d_probs[d])
+
+            # If no decision to act (d=0)
+            if d == 0:
+                self.last_action = 12
+                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            # Utility network
+            u_logits, u_value = self.Actor_Critic_u(state)
+            u_probs = torch.softmax(u_logits, dim=1).squeeze()
+            u = torch.multinomial(u_probs, 1).item()
+            u_log_prob = torch.log(u_probs[u])
+
+            # Validation checks (similar to original implementation)
+            if int(u) in [1, 3, 8, 10]:  # cancels
+                a = self.actions[int(u)]
+                lvl = self.actionsToLevels[a]
+                if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                    self.last_action = 12
+                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            if int(u) in [5, 6]:
+                p_a, q_a = origData['LOB0']['Ask_L1']
+                p_b, q_b = origData['LOB0']['Bid_L1']
+                if p_a - p_b < 0.015:  # reject if inspread not possible
+                    self.last_action = 12
+                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo
+                self.last_action = 12
+                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+            self.last_action = u
+            return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+    def store_transition(self, state, action, reward, next_state, done):
+        """
+        Store transition in trajectory buffer
+
+        :param state: Current state
+        :param action: Chosen action (tuple of d and u)
+        :param reward: Received reward
+        :param next_state: Next state
+        :param done: Episode termination flag
+        """
+        # Unpack action components
+        d, u = action
+
+        # Store additional trajectory information
+        transition = (
+            state,       # Current state
+            d,           # Decision action
+            u,           # Utility action
+            reward,      # Reward
+            next_state,  # Next state
+            int(done)         # Done flag
+        )
+        self.trajectory_buffer.append(transition)
+
+    def compute_gae(self, rewards, values_d, values_u, dones):
+        """
+        Compute Generalized Advantage Estimation for both networks
+
+        :param rewards: Rewards trajectory
+        :param values_d: Decision network value estimates
+        :param values_u: Utility network value estimates
+        :param dones: Episode termination flags
+        :return: Advantages and returns for both networks
+        """
+        advantages_d = []
+        returns_d = []
+        advantages_u = []
+        returns_u = []
+        gae_d = 0
+        gae_u = 0
+
+        # Append terminal zero to values for computing TD error
+        values_d = values_d + [0]
+        values_u = values_u + [0]
+
+        for i in reversed(range(len(rewards))):
+            # Decision network GAE
+            delta_d = (rewards[i] +
+                       self.gamma * values_d[i+1] * (1 - dones[i]) -
+                       values_d[i])
+            gae_d = delta_d + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_d
+            advantages_d.insert(0, gae_d)
+            returns_d.insert(0, gae_d + values_d[i])
+
+            # Utility network GAE
+            delta_u = (rewards[i] +
+                       self.gamma * values_u[i+1] * (1 - dones[i]) -
+                       values_u[i])
+            gae_u = delta_u + self.gamma * self.gae_lambda * (1 - dones[i]) * gae_u
+            advantages_u.insert(0, gae_u)
+            returns_u.insert(0, gae_u + values_u[i])
+
+        # Convert to tensors
+        advantages_d = torch.tensor(advantages_d, dtype=torch.float32)
+        returns_d = torch.tensor(returns_d, dtype=torch.float32)
+        advantages_u = torch.tensor(advantages_u, dtype=torch.float32)
+        returns_u = torch.tensor(returns_u, dtype=torch.float32)
+
+        # Normalize advantages
+        advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
+        advantages_u = (advantages_u - advantages_u.mean()) / (advantages_u.std() + 1e-8)
+
+        return advantages_d, returns_d, advantages_u, returns_u
+
+    def train(self):
+        """
+        PPO training method using entire episode trajectory
+        """
+        # Ensure we have a full trajectory
+        if len(self.trajectory_buffer) < 2:
+            return
+
+        # Prepare training data
+        states = torch.cat([tr[0] for tr in self.trajectory_buffer]).to(self.device)
+        d_actions = torch.tensor([tr[1] for tr in self.trajectory_buffer]).to(self.device)
+        u_actions = torch.tensor([tr[2] for tr in self.trajectory_buffer]).to(self.device)
+        rewards = [tr[3] for tr in self.trajectory_buffer]
+        dones = [tr[5] for tr in self.trajectory_buffer]
+
+        # Compute values and log probabilities
+        with torch.no_grad():
+            # Decision network
+            d_logits_old, values_d_old = self.Actor_Critic_d(states)
+            d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
+            # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
+
+            # Utility network
+            u_logits_old, values_u_old = self.Actor_Critic_u(states)
+            u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
+            # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
+
+        # Compute Generalized Advantage Estimation
+        advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
+            rewards,
+            values_d_old.numpy().flatten().tolist(),
+            values_u_old.numpy().flatten().tolist(),
+            dones
+        )
+
+        # PPO training for multiple epochs
+        for _ in range(self.epochs):
+            # Decision Network Training
+            # Current policy output
+            d_logits, d_values_pred = self.Actor_Critic_d(states)
+            d_log_probs = F.log_softmax(d_logits, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
+
+            # Compute ratios
+            d_ratios = torch.exp(d_log_probs - d_log_probs_old)
+
+            # PPO Clipped Objective for Decision Network
+            d_surr1 = d_ratios * advantages_d
+            d_surr2 = torch.clamp(d_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_d
+            d_policy_loss = -torch.min(d_surr1, d_surr2).mean()
+
+            # Value loss for Decision Network
+            # d_values_pred, _ = self.Critic_d(states)
+            d_value_loss = F.mse_loss(d_values_pred.squeeze(), returns_d)
+
+            # Entropy for Decision Network
+            d_entropy_loss = -(torch.softmax(d_logits, dim=1) * F.log_softmax(d_logits, dim=1)).sum(dim=1).mean()
+
+            # Total Decision Network Loss
+            d_loss = (d_policy_loss +
+                      self.value_loss_coef * d_value_loss -
+                      self.entropy_coef * d_entropy_loss)
+
+            # Optimize Decision Network
+            self.optimizer_d.zero_grad()
+            d_loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.Actor_Critic_d.parameters(), self.max_grad_norm)
+            self.optimizer_d.step()
+
+            # Utility Network Training
+            # Only train utility network for trajectories with d=1
+            d_mask = (d_actions == 1)
+            if d_mask.any():
+                # Filter states and other tensors
+                states_u = states[d_mask]
+                u_actions_u = u_actions[d_mask]
+                advantages_u_filtered = advantages_u[d_mask]
+                returns_u_filtered = returns_u[d_mask]
+                u_log_probs_old_filtered = u_log_probs_old[d_mask]
+
+                # Current policy output
+                u_logits, u_values_pred = self.Actor_Critic_u(states_u)
+                u_log_probs = F.log_softmax(u_logits, dim=1).gather(1, u_actions_u.unsqueeze(1)).squeeze()
+
+                # Compute ratios
+                u_ratios = torch.exp(u_log_probs - u_log_probs_old_filtered)
+
+                # PPO Clipped Objective for Utility Network
+                u_surr1 = u_ratios * advantages_u_filtered
+                u_surr2 = torch.clamp(u_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_u_filtered
+                u_policy_loss = -torch.min(u_surr1, u_surr2).mean()
+
+                u_value_loss = F.mse_loss(u_values_pred.squeeze(), returns_u_filtered)
+
+                # Entropy for Utility Network
+                u_entropy_loss = -(torch.softmax(u_logits, dim=1) * F.log_softmax(u_logits, dim=1)).sum(dim=1).mean()
+
+                # Total Utility Network Loss
+                u_loss = (u_policy_loss +
+                          self.value_loss_coef * u_value_loss -
+                          self.entropy_coef * u_entropy_loss)
+
+                # Optimize Utility Network
+                self.optimizer_u.zero_grad()
+                u_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.Actor_Critic_u.parameters(), self.max_grad_norm)
+                self.optimizer_u.step()
+
+                # Print losses for monitoring
+                print(f'Utility Network - Policy Loss: {u_policy_loss.item():.4f}, '
+                      f'Value Loss: {u_value_loss.item():.4f}, '
+                      f'Entropy Loss: {u_entropy_loss.item():.4f}')
+
+            # Print losses for monitoring
+            print(f'Decision Network - Policy Loss: {d_policy_loss.item():.4f}, '
+                  f'Value Loss: {d_value_loss.item():.4f}, '
+                  f'Entropy Loss: {d_entropy_loss.item():.4f}')
+
+        # Clear trajectory buffer after training
+        self.trajectory_buffer.clear()

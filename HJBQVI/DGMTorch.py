@@ -643,3 +643,129 @@ class ActorCriticMLP(BaseNet):
             return action, actor_output, critic_output
 
         return actor_output, critic_output
+
+class ActorCriticSGMLP(nn.Module):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 actor_output_dim, actor_log_std_min=-20, actor_log_std_max=2,
+                 hidden_activation="tanh", q_function=True):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            actor_output_dim:  dimensionality of actor output (action space)
+            actor_log_std_min: minimum value for log standard deviation
+            actor_log_std_max: maximum value for log standard deviation
+            hidden_activation: activation function for hidden layers
+            q_function:        whether to use Q-function or V-function for critic
+
+        Returns: A shared MLP network with separate heads for actor and critic
+        '''
+        super(ActorCriticSGMLP, self).__init__()
+
+        # Shared feature extraction layers
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build shared hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.shared_layers = nn.Sequential(*layers)
+
+        # Actor mean and log std layers for Gaussian policy
+        self.actor_mean = DenseLayer(actor_output_dim, layer_width, activation=None)
+        self.actor_log_std = DenseLayer(actor_output_dim, layer_width, activation=None)
+
+        # Parameters for log std clamping
+        self.actor_log_std_min = actor_log_std_min
+        self.actor_log_std_max = actor_log_std_max
+
+        # Critic output layer
+        opDim = actor_output_dim if q_function else 1
+        self.critic_output = DenseLayer(opDim, layer_width, activation=None)
+
+    def forward(self, x):
+        '''
+        Process inputs through the shared network, then through
+        separate actor and critic heads
+
+        Args:
+            x: input state
+
+        Returns:
+            action: sampled action after squashing
+            actor_output: mean and log std of policy distribution
+            critic_output: value estimate
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor mean and log std
+        actor_mean = self.actor_mean(features)
+        actor_log_std = self.actor_log_std(features)
+
+        # Clamp log std to prevent extreme values
+        actor_log_std = torch.clamp(
+            actor_log_std,
+            min=self.actor_log_std_min,
+            max=self.actor_log_std_max
+        )
+
+        # Create distribution
+        actor_std = torch.exp(actor_log_std)
+        actor_dist = torch.distributions.Normal(actor_mean, actor_std)
+
+        # Sample action and apply tanh squashing
+        raw_action = actor_dist.rsample()
+        action = torch.tanh(raw_action)
+
+        # Compute log probability with squashing correction
+        log_prob = actor_dist.log_prob(raw_action)
+        log_prob -= torch.log(1 - action.pow(2) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        # Critic head (value function)
+        critic_output = self.critic_output(features)
+
+        return action, (actor_mean, actor_log_std, log_prob), critic_output
+
+    def get_log_prob(self, x, actions):
+        '''
+        Compute log probability of given actions
+
+        Args:
+            x: input state
+            actions: input actions to compute log probability for
+
+        Returns:
+            log_prob: log probability of actions
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor mean and log std
+        actor_mean = self.actor_mean(features)
+        actor_log_std = self.actor_log_std(features)
+
+        # Clamp log std to prevent extreme values
+        actor_log_std = torch.clamp(
+            actor_log_std,
+            min=self.actor_log_std_min,
+            max=self.actor_log_std_max
+        )
+
+        # Create distribution
+        actor_std = torch.exp(actor_log_std)
+        actor_dist = torch.distributions.Normal(actor_mean, actor_std)
+
+        # Inverse squashing
+        raw_actions = torch.arctanh(torch.clamp(actions, -1+1e-6, 1-1e-6))
+
+        # Compute log probability with squashing correction
+        log_prob = actor_dist.log_prob(raw_actions)
+        log_prob -= torch.log(1 - actions.pow(2) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        return log_prob

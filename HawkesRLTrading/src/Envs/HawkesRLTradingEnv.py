@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
-from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2
+from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -315,14 +315,14 @@ if __name__=="__main__":
 
             }
     j = kwargs['GymTradingAgent'][0]
-    agentInstance = ICRL2( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+    agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256)
     j['agent_instance'] = agentInstance
     kwargs['GymTradingAgent'] = [j]
     i=0
     cash, inventory, t, actions = [], [], [], []
-    for episode in range(5):
-        env=tradingEnv(stop_time=20, wall_time_limit=23400, seed=1, **kwargs)
+    for episode in range(500):
+        env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
 
         Simstate, observations, termination, truncation =env.step(action=None)
@@ -342,13 +342,13 @@ if __name__=="__main__":
             agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
             agentAction = agent.get_action(data=observations, epsilon = 0.5 if i < 100 else 0.1)
-            action=(agent.id, agentAction[:2])
+            action=(agent.id, (agentAction[0],1))
             print(f"Limit Order Book: {observations['LOB0']}")
             print(f"Action: {action}")
             observations_prev = observations.copy()
             Simstate, observations, termination, truncation=env.step(action=action)
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-            agent.store_transition(agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            agent.store_transition(agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
             print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
             i+=1
@@ -370,8 +370,8 @@ if __name__=="__main__":
             print("Truncation condition reached.")
         else:
             pass
-        for epoch in range(1000):
-            agent.learnSAC()
+        for epoch in range(100):
+            agent.train()
         # ER = agent.experience_replay
         agent.current_time = 0
         agent.istruncated = False
