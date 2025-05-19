@@ -1369,7 +1369,7 @@ class PPOAgent(GymTradingAgent):
         n_bs = np.append(n_bs, [q_b+qD_b])
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
-        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten())], dtype=torch.float32)
+        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten())], dtype=torch.float32).to(self.device)
         return state
 
     def getState(self, state):
@@ -1583,10 +1583,10 @@ class PPOAgent(GymTradingAgent):
             returns_u.insert(0, gae_u + values_u[i])
 
         # Convert to tensors
-        advantages_d = torch.tensor(advantages_d, dtype=torch.float32)
-        returns_d = torch.tensor(returns_d, dtype=torch.float32)
-        advantages_u = torch.tensor(advantages_u, dtype=torch.float32)
-        returns_u = torch.tensor(returns_u, dtype=torch.float32)
+        advantages_d = torch.tensor(advantages_d, dtype=torch.float32).to(self.device)
+        returns_d = torch.tensor(returns_d, dtype=torch.float32).to(self.device)
+        advantages_u = torch.tensor(advantages_u, dtype=torch.float32).to(self.device)
+        returns_u = torch.tensor(returns_u, dtype=torch.float32).to(self.device)
 
         # Normalize advantages
         advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
