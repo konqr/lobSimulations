@@ -85,16 +85,14 @@ class TrainingLogger:
             if network not in self.networks:
                 self.networks.append(network)
 
-            # Create metric key
-            metric_key = f"{network}_{metric_type}"
 
             # Initialize list for this metric if it doesn't exist
-            if metric_key not in self.losses:
-                self.losses[metric_key] = []
-                self.tracked_metrics[metric_key] = {'network': network, 'type': metric_type}
+            if key not in self.losses:
+                self.losses[key] = []
+                self.tracked_metrics[key] = {'network': network, 'type': metric_type}
 
             # Append the value
-            self.losses[metric_key].append(value)
+            self.losses[key].append(value)
 
     def save_logs(self):
         """Save logs to file"""
