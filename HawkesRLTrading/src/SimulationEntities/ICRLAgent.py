@@ -1519,7 +1519,7 @@ class PPOAgent(GymTradingAgent):
             self.last_action = u
             return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-    def store_transition(self, state, action, reward, next_state, done):
+    def store_transition(self, ep, state, action, reward, next_state, done):
         """
         Store transition in trajectory buffer
 
@@ -1541,7 +1541,7 @@ class PPOAgent(GymTradingAgent):
             next_state,  # Next state
             int(done)         # Done flag
         )
-        self.trajectory_buffer.append(transition)
+        self.trajectory_buffer.append((ep, transition))
 
     def compute_gae(self, rewards, values_d, values_u, dones):
         """
@@ -1602,11 +1602,11 @@ class PPOAgent(GymTradingAgent):
             return
 
         # Prepare training data
-        states = torch.cat([tr[0] for tr in self.trajectory_buffer]).to(self.device)
-        d_actions = torch.tensor([tr[1] for tr in self.trajectory_buffer]).to(self.device)
-        u_actions = torch.tensor([tr[2] for tr in self.trajectory_buffer]).to(self.device)
-        rewards = [tr[3] for tr in self.trajectory_buffer]
-        dones = [tr[5] for tr in self.trajectory_buffer]
+        states = torch.cat([tr[1][0] for tr in self.trajectory_buffer]).to(self.device)
+        d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer]).to(self.device)
+        u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer]).to(self.device)
+        rewards = [tr[1][3] for tr in self.trajectory_buffer]
+        dones = [tr[1][5] for tr in self.trajectory_buffer]
 
         # Compute values and log probabilities
         with torch.no_grad():
@@ -1711,4 +1711,7 @@ class PPOAgent(GymTradingAgent):
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
 
         # Clear trajectory buffer after training
-        self.trajectory_buffer.clear()
+        while len(self.trajectory_buffer) > self.buffer_capacity:
+            eID = self.trajectory_buffer[0][0]
+            end_idx = np.max([i for i in range(len(self.trajectory_buffer)) if self.trajectory_buffer[i][0] == eID]) + 1
+            self.trajectory_buffer = self.trajectory_buffer[end_idx:]

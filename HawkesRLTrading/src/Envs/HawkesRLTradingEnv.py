@@ -348,7 +348,7 @@ if __name__=="__main__":
             observations_prev = observations.copy()
             Simstate, observations, termination, truncation=env.step(action=action)
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-            agent.store_transition(agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
             print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
             i+=1
