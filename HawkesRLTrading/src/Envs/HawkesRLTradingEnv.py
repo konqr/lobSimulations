@@ -405,3 +405,18 @@ if __name__=="__main__":
         plt.yticks(np.arange(0,13), agent.actions)
         plt.title('Actions')
         plt.savefig(log_dir + label+'_policy.png')
+        episodic_rewards = []
+        r=0
+        tmp = agent.trajectory_buffer[0][0]
+        for i in agent.trajectory_buffer:
+            if i[0] == tmp:
+                r+=i[1][3]
+            else:
+                episodic_rewards.append(r)
+                r = i[1][3]
+                tmp=i[0]
+        plt.figure(figsize=(12,8))
+        plt.plot(np.arange(len(episodic_rewards)), np.mean(episodic_rewards))
+        plt.fill_between(np.arange(len(episodic_rewards)),np.mean(episodic_rewards) - np.std(episodic_rewards),np.mean(episodic_rewards) +np.std(episodic_rewards), alpha=0.3  )
+        plt.title('Avg Episodic Rewards')
+        plt.savefig(log_dir + label+'_avgepisodicreward.png')
