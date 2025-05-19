@@ -1624,8 +1624,8 @@ class PPOAgent(GymTradingAgent):
         # Compute Generalized Advantage Estimation
         advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
             rewards,
-            values_d_old.numpy().flatten().tolist(),
-            values_u_old.numpy().flatten().tolist(),
+            values_d_old.cpu().numpy().flatten().tolist(),
+            values_u_old.cpu().numpy().flatten().tolist(),
             dones
         )
 
