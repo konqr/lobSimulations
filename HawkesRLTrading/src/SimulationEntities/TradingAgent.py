@@ -241,7 +241,13 @@ class TradingAgent(Entity):
                 self.positions[message.order.symbol][level]=[message.order]
                 logger.debug(f"Agent new state: {self.statelog[-1]}")
         elif isinstance(message, WakeAgentMsg):
-            
+            #Here, ideally the agent should cancel all existing orders, needs code refactoring
+            # tocancel=[]
+            # for level, orders in self.positions[self.exchange.symbol].items():
+            #     if len(orders)>0:
+            #         for order in orders:
+            #             tocancel.append(order)
+            # self.exchange.autocancel(orders)
             action=self.get_action()
             order=self.action_to_order(action)
             self.submitorder(order)
@@ -269,7 +275,7 @@ class TradingAgent(Entity):
                     self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        if self.cash<0 or self.countInventory()<=0 or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
+        if abs(self.cash)>self.cashlimit or abs(self.countInventory())>self.inventorylimit:
             self.istruncated=True
         
     def wakeup(self, current_time: int, delay=0) -> None:

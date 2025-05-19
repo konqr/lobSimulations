@@ -16,6 +16,4 @@ class UniformAgent(DeterministicTradingAgent):
         return self.actions[0]
     
     def calculaterewards(self) -> Any:
-        
-
-
+        pass

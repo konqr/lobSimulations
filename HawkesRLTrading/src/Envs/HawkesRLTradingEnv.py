@@ -9,11 +9,8 @@ from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseCo
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
-<<<<<<< Updated upstream
 import pickle
-=======
 from gymnasium.spaces import Discrete, Dict, Box
->>>>>>> Stashed changes
 logger=logging.getLogger(__name__)
 
 class tradingEnv(gym.Env):
@@ -28,32 +25,55 @@ class tradingEnv(gym.Env):
         wall_time_limit: simulation wall time limit (Currently not implemented)
         seed
         log_to_file
-        kwargs -- Simulation default parameters specified as following:
+        kwargs -- Simulation default parameters specified as following format:
             Dictionary{
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 10000000, 
+
+                "GymTradingAgent": [{"cash": 2000, 
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True, 
-                                    "cashlimit": 1000000000000,
-                                    "inventorylimit": 100000,
+                                    "Inventory": {"XYZ": 500},
+                                    "log_to_file": True,
+                                    "cashlimit": 500000, 
+                                    "inventorylimit": 1000000,
                                     "wake_on_MO": True,
-                                    "wake_on_Spread": True}],
+                                    "wake_on_Spread": False}],
+                # "GymTradingAgent": [{"cash": 1000000,
+                #                     "strategy": "Random",
+                #                      'on_trade':False,
+                #                     "action_freq": .2,
+                #                     "rewardpenalty": 0.4,
+                #                     "Inventory": {"XYZ": 1000},
+                #                     "log_to_file": True,
+                #                     "cashlimit": 100000000}],
+                #"GymTradingAgent": [{"cash":10000000,
+                #                     "cashlimit": 1000000000,
+                #                      "strategy": "TWAP",
+                #                      "on_trade":False,
+                #                      "total_order_size":500,
+                #                      "order_target":"XYZ",
+                #                      "total_time":100,
+                #                      "window_size":20, #window size, measured in seconds
+                #                      "side":"buy", #buy or sell
+                #                      "action_freq":0.2, 
+                #                      "Inventory": {"XYZ":1} #inventory cant be 0
+                #                     }],
                 "Exchange": {"symbol": "XYZ",
-                "ticksize":0.01,
-                "LOBlevels": 2,
-                "numOrdersPerLevel": 10,
-                "PriceMid0": 45,
-                "spread0": 0.05},
+                            "ticksize":0.01,
+                            "LOBlevels": 2,
+                            "numOrdersPerLevel": 10,
+                            "PriceMid0": 100,
+                            "spread0": 0.03},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters": {"kernelparams": None, 
-                                            "tod": None, 
-                                            "Pis": None, 
-                                            "beta": None, 
-                                            "avgSpread": None, 
-                                            "Pi_Q0": None}}
+                                "params": {"kernelparams": None,
+                                                "tod": None,
+                                                "Pis": None, 
+                                                "beta": 0.91,
+                                                "avgSpread": 0.0101,
+                                                "Pi_Q0": None,
+                                                "kernelparamspath": "AAPL.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10",
+                                                "todpath": "INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt"}}
 
             }
 
@@ -68,20 +88,12 @@ class tradingEnv(gym.Env):
         self.action_space=Discrete(13, seed=self.seed)
         #Note observation space is not the state space!!!! Agent only needs to observe the LOB, Spread, Inventory from the environment!
 
-        # self.observation_space=Dict({
-        #     "cash": Box(low=-np.inf, high=np.inf),
-        #     "Inventory": Box(low=0, high=np.inf),
-        #     "PNL": Box(low=0, high=np.inf),
-        #     "Spread": Box(low=0, high=np.inf),
-        #     "LOB_levels": Box(low=np.array([0,0,0,0]), high=np.array([np.inf, np.inf, np.inf, np.Inf]) )
-        # })
-
-        #Why is stable baselines does not take dictionaries so need to flatten to a box or discrete
+        #Stable baselines does not take dictionaries so need to flatten(need to check patch notes)
         self.observation_space=Dict({
-            "cash": Box(low=-1000, high=1000, shape=(1,), dtype=np.float64),
-            "Spread": Box(low=-20, high=20, shape=(1,), dtype=int),
-            "LOB_levels": Box(low=0, high=np.inf, shape=(4,), dtype=int),
-            "AskBidPrices=": Box(low=0, high=np.inf, shape=(2,), dtype=int)
+            "Inventory": Box(low=-10, high=10, shape=(1,), dtype=int),
+            "Spread": Box(low=-np.inf, high=np.inf, shape=(1,), dtype=float),
+            "Trend_var": Box(low=-np.inf, high=np.inf, shape=(1,), dtype=float)
+            #Trend var is alpha_t= intensity_(Market order, buy, inspread) + intensity_(Market order, buy, non aggressive) - intensity_(Market order, sell, inspread) - intensity_(Market order, sell, non aggressive)
         })
         self.kwargs=kwargs
         #Construct Exchange:
@@ -95,16 +107,14 @@ class tradingEnv(gym.Env):
             pass
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
+                print(j)
                 new_agent=None
-
                 if j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
                 # if j["strategy"]=="Random":
                 #     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
-                if j["strategy"] == "TWAP":
-                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
-                elif j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"], on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                elif j["strategy"] == "TWAP":
+                    new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
                 elif j['strategy'] == 'ImpulseControl':
                     new_agent = ImpulseControlAgent(j['label'], j['epoch'], j['model_dir'], seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                                                     on_trade=j['on_trade'], cashlimit=j["cashlimit"])
@@ -116,7 +126,7 @@ class tradingEnv(gym.Env):
         Arrival_model=None
         if kwargs.get("Arrival_model"):
             if kwargs["Arrival_model"].get("name") == "Hawkes":
-                params = kwargs["Arrival_model"]["parameters"]
+                params = kwargs["Arrival_model"]["params"]
                 Arrival_model=HawkesArrival(spread0=exchange.spread, seed=self.seed, **params)
             else:
                 raise Exception("Program currently only supports Hawkes Arrival model")
@@ -159,7 +169,7 @@ class tradingEnv(gym.Env):
         Arrival_model=None
         if kwargs.get("Arrival_model"):
             if kwargs["Arrival_model"].get("name") == "Hawkes":
-                params = kwargs["Arrival_model"]["parameters"]
+                params = kwargs["Arrival_model"]["params"]
                 Arrival_model=HawkesArrival(spread0=exchange.spread, seed=self.seed, **params)
             else:
                 raise Exception("Program currently only supports Hawkes Arrival model")
@@ -169,8 +179,8 @@ class tradingEnv(gym.Env):
         self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, stop_time=self.stop_time, wall_time_limit=self.wall_time_limit, log_to_file=self.log_to_file, Arrival_model=Arrival_model)
         self.kernel.initialize_kernel()
         np.random.seed(self.seed)
-        observations=self.getobservations()
-        infos=self.getinfo()
+        observations=self.getobservations() #observations is inventory, spread, trend variable
+        infos=self.getinfo() #contains truncation related info like cash and prices etc
         return observations, infos
     
     def render(self):
@@ -190,11 +200,9 @@ class tradingEnv(gym.Env):
         #Wrapper to convert kernel observations to gym observations
         tmp=self.getstate()
         observations={
-            "cash": tmp["Cash"],
-            "Inventory": tmp["Inventory"],
-            "PNL": None,
-            "Spread": None,
-            "LOB_levels": None
+            "Inventory": np.array([tmp["Inventory"]]),
+            "Spread": np.array([abs(np.round(tmp['LOB0']['Ask_L1'][0]-tmp['LOB0']['Bid_L1'][0], decimals=2))]),
+            "Trend_var": np.array([0])
         }
         return observations
 
@@ -202,7 +210,7 @@ class tradingEnv(gym.Env):
     def getstate(self):
         """
         Returns kernel state
-        Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
+        Returns a dictionary with keys: LOB0, Cash, Inventory, Positions, lobL3, lobL3_sizes
         """
         return self.kernel.getobservations(agentID=self.agents[0].id) 
         
@@ -225,32 +233,17 @@ class tradingEnv(gym.Env):
         return self.kernel.entity_registry[ID]
 
 if __name__=="__main__":
-    with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson", 'rb') as f:
-        kernelparams = pickle.load(f)
-    # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
-    #     tod = pickle.load(f)
-    cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
-           "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
-    kernelparams = [[np.zeros((12,12))]*4, np.array([[kernelparams[c]] for c in cols])]
-    faketod = {}
-    for k in cols:
-        faketod[k] = {}
-        for k1 in np.arange(13):
-            faketod[k][k1] = 1.0
-    tod=np.zeros(shape=(len(cols), 13))
-    for i in range(len(cols)):
-        tod[i]=[faketod[cols[i]][k] for k in range(13)]
     kwargs={
                 "TradingAgent": [],
 
-                "GymTradingAgent": [{"cash": 2000, 
+                "GymTradingAgent": [{"cash": 800, 
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 500},
+                                    "Inventory": {"XYZ": 4},
                                     "log_to_file": True,
-                                    "cashlimit": 500000, 
-                                    "inventorylimit": 1000000,
+                                    "cashlimit": 1000, 
+                                    "inventorylimit": 10,
                                     "wake_on_MO": True,
                                     "wake_on_Spread": False}],
                 # "GymTradingAgent": [{"cash": 1000000,
@@ -274,38 +267,26 @@ if __name__=="__main__":
                 #                      "Inventory": {"XYZ":1} #inventory cant be 0
                 #                     }],
                 "Exchange": {"symbol": "XYZ",
-                #"GymTradingAgent": [{"cash": 1000000,
-                #                    "strategy": "ImpulseControl",
-                #                     'on_trade':True,
-                #                    "action_freq": .2,
-                #                    "rewardpenalty": 0.4,
-                #                    "Inventory": {"INTC":5},
-                #                    "log_to_file": True,
-                #                    "cashlimit": 100000000,
-                #                     'label' : '20250325_160949_INTC_SIMESPPL',
-                #                     'epoch':2180,
-                #                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
-                #"Exchange": {"symbol": "INTC",
-                "ticksize":0.01,
-                "LOBlevels": 2,
-                "numOrdersPerLevel": 10,
-                "PriceMid0": 100,
-                "spread0": 0.03},
+                            "ticksize":0.01,
+                            "LOBlevels": 2,
+                            "numOrdersPerLevel": 10,
+                            "PriceMid0": 100,
+                            "spread0": 0.03},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters": {"kernelparams": kernelparams,
-                                            "tod": tod,
-                                            "Pis": None, 
-                                            "beta": 0.91,
-                                            "avgSpread": 0.0101,
-                                            "Pi_Q0": None}}
+                                "params": {"kernelparams": None,
+                                                "tod": None,
+                                                "Pis": None, 
+                                                "beta": 0.91,
+                                                "avgSpread": 0.0101,
+                                                "Pi_Q0": None,
+                                                "kernelparamspath": "HawkesRLTrading/src/AAPL.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10",
+                                                "todpath": "HawkesRLTrading/src/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt"}}
 
             }
     from stable_baselines3.common.env_checker import check_env
     env=tradingEnv(stop_time=500, seed=2, **kwargs)
-    print("Retriving State")
-    print(env.getstate())
-    print("Done")
-    #check_env(env)
+    check_env(env=env)
+    print("done")
 
 
 

@@ -116,7 +116,7 @@ class Exchange(Entity):
                 self.bids[self.bidprices[k]]=queue
             else:
                 raise AssertionError(f"Level is not an ASK or BID string")
-        logger.debug("Stock Exchange initalized")
+        logger.debug("Stock Exchange initialized")
         #Send a message to agents to Tr trading
                 
     def generate_orders_in_queue(self, loblevel) -> List[LimitOrder]:
@@ -617,7 +617,7 @@ class Exchange(Entity):
         return rtn
     
     def printlob(self):
-        #rtn="LOB: "
+        rtn="LOB: "
         for i in range(self.LOBlevels, 0, -1):
             rtn+="\n"
             string = f"Ask_L{i}: {self.askprices[f'Ask_L{i}']}, ({sum([j.size for j in self.asks[self.askprices[f'Ask_L{i}']]])}, {[j.size for j in self.asks[self.askprices[f'Ask_L{i}']]]})"
@@ -629,7 +629,7 @@ class Exchange(Entity):
             rtn+=string
         return rtn
 
-    def returnlob(self):
+    def returnlobl3sizes(self):
         rtn= {}
         for i in range(self.LOBlevels, 0, -1):
             rtn[f"Ask_L{i}"] = (self.askprices[f'Ask_L{i}'],

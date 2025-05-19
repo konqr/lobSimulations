@@ -56,3 +56,4 @@ class RandomGymTradingAgent(GymTradingAgent):
         self.updatestatelog()
         deltaPNL=self.statelog[-1][2] - self.statelog[-2][2]
         return deltaPNL - penalty
+

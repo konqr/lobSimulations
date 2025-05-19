@@ -65,7 +65,7 @@ class Kernel:
         self.isrunning=False
         #The simulation times of the different entities, used to keep track of whose turn it is
         self.nearest_action_time=0
-        self.agents_current_times: Dict[inct, any] ={j.id: self.start_time for j in self.agents}
+        self.agents_current_times: Dict[int, any] ={j.id: self.start_time for j in self.agents}
         self.agents_action_freq: Dict[int, float]={j.id: j.action_freq for j in self.agents} #time between each action for each agent
         #Implementation of message queue
         #An item in the queue takes the form of (time, (senderID, recipientID, Message))
@@ -489,7 +489,7 @@ class Kernel:
         rtn["Inventory"]=agentobs["Inventory"]
         rtn["Positions"]=agentobs["Positions"]
         rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
-        rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
+        rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlobl3sizes()
         return rtn
     
     def getinfo(self, data: Dict={}):
