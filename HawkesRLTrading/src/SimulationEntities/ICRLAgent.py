@@ -1339,6 +1339,7 @@ class PPOAgent(GymTradingAgent):
         self.lr = 1e-3
         self.gamma = 0.99  # discount factor
         self.rewardpenalty = rewardpenalty  # inventory penalty
+        self.last_state, self.last_action = None, None
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
@@ -1432,7 +1433,11 @@ class PPOAgent(GymTradingAgent):
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
         if self.istruncated or termination:
             deltaPNL += self.countInventory() * self.mid
-        if self.last_action != 12: penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
+        # reward shaping
+        if self.last_action != 12:
+            penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
+        if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
+            penalty -= 20 # custom reward for double sided quoting
         return deltaPNL - penalty
 
     def get_action(self, data, epsilon=0.1):
@@ -1445,7 +1450,7 @@ class PPOAgent(GymTradingAgent):
         """
         origData = data.copy()
         state = self.readData(data)
-
+        self.last_state = state
         # Exploration
         if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
             # Random decision
