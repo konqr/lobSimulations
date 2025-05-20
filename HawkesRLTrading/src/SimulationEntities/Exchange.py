@@ -648,6 +648,7 @@ class Exchange(Entity):
     def returnpasteventimes(self):
         times = np.array([])
         ts = np.array(self.Arrival_model.timeseries)
+        if len(ts) == 0: return -1*np.ones(60)
         for i in range(len(self.Arrival_model.cols)):
             ts_i = ts[ts[:,0] == i, 1][-5:]
             while len(ts_i) < 5:
