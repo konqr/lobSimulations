@@ -1292,7 +1292,7 @@ class PPOAgent(GymTradingAgent):
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
-                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1):
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu'):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1335,6 +1335,7 @@ class PPOAgent(GymTradingAgent):
         # Training parameters
         self.layer_widths = layer_widths
         self.n_layers = n_layers
+        self.hidden_activation = hidden_activation
         self.lr = 1e-3
         self.gamma = 0.99  # discount factor
         self.rewardpenalty = rewardpenalty  # inventory penalty
@@ -1412,8 +1413,8 @@ class PPOAgent(GymTradingAgent):
         state_dim = len(data0[0])
 
         # Initialize main networks with shared architecture
-        self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation='leaky_relu', q_function = False)
-        self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation='leaky_relu',q_function = False)
+        self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
+        self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
 
         # Move all models to appropriate device
         self.Actor_Critic_d.to(self.device)
@@ -1589,8 +1590,8 @@ class PPOAgent(GymTradingAgent):
         returns_u = torch.tensor(returns_u[:-1], dtype=torch.float32).to(self.device)
 
         # Normalize advantages
-        advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
-        advantages_u = (advantages_u - advantages_u.mean()) / (advantages_u.std() + 1e-8)
+        # advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
+        # advantages_u = (advantages_u - advantages_u.mean()) / (advantages_u.std() + 1e-8)
 
         return advantages_d, returns_d, advantages_u, returns_u
 

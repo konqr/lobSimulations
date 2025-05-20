@@ -327,7 +327,7 @@ if __name__=="__main__":
     kwargs['GymTradingAgent'] = [j]
     i=0
     cash, inventory, t, actions = [], [], [], []
-    avgEpisodicRewards, stdEpisodicRewards =[],[]
+    avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
     # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
     for episode in range(500):
@@ -395,7 +395,7 @@ if __name__=="__main__":
         kwargs['GymTradingAgent'] = [j]
 
         plt.figure(figsize=(12,8))
-        plt.subplot(221)
+
         plt.plot(np.arange(len(cash)), cash)
         plt.title('Cash')
         plt.subplot(222)
@@ -418,8 +418,13 @@ if __name__=="__main__":
                 tmp=ij[0]
         avgEpisodicRewards.append(np.mean(episodic_rewards))
         stdEpisodicRewards.append(np.std(episodic_rewards))
+        finalcash.append(cash[-1] + inventory[-1]*agent.mid )
         plt.figure(figsize=(12,8))
+        plt.subplot(221)
         plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
         plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
         plt.title('Avg Episodic Rewards')
+        plt.subplot(222)
+        plt.plot(np.arange(episode+1), finalcash)
+        plt.title('Final Cash')
         plt.savefig(log_dir + label+'_avgepisodicreward.png')
