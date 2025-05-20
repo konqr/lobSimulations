@@ -645,6 +645,17 @@ class Exchange(Entity):
     def returnintensity(self):
         return self.Arrival_model.current_intensity
 
+    def returnpasteventimes(self):
+        times = np.array([])
+        ts = np.array(self.Arrival_model.timeseries)
+        for i in range(len(self.Arrival_model.cols)):
+            ts_i = ts[ts[:,0] == i, 1][-5:]
+            while len(ts_i) < 5:
+                ts_i = np.append(ts_i, -1)
+            ts_i = np.sort(ts_i)
+            times = np.append(times, ts_i)
+        return times
+
     @property
     def spread(self):
         return self._spread

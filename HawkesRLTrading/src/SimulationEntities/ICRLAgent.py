@@ -1370,7 +1370,8 @@ class PPOAgent(GymTradingAgent):
         n_bs = np.append(n_bs, [q_b+qD_b])
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
-        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten())], dtype=torch.float32).to(self.device)
+        past_times = data['past_times']
+        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         return state
 
     def getState(self, state):
