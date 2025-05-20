@@ -1590,9 +1590,10 @@ class PPOAgent(GymTradingAgent):
         returns_u = torch.tensor(returns_u[:-1], dtype=torch.float32).to(self.device)
 
         # Normalize advantages
-        # advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
-        # advantages_u = (advantages_u - advantages_u.mean()) / (advantages_u.std() + 1e-8)
-
+        advantages_d = (advantages_d - advantages_d.mean()) / (advantages_d.std() + 1e-8)
+        advantages_u = (advantages_u - advantages_u.mean()) / (advantages_u.std() + 1e-8)
+        returns_d = (returns_d - returns_d.mean()) / (returns_d.std() + 1e-8)
+        returns_u = (returns_u - returns_u.mean()) / (returns_u.std() + 1e-8)
         return advantages_d, returns_d, advantages_u, returns_u
 
     def train(self):

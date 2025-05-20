@@ -331,7 +331,7 @@ if __name__=="__main__":
     # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
     for episode in range(500):
-        env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
+        env=tradingEnv(stop_time=20, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
 
         Simstate, observations, termination, truncation =env.step(action=None)
