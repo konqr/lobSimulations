@@ -318,7 +318,7 @@ class Kernel:
                 agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
-                if self.agents_current_times[recipientID] + self.agents_action_freq[senderID] > self.stop_time: return None
+                if not self.isrunning: return None
                 assert self.agents_current_times[recipientID]>=timesent, f"Agent registry time: {self.agents_current_times[recipientID]}. Timesent: {timesent}"
                 if recipientID==-1 or recipientID==self.exchange.id:
                     raise UnexpectedMessageType("WakeAgent Messages should be sent to a valid agentID")
