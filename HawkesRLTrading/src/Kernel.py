@@ -493,7 +493,9 @@ class Kernel:
         rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
         rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
         rtn['current_intensity'] = self.entity_registry[self.exchange.id].returnintensity()
-        rtn['past_times'] = self.entity_registry[self.exchange.id].returnpasteventimes()
+        pt = self.current_time - self.entity_registry[self.exchange.id].returnpasteventimes()
+        pt[pt==self.current_time+1] = -1
+        rtn['past_times']= pt
         return rtn
     
     def getinfo(self, data: Dict={}):
