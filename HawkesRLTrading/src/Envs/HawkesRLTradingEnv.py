@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+import copy
 from typing import Any, Optional
 import logging
 import matplotlib.pyplot as plt
@@ -354,7 +355,7 @@ if __name__=="__main__":
             action=(agent.id, (agentAction[0],1))
             print(f"Limit Order Book: {observations['LOB0']}")
             print(f"Action: {action}")
-            observations_prev = observations.copy()
+            observations_prev = copy.deepcopy(observations)
             Simstate, observations, termination, truncation=env.step(action=action)
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
             agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))

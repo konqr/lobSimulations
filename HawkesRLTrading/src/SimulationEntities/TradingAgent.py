@@ -239,7 +239,7 @@ class TradingAgent(Entity):
         elif isinstance(message, LimitOrderAcceptedMsg):
                 level=self.exchange.getlevel(price=message.order.price)
                 print(f"Level of limit Order is: {level} ")
-                self.positions[message.order.symbol][level]=[message.order]
+                self.positions[message.order.symbol][level]+=[message.order]
                 logger.debug(f"Agent new state: {self.statelog[-1]}")
         elif isinstance(message, WakeAgentMsg):
             

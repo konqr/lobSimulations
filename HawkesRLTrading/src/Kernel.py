@@ -121,13 +121,23 @@ class Kernel:
             print(f"First action time is: {self.nearest_action_time} seconds")
         else:
             assert self.isrunning==True, f"Kernel must take an agent action once it has begun running"
-            agentID=action[0]
-            event=action[1][0]
-            size=action[1][1]
-            agent: GymTradingAgent=self.entity_registry[agentID]
-            assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
-            order=agent.action_to_order(action=(event, size))
-            agent.submitorder(order)
+            if type(action[0]) == int:
+                agentID=action[0]
+                event=action[1][0]
+                size=action[1][1]
+                agent: GymTradingAgent=self.entity_registry[agentID]
+                assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
+                order=agent.action_to_order(action=(event, size))
+                agent.submitorder(order)
+            else: # multiple actions
+                for a in action:
+                    agentID=a[0]
+                    event=a[1][0]
+                    size=a[1][1]
+                    agent: GymTradingAgent=self.entity_registry[agentID]
+                    assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
+                    order=agent.action_to_order(action=(event, size))
+                    agent.submitorder(order)
         #While there are still items in the queue, process them. And if there are no items in the queue left and time limit is not up yet, generate the next point.
         while (self.current_time<self.stop_time):
             logger.debug(f"Nearest Action time: {self.nearest_action_time}")
