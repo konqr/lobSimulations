@@ -648,9 +648,9 @@ class Exchange(Entity):
     def returnpasteventimes(self):
         times = np.array([])
         ts = np.array(self.Arrival_model.timeseries)
-        if len(ts) == 0: return -1*np.ones(60)
+        if self.Arrival_model.timeseries is None or len(ts) == 0: return -1*np.ones(60)
         for i in range(len(self.Arrival_model.cols)):
-            ts_i = ts[ts[:,0] == i, 1][-5:]
+            ts_i = ts[ts[:,1] == i, 0][-5:]
             while len(ts_i) < 5:
                 ts_i = np.append(ts_i, -1)
             ts_i = np.sort(ts_i)
