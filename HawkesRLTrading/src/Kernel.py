@@ -403,6 +403,9 @@ class Kernel:
         senderID: int=item[1][0]
         timesent: float=item[0]
         rtn={}
+        if not self.isrunning:
+            rtn[recipientIDs[0]] = None
+            return rtn
         if isinstance(message, ExchangeMsg):
             print(f"Batch message: {message}, {type(message)}")
             for recipientID in recipientIDs:
