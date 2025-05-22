@@ -1290,7 +1290,7 @@ class ICRLSG(ICRL2):
 class PPOAgent(GymTradingAgent):
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
-                 wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
+                 wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu'):
         """
@@ -1318,7 +1318,7 @@ class PPOAgent(GymTradingAgent):
         """
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
-                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit)
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
