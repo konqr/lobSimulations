@@ -11,6 +11,8 @@ from HawkesRLTrading.src.Messages.ExchangeMessages import *
 from HawkesRLTrading.src.Messages.AgentMessages import *
 from HawkesRLTrading.src.SimulationEntities.Entity import Entity
 from HawkesRLTrading.src.Utils.Exceptions import *
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TradingAgent(Entity):
@@ -57,10 +59,10 @@ class TradingAgent(Entity):
         self.cashlimit=cashlimit
         self.inventorylimit=inventorylimit
         self.cash=cash
-
+        self.mid = 0
         #private atributes
         self.profit=0
-        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
+        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy(), self.mid)] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid", None]
         self.actionsToLevels = {
@@ -237,7 +239,7 @@ class TradingAgent(Entity):
         elif isinstance(message, LimitOrderAcceptedMsg):
                 level=self.exchange.getlevel(price=message.order.price)
                 print(f"Level of limit Order is: {level} ")
-                self.positions[message.order.symbol][level]=[message.order]
+                self.positions[message.order.symbol][level]+=[message.order]
                 logger.debug(f"Agent new state: {self.statelog[-1]}")
         elif isinstance(message, WakeAgentMsg):
             
@@ -268,7 +270,7 @@ class TradingAgent(Entity):
                     self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        if self.cash<0 or self.countInventory()<=0 or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
+        if self.cash<0 or self.countInventory()<-1*self.inventorylimit or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
             self.istruncated=True
         
     def wakeup(self, current_time: int, delay=0) -> None:
@@ -299,7 +301,7 @@ class TradingAgent(Entity):
         if self.statelog[-1][0]==self.current_time:
             logger.info(f"Last agent LOG is {self.statelog[-1]} and new log to be appended is {(self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy())}")
             return False
-        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy()))
+        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy(), self.mid))
     
     def getobservations(self):
         rtn={"Cash":self.cash,

@@ -13,7 +13,8 @@ from HawkesRLTrading.src.SimulationEntities.TradingAgent import TradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.Orders import *
 from HawkesRLTrading.src.Messages.ExchangeMessages import *
-
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.INFO)
 logger=logging.getLogger(__name__)
 class Exchange(Entity):
     """Arguments:
@@ -140,6 +141,7 @@ class Exchange(Entity):
         Automatically generates the next arrival and passes the order to the kernel to check for validity.
         """
         order=None
+        self.Arrival_model.spread = self.askprice - self.bidprice
         tmp=self.Arrival_model.get_nextarrival(timelimit=timelimit)
         if tmp is None:
             logger.debug("Simulation candidate rejected, no event happening")
@@ -335,7 +337,7 @@ class Exchange(Entity):
                     new_bids[new_bidprices[new_key]]=self.bids[new_bidprices[new_key]]
                 self.bids=new_bids
                 self.bidprices = new_bidprices      
-                print(f"Post inspread bids: {self.bids}")
+                logger.debug(f"Post inspread bids: {self.bids}")
             if crossed:
                 #Resolving crossed orderbook state
                 self.resolve_crossedorderbook()
@@ -347,11 +349,11 @@ class Exchange(Entity):
         if side=="Ask":
             side="Bid"
             level=1
-            while remainingsize>0:
+            while remainingsize>0.5:
                 pricelvl=self.bidprices[side+"_L"+str(level)]
                 while len(self.bids[pricelvl])>0:
                     item: LimitOrder=self.bids[pricelvl][0]
-                    print(f"\nItem size: {item.size}")
+                    logger.debug(f"\nItem size: {item.size}")
                     if remainingsize<item.size:
                         consumed=remainingsize
                         totalvalue+=pricelvl*remainingsize
@@ -392,12 +394,12 @@ class Exchange(Entity):
         else:
             side="Ask"
             level=1
-            while remainingsize>0:
+            while remainingsize>0.5:
                 pricelvl=self.askprices[side+"_L"+str(level)]
-                print(pricelvl)
+                logger.debug(pricelvl)
                 while len(self.asks[pricelvl])>0:
                     item: LimitOrder=self.asks[pricelvl][0]
-                    print(f"Remaining size: {remainingsize}, item size: {item.size}")
+                    logger.debug(f"Remaining size: {remainingsize}, item size: {item.size}")
                     if remainingsize<item.size:
                         consumed=remainingsize
                         item.size=item.size-remainingsize
@@ -501,8 +503,8 @@ class Exchange(Entity):
         assert self.askprice==self.bidprice==self.askprices["Ask_L1"]==self.bidprices["Bid_L1"], f'Crossed Orderbook: ASKPRICE: {self.askprice}, BIDPRICE: {self.bidprice}, ASK_L1{self.askprices["Ask_L1"]}, BID_L1{self.bidprices["Bid_L1"]}'
         totalask1=sum([j.size for j in self.asks[self.askprices["Ask_L1"]]])
         totalbid1=sum([j.size for j in self.bids[self.bidprices["Bid_L1"]]])
-        ask_q=self.asks[self.askprices[self.askprice]]
-        bid_q=self.asks[self.bidprices[self.bidprice]]
+        ask_q=self.asks[self.askprices["Ask_L1"]]
+        bid_q=self.bids[self.bidprices['Bid_L1']]
         while len(ask_q)>0 and len(bid_q)>0:
             bid_order=bid_q[0]
             ask_order=ask_q[0]
@@ -612,7 +614,7 @@ class Exchange(Entity):
             "Ask_L2": (self.askprices["Ask_L2"], self.asks[self.askprices["Ask_L2"]]),
             "Ask_L1": (self.askprices["Ask_L1"], self.asks[self.askprices["Ask_L1"]]),
             "Bid_L1": (self.bidprices["Bid_L1"], self.bids[self.bidprices["Bid_L1"]]),
-            "Bid_L2": (self.bidprices["Bid_L1"], self.bids[self.bidprices["Bid_L1"]])
+            "Bid_L2": (self.bidprices["Bid_L2"], self.bids[self.bidprices["Bid_L2"]])
         }
         return rtn
     
@@ -639,7 +641,22 @@ class Exchange(Entity):
             rtn[f"Bid_L{i}"] = (self.bidprices[f'Bid_L{i}'],
                                 ([j.size for j in self.bids[self.bidprices[f'Bid_L{i}']]]))
         return rtn
-    
+
+    def returnintensity(self):
+        return self.Arrival_model.current_intensity
+
+    def returnpasteventimes(self):
+        times = np.array([])
+        ts = np.array(self.Arrival_model.timeseries)
+        if self.Arrival_model.timeseries is None or len(ts) == 0: return -1*np.ones(60)
+        for i in range(len(self.Arrival_model.cols)):
+            ts_i = ts[ts[:,1] == i, 0][-5:]
+            while len(ts_i) < 5:
+                ts_i = np.append(ts_i, -1)
+            ts_i = np.sort(ts_i)
+            times = np.append(times, ts_i)
+        return times
+
     @property
     def spread(self):
         return self._spread

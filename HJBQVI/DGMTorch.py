@@ -1,12 +1,88 @@
+import os
+os.environ["PYTORCH_ENABLE_MEM_EFFICIENT_SDPA"] = "0"
 import torch
 import torch.nn as nn
-import matplotlib.pyplot as plt
-import json
-from datetime import datetime
-import os
-from collections import OrderedDict
+from HJBQVI.utils import MinMaxScaler
 
-class LSTMLayer(nn.Module):
+def get_activation_function(activation_name):
+    """Get activation function by name.
+
+    Args:
+        activation_name (str): Name of the activation function.
+            One of: "tanh", "relu", "sigmoid" or None.
+
+    Returns:
+        function: The corresponding PyTorch activation function.
+    """
+    activation_map = {
+        "tanh": torch.tanh,
+        "relu": torch.relu,
+        "sigmoid": torch.sigmoid,
+        "leaky_relu": nn.functional.leaky_relu,
+        "gelu": nn.functional.gelu,
+        "selu": nn.functional.selu,
+        "softmax": lambda x: nn.functional.softmax(x, dim=-1),
+        "none": None
+    }
+    return activation_map.get(activation_name.lower() if isinstance(activation_name, str) else activation_name, None)
+
+
+class DenseLayer(nn.Module):
+    def __init__(self, output_dim, input_dim, activation="tanh"):
+        '''
+        Args:
+            input_dim:   dimensionality of input data
+            output_dim:  number of outputs for dense layer
+            activation:  activation function used inside the layer; using
+                         None or "none" is equivalent to the identity map
+
+        Returns: customized PyTorch (fully connected) layer object
+        '''
+        super(DenseLayer, self).__init__()
+        self.output_dim = output_dim
+        self.input_dim = input_dim
+
+        # Use PyTorch's built-in Linear layer
+        self.linear = nn.Linear(input_dim, output_dim)
+        torch.nn.init.xavier_normal_(self.linear.weight)
+        # Set activation function
+        self.activation = get_activation_function(activation)
+
+    def forward(self, X):
+        '''Compute output of a dense layer for a given input X
+
+        Args:
+            X: input to layer
+        '''
+        # Compute dense layer output using PyTorch's linear layer
+        S = self.linear(X)
+
+        if self.activation:
+            S = self.activation(S)
+
+        return S
+
+## backwd compatibility
+class BaseLayer(nn.Module):
+    """Base class for neural network layers."""
+
+    def _initialize_weights(self, weights, biases=None):
+        """Initialize weights and biases.
+
+        Args:
+            weights (list): List of weight parameters.
+            biases (list, optional): List of bias parameters.
+        """
+        # Xavier initialization for weights
+        for param in weights:
+            nn.init.xavier_normal_(param)
+
+        # Initialize biases to zero
+        if biases:
+            for param in biases:
+                nn.init.zeros_(param)
+
+class LSTMLayer(BaseLayer):
     def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
         '''
         Args:
@@ -23,17 +99,11 @@ class LSTMLayer(nn.Module):
         self.output_dim = output_dim
         self.input_dim = input_dim
 
-        # Activation function mapping
-        activation_map = {
-            "tanh": torch.tanh,
-            "relu": torch.relu,
-            "sigmoid": torch.sigmoid
-        }
+        # Get activation functions
+        self.trans1 = get_activation_function(trans1) or torch.tanh
+        self.trans2 = get_activation_function(trans2) or torch.tanh
 
-        self.trans1 = activation_map.get(trans1, torch.tanh)
-        self.trans2 = activation_map.get(trans2, torch.tanh)
-
-        # LSTM layer parameters (Xavier initialization)
+        # LSTM layer parameters
         # u vectors (weighting vectors for inputs original inputs x)
         self.Uz = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
         self.Ug = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
@@ -53,17 +123,9 @@ class LSTMLayer(nn.Module):
         self.bh = nn.Parameter(torch.empty(1, self.output_dim))
 
         # Initialize parameters
-        self._initialize_weights()
-
-    def _initialize_weights(self):
-        # Xavier initialization
-        for param in [self.Uz, self.Ug, self.Ur, self.Uh,
-                      self.Wz, self.Wg, self.Wr, self.Wh]:
-            nn.init.xavier_normal_(param)
-
-        # Initialize biases to zero
-        for param in [self.bz, self.bg, self.br, self.bh]:
-            nn.init.zeros_(param)
+        weights = [self.Uz, self.Ug, self.Ur, self.Uh, self.Wz, self.Wg, self.Wr, self.Wh]
+        biases = [self.bz, self.bg, self.br, self.bh]
+        self._initialize_weights(weights, biases)
 
     def forward(self, S, X):
         '''Compute output of a LSTMLayer for a given inputs S,X.
@@ -85,653 +147,625 @@ class LSTMLayer(nn.Module):
         S_new = torch.add(torch.mul(torch.sub(torch.ones_like(G), G), H), torch.mul(Z, S))
 
         return S_new
+##
 
+class BaseNet(nn.Module):
+    """Base class for neural network models."""
 
-class DenseLayer(nn.Module):
-    def __init__(self, output_dim, input_dim, transformation=None):
-        '''
-        Args:
-            input_dim:       dimensionality of input data
-            output_dim:      number of outputs for dense layer
-            transformation:  activation function used inside the layer; using
-                             None is equivalent to the identity map
+    def __init__(self):
+        super(BaseNet, self).__init__()
 
-        Returns: customized PyTorch (fully connected) layer object
-        '''
-        super(DenseLayer, self).__init__()
-        self.output_dim = output_dim
-        self.input_dim = input_dim
-
-        # Dense layer parameters
-        self.W = nn.Parameter(torch.empty(self.input_dim, self.output_dim))
-        self.b = nn.Parameter(torch.empty(1, self.output_dim))
-
-        # Initialize parameters
-        nn.init.xavier_normal_(self.W)
-        nn.init.zeros_(self.b)
-
-        # Set transformation function
-        if transformation:
-            activation_map = {
-                "tanh": torch.tanh,
-                "relu": torch.relu
-            }
-            self.transformation = activation_map.get(transformation, None)
-        else:
-            self.transformation = None
-
-    def forward(self, X):
-        '''Compute output of a dense layer for a given input X
+    def preprocess_input(self, t, x):
+        """Preprocess input data.
 
         Args:
-            X: input to layer
-        '''
-        # Compute dense layer output
-        S = torch.add(torch.matmul(X, self.W), self.b)
-
-        if self.transformation:
-            S = self.transformation(S)
-
-        return S
-
-
-class DGMNet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, output_dim = 1, final_trans=None, typeNN = 'LSTM'):
-        '''
-        Args:
-            layer_width:
-            n_layers:    number of intermediate LSTM layers
-            input_dim:   spatial dimension of input data (EXCLUDES time dimension)
-            final_trans: transformation used in final layer
-
-        Returns: customized PyTorch model object representing DGM neural network
-        '''
-        super(DGMNet, self).__init__()
-
-        # Initial layer as fully connected
-        # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
-        self.initial_layer = DenseLayer(layer_width, input_dim+1, transformation="tanh")
-
-        # Intermediate LSTM layers
-        self.n_layers = n_layers
-        if typeNN == 'LSTM':
-            self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
-            ])
-        elif typeNN == 'Dense':
-            self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
-            ])
-        else:
-            raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
-        self.typeNN = typeNN
-        # Final layer as fully connected with a single output (function value)
-        self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
-
-    def forward(self, t, x):
-        '''
-        Args:
-            t: sampled time inputs
-            x: sampled space inputs
-
-        Run the DGM model and obtain fitted function value at the inputs (t,x)
-        '''
-        # Define input vector as time-space pairs
-
-        X = torch.cat([t, x], 1)
-        X = MinMaxScaler().fit_transform(X)
-        # Call initial layer
-        S = self.initial_layer(X)
-
-        # Call intermediate LSTM layers
-        for layer in self.LayerList:
-            if self.typeNN == 'LSTM':
-                S = layer(S, X)
-            elif self.typeNN == 'Dense':
-                S = layer(S)
-
-        # Call final layer
-        result = self.final_layer(S)
-
-        return result
-
-class PIANet(nn.Module):
-    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None, typeNN = 'LSTM'):
-        '''
-        Args:
-            layer_width:
-            n_layers:    number of intermediate LSTM layers
-            input_dim:   spatial dimension of input data (EXCLUDES time dimension)
-            num_classes: number of output classes
-            final_trans: transformation used in final layer
-
-        Returns: customized PyTorch model object representing DGM neural network
-        '''
-        super(PIANet, self).__init__()
-
-        # Initial layer as fully connected
-        # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
-        self.initial_layer = DenseLayer(layer_width, input_dim+1, transformation="tanh")
-
-        # Intermediate LSTM layers
-        self.n_layers = n_layers
-        if typeNN == 'LSTM':
-            self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1) for _ in range(self.n_layers)
-            ])
-        elif typeNN == 'Dense':
-            self.LayerList = nn.ModuleList([
-                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers)
-            ])
-        else:
-            raise Exception('typeNN ' + typeNN + ' not supported. Choose one of Dense or LSTM')
-        self.typeNN = typeNN
-        # Final layer as fully connected with multiple outputs (function values)
-        self.final_layer = DenseLayer(num_classes, layer_width, transformation=final_trans)
-
-    def forward(self, t, x):
-        '''
-        Args:
-            t: sampled time inputs
-            x: sampled space inputs
-
-        Run the DGM model and obtain fitted function value at the inputs (t,x)
-        '''
-        # Define input vector as time-space pairs
-        X = torch.cat([t, x], 1)
-        X = MinMaxScaler().fit_transform(X)
-        # Call initial layer
-        S = self.initial_layer(X)
-
-        # Call intermediate LSTM layers
-        for layer in self.LayerList:
-            if self.typeNN == 'LSTM':
-                S = layer(S, X)
-            elif self.typeNN == 'Dense':
-                S = layer(S)
-        # Call final layer
-        result = self.final_layer(S)
-
-        # Get argmax and result
-        op = torch.argmax(result, 1)
-        op = op.reshape(op.shape[0], 1).float()
-
-        return op, result
-
-class DenseNet(nn.Module):
-    def __init__(self, input_dim, layer_width, n_layers, output_dim, model0, final_trans=None):
-        '''
-        Args:
-            layer_width:
-            n_layers:    number of intermediate LSTM layers
-            input_dim:   spatial dimension of input data (EXCLUDES time dimension)
-            num_classes: number of output classes
-            final_trans: transformation used in final layer
-
-        Returns: customized PyTorch model object representing DGM neural network
-        '''
-        super(DenseNet, self).__init__()
-        self.is_regression = (output_dim == 1)
-        # Initial layer as fully connected
-        # NOTE: to account for time inputs we use input_dim+1 as the input dimensionality
-        self.initial_layer = model0
-
-        # Intermediate LSTM layers
-        self.n_layers = n_layers
-        self.LayerList = nn.ModuleList([DenseLayer( layer_width,input_dim, transformation="tanh")] + [
-                DenseLayer(layer_width, layer_width, transformation="tanh") for _ in range(self.n_layers-1)
-            ])
-        # Final layer as fully connected with multiple outputs (function values)
-        self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
-
-    def forward(self, t, x):
-        '''
-        Args:
-            t: sampled time inputs
-            x: sampled space inputs
-
-        Run the DGM model and obtain fitted function value at the inputs (t,x)
-        '''
-        # Define input vector as time-space pairs
-
-        # Call initial layer
-        S = self.initial_layer(t, x)
-
-        # Call intermediate LSTM layers
-        for layer in self.LayerList:
-            S = layer(S)
-        # Call final layer
-        result = self.final_layer(S)
-        if self.is_regression: return result
-        # Get argmax and result
-        op = torch.argmax(result, 1)
-        op = op.reshape(op.shape[0], 1).float()
-
-        return op, result
-
-class MinMaxScaler:
-    def __init__(self, feature_range=(0, 1)):
-        self.feature_range = feature_range
-        self.data_min_ = None
-        self.data_max_ = None
-
-    def fit(self, X):
-        """Compute min/max values for scaling along each feature (column)"""
-        self.data_min_ = X.min(dim=0).values
-        self.data_max_ = X.max(dim=0).values
-        return self
-
-    def transform(self, X):
-        """Apply min-max scaling using precomputed statistics"""
-        denominator = self.data_max_ - self.data_min_
-        denominator = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
-
-        scale = (self.feature_range[1] - self.feature_range[0]) / denominator
-        min_ = self.feature_range[0] - self.data_min_ * scale
-
-        return X * scale + min_
-
-    def fit_transform(self, X):
-        """Convenience method for fit+transform"""
-        return self.fit(X).transform(X)
-
-    def inverse_transform(self, X_scaled):
-        """Reverse the scaling operation"""
-        denominator = self.data_max_ - self.data_min_
-        denominator = torch.where(denominator == 0, torch.ones_like(denominator), denominator)
-
-        scale = (self.feature_range[1] - self.feature_range[0]) / denominator
-        return (X_scaled - (self.feature_range[0] - self.data_min_ * scale)) / scale
-
-class TrainingLogger:
-    def __init__(self, log_dir='./logs', layer_widths=[20]*3, n_layers=[5]*3, label=None):
-        self.log_dir = log_dir
-        os.makedirs(log_dir, exist_ok=True)
-        self.hyperparams = {
-            'layer_widths': layer_widths,
-            'n_layers': n_layers
-        }
-
-        # Initialize loss dictionaries
-        self.losses = {
-            'hyperparams': self.hyperparams,
-            'epochs': []
-        }
-
-        # Initialize tracking variables
-        self.networks = []
-        self.tracked_metrics = {}
-
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.label = '' if label is None else str(label)
-        self.current_epoch = 0
-
-    def log_losses(self, **metrics):
-        """
-        Log losses and accuracies flexibly
-
-        Args:
-            **metrics: Dictionary of metrics to log (e.g., phi_loss=0.1, u_loss=0.2, acc_u=0.85)
-        """
-        self.current_epoch += 1
-        self.losses['epochs'].append(self.current_epoch)
-
-        # Process each provided metric
-        for key, value in metrics.items():
-            # Extract network name and metric type
-            parts = key.split('_')
-
-            if len(parts) == 1:
-                # Just the network name (like 'phi') implies it's a loss
-                network = parts[0]
-                metric_type = 'loss'
-            else:
-                # Format like 'acc_u' or 'u_loss'
-                if parts[0] == 'acc':
-                    network = parts[1]
-                    metric_type = 'acc'
-                else:
-                    network = parts[0]
-                    metric_type = parts[1]
-
-            # Add network to tracking if it's new
-            if network not in self.networks:
-                self.networks.append(network)
-
-            # Create metric key
-            metric_key = f"{network}_{metric_type}"
-
-            # Initialize list for this metric if it doesn't exist
-            if metric_key not in self.losses:
-                self.losses[metric_key] = []
-                self.tracked_metrics[metric_key] = {'network': network, 'type': metric_type}
-
-            # Append the value
-            self.losses[metric_key].append(value)
-
-    def save_logs(self):
-        """Save logs to file"""
-        log_file = os.path.join(self.log_dir, f"training_logs_{self.timestamp}_{self.label}.json")
-        with open(log_file, 'w') as f:
-            json.dump(self.losses, f)
-        return log_file
-
-    def plot_losses(self, show=True, save=True):
-        """Plot the loss curves with linear and log scales"""
-        # Count how many metrics we have to plot
-        loss_metrics = [m for m in self.tracked_metrics.keys() if 'loss' in m]
-        acc_metrics = [m for m in self.tracked_metrics.keys() if 'acc' in m]
-        total_metrics = len(loss_metrics) + len(acc_metrics)
-
-        # Calculate rows needed (each metric gets 2 plots side by side)
-        rows = max(total_metrics, 1)
-
-        plt.figure(figsize=(18, 4 * rows))  # Adjust height based on rows
-
-        epochs = self.losses['epochs']
-        plot_idx = 1
-
-        # Define colors for each network
-        colors = {'phi': 'b', 'u': 'g', 'd': 'r'}
-
-        # Plot losses first
-        for metric in loss_metrics:
-            network = self.tracked_metrics[metric]['network']
-            color = colors.get(network, 'k')  # Default to black if network not in colors dict
-
-            # Linear scale
-            plt.subplot(rows, 2, plot_idx)
-            plt.plot(epochs, self.losses[metric], f'{color}-')
-            plt.title(f'{network.capitalize()} Loss (Linear)')
-            plt.ylabel('Loss')
-            plt.grid(True)
-
-            # Log scale
-            plt.subplot(rows, 2, plot_idx + 1)
-            plt.semilogy(epochs, self.losses[metric], f'{color}-')
-            plt.title(f'{network.capitalize()} Loss (Log Scale)')
-            plt.ylabel('Log Loss')
-            plt.grid(True)
-
-            plot_idx += 2
-
-        # Then plot accuracies
-        for metric in acc_metrics:
-            network = self.tracked_metrics[metric]['network']
-            color = colors.get(network, 'k')
-
-            # Linear scale
-            plt.subplot(rows, 2, plot_idx)
-            plt.plot(epochs, self.losses[metric], f'{color}.-')
-            plt.title(f'{network.capitalize()} Accuracy (Linear)')
-            plt.ylabel('Accuracy')
-            plt.grid(True)
-
-            # Log scale
-            plt.subplot(rows, 2, plot_idx + 1)
-            plt.semilogy(epochs, self.losses[metric], f'{color}.-')
-            plt.title(f'{network.capitalize()} Accuracy (Log Scale)')
-            plt.ylabel('Log Accuracy')
-            plt.grid(True)
-
-            plot_idx += 2
-
-        # Add epoch labels to bottom plots
-        for i in range(max(1, (plot_idx - 2)), plot_idx):
-            plt.subplot(rows, 2, i)
-            plt.xlabel('Epochs')
-
-        plt.tight_layout(pad=3.0)  # Add padding between subplots
-
-        if save:
-            plot_file = os.path.join(self.log_dir, f"loss_plot_{self.timestamp}_{self.label}.png")
-            plt.savefig(plot_file)
-            print(f"Loss plot saved to {plot_file}")
-
-        if show:
-            plt.show()
-
-        return plt.gcf()
-
-
-# Model management helper class
-class ModelManager:
-    def __init__(self, model_dir='./models', label=None):
-        self.model_dir = model_dir
-        os.makedirs(model_dir, exist_ok=True)
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.label = '' if label is None else str(label)
-
-    def save_models(self, epoch=-1, **models):
-        """Save models to files
-
-        Args:
-            epoch (int): Current epoch number or -1 for final model
-            **models: Dictionary of models to save, e.g. phi=model_phi, u=model_u, d=model_d
-        """
-        # Create epoch-specific or final save
-        suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
-
-        # Save model states and collect paths
-        metadata = {
-            'timestamp': self.timestamp,
-            'epoch': epoch,
-            'models': {}
-        }
-
-        for model_name, model in models.items():
-            if model is None:
-                continue
-
-            model_path = os.path.join(
-                self.model_dir,
-                f"model_{model_name}{suffix}_{self.timestamp}_{self.label}.pt"
-            )
-            torch.save(model.state_dict(), model_path)
-            metadata['models'][model_name] = model_path
-
-        # Save model metadata
-        meta_path = os.path.join(
-            self.model_dir,
-            f"model_metadata{suffix}_{self.timestamp}_{self.label}.json"
-        )
-        with open(meta_path, 'w') as f:
-            json.dump(metadata, f)
-
-        return metadata
-
-    def load_models(self, timestamp=None, epoch=-1, **models):
-        """Load models from files
-
-        Args:
-            timestamp (str): Specific timestamp to load or None for latest
-            epoch (int): Specific epoch to load or -1 for final model
-            **models: Dictionary of model objects to load into, e.g. phi=model_phi, u=model_u
+            t: time inputs
+            x: space inputs
 
         Returns:
-            dict: Dictionary of loaded models with same keys as input
+            torch.Tensor: Preprocessed input data
         """
-        # Find latest model if timestamp not provided
-        if timestamp is None:
-            # List all metadata files and find the latest one
-            meta_files = [f for f in os.listdir(self.model_dir) if f.startswith("model_metadata")]
-            if not meta_files:
-                print("No saved models found.")
-                return [None]*len(models.keys())
+        # Concatenate time and space inputs
+        X = torch.cat([t, x], 1)
+        # Scale inputs
+        return MinMaxScaler().fit_transform(X)
 
-            # Get the latest timestamp
-            meta_files.sort(reverse=True)
-            latest_meta = meta_files[0]
-            meta_path = os.path.join(self.model_dir, latest_meta)
+
+class TransformerEncoder(nn.Module):
+    """Custom Transformer Encoder for time series data."""
+
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, activation="relu", dropout=0.1):
+        """
+        Args:
+            input_dim: Input feature dimension
+            d_model: Model dimension for transformer
+            nhead: Number of attention heads
+            num_layers: Number of transformer layers
+            dim_feedforward: Feed-forward network dimension
+            activation: Activation function to use
+            dropout: Dropout rate
+        """
+        super(TransformerEncoder, self).__init__()
+
+        # Initial projection to model dimension
+        self.input_projection = nn.Linear(input_dim, d_model)
+
+        # Position encoding (learned)
+        self.pos_encoder = nn.Parameter(torch.empty(1, 1, d_model))
+        nn.init.normal_(self.pos_encoder, mean=0, std=0.02)
+
+        # Transformer encoder layer
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            activation=activation,
+            batch_first=True,
+            norm_first=True
+        )
+
+        # Stack encoder layers
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # Output projection
+        self.output_projection = nn.Linear(d_model, d_model)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Input tensor of shape [batch_size, seq_len, input_dim]
+
+        Returns:
+            Output tensor of shape [batch_size, d_model]
+        """
+        # Project input to model dimension
+        x = self.input_projection(x)
+
+        # Add positional encoding
+        x = x + self.pos_encoder
+
+        # Apply transformer encoder
+        x = self.transformer_encoder(x, mask=None)
+
+        # Get the final token representation
+        x = x[:, -1, :]  # Take the last token for sequence representation
+
+        # Project to output dimension
+        x = self.output_projection(x)
+
+        return x
+
+# Replace your TransformerEncoder with this more manual implementation
+class CustomTransformerEncoder(nn.Module):
+    def __init__(self, input_dim, d_model, nhead, num_layers, dim_feedforward, dropout=0.1, activation='relu'):
+        super(CustomTransformerEncoder, self).__init__()
+        self.input_projection = nn.Linear(input_dim, d_model)
+        self.pos_encoder = nn.Parameter(torch.empty(1, 1, d_model))
+        nn.init.normal_(self.pos_encoder, mean=0, std=0.02)
+
+        self.layers = nn.ModuleList([
+            nn.Sequential(
+                nn.LayerNorm(d_model),
+                nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True),
+                nn.Dropout(dropout),
+                nn.LayerNorm(d_model),
+                nn.Linear(d_model, dim_feedforward),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(dim_feedforward, d_model),
+                nn.Dropout(dropout)
+            ) for _ in range(num_layers)
+        ])
+
+        self.output_projection = nn.Linear(d_model, d_model)
+        self.final_norm = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        x = self.input_projection(x)
+        batch_size, seq_len = x.shape[0], x.shape[1]
+        pos_encoding = self.pos_encoder.expand(batch_size, seq_len, -1)
+        x = x + pos_encoding
+
+        for layer in self.layers:
+            norm1, attn, dropout1, norm2, linear1, relu, dropout2, linear2, dropout3 = layer
+
+            # First sublayer (attention)
+            residual = x
+            x = norm1(x)
+            x_attn, _ = attn(x, x, x)
+            x = residual + dropout1(x_attn)
+
+            # Second sublayer (feedforward)
+            residual = x
+            x = norm2(x)
+            x = linear1(x)
+            x = relu(x)
+            x = dropout2(x)
+            x = linear2(x)
+            x = residual + dropout3(x)
+
+        x = self.final_norm(x)
+        x = x[:, -1, :]  # Take the last token
+        x = self.output_projection(x)
+        return x
+
+
+class NeuralNet(BaseNet):
+    def __init__(self, layer_width, n_layers, input_dim, output_dim=1, final_activation=None,
+                 typeNN='LSTM', is_regression=True, hidden_activation="tanh",
+                 transformer_config=None):
+        '''
+        Args:
+            layer_width:        width of intermediate layers
+            n_layers:           number of intermediate layers
+            input_dim:          spatial dimension of input data (EXCLUDES time dimension)
+            output_dim:         dimensionality of output (1 for regression, >1 for classification)
+            final_activation:   activation function used in final layer
+            typeNN:             type of network ('LSTM', 'Dense', or 'Transformer')
+            is_regression:      whether this is a regression model (True) or classification (False)
+            hidden_activation:  activation function used in hidden layers
+            transformer_config: configuration for transformer model (if typeNN='Transformer')
+                                dict with keys: nhead, dim_feedforward, dropout
+
+        Returns: customized PyTorch model object representing a neural network
+        '''
+        super(NeuralNet, self).__init__()
+
+        self.is_regression = is_regression
+        self.typeNN = typeNN
+
+        # Calculate input size (add 1 for time dimension)
+        input_size = input_dim + 1
+
+        # Initial layer as fully connected
+        self.initial_layer = DenseLayer(layer_width, input_size, activation=hidden_activation)
+
+        # Default transformer config
+        default_transformer_config = {
+            'nhead': 5,  # Number of attention heads
+            'dim_feedforward': 2048,  # Dimension of feedforward network
+            'dropout': 0.1,  # Dropout rate
+        }
+
+        # Use provided transformer config or default
+        if transformer_config is None:
+            transformer_config = default_transformer_config
         else:
-            # Use specified timestamp
-            suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
-            meta_path = os.path.join(
-                self.model_dir,
-                f"model_metadata{suffix}_{timestamp}.json"
+            # Update default with provided config
+            for key, value in default_transformer_config.items():
+                if key not in transformer_config:
+                    transformer_config[key] = value
+
+        # Intermediate layers
+        if typeNN == 'LSTM':
+            #Use PyTorch's built-in LSTM layer
+            self.lstm = nn.LSTM(
+                input_size=input_size + layer_width,  # Concatenated input and previous layer output
+                hidden_size=layer_width,
+                num_layers=n_layers,
+                batch_first=True
             )
+        elif typeNN == 'Dense':
+            self.layers = nn.ModuleList([
+                DenseLayer(layer_width, layer_width, activation=hidden_activation)
+                for _ in range(n_layers)
+            ])
+        elif typeNN == 'Transformer':
+            self.transformer = CustomTransformerEncoder(
+                input_dim=input_size + layer_width,  # Concatenated input and previous layer output
+                d_model=layer_width,
+                nhead=transformer_config['nhead'],
+                num_layers=n_layers,
+                dim_feedforward=transformer_config['dim_feedforward'],
+                activation=hidden_activation,
+                dropout=transformer_config['dropout']
+            )
+        else:
+            raise ValueError(f'typeNN {typeNN} not supported. Choose one of Dense, LSTM, or Transformer')
 
-        # Load metadata
-        try:
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
+        # Final layer as fully connected
+        self.final_layer = DenseLayer(output_dim, layer_width, activation=final_activation)
 
-            loaded_models = {}
-            device = 'cpu' if not torch.cuda.is_available() else 'cuda'
+    def forward(self, t, x):
+        '''
+        Args:
+            t: sampled time inputs
+            x: sampled space inputs
 
-            # Load each model if provided and available in metadata
-            for model_name, model in models.items():
-                if model is None or model_name not in metadata['models']:
-                    loaded_models[model_name] = None
-                    continue
+        Run the model and obtain predictions at the inputs (t,x)
+        '''
+        # Preprocess input
+        X = self.preprocess_input(t, x)
 
-                try:
-                    state_dict = torch.load(
-                        metadata['models'][model_name],
-                        map_location=torch.device(device)
-                    )
+        # Call initial layer
+        S = self.initial_layer(X)
 
-                    # Handle potential module prefix differences
-                    if not any(k.startswith('module.') for k in state_dict.keys()) and \
-                            any(k.startswith('module.') for k in model.state_dict().keys()):
-                        # Add module prefix
-                        new_state_dict = OrderedDict()
-                        for k, v in state_dict.items():
-                            new_state_dict["module." + k] = v
-                        state_dict = new_state_dict
-                    elif any(k.startswith('module.') for k in state_dict.keys()) and \
-                            not any(k.startswith('module.') for k in model.state_dict().keys()):
-                        # Remove module prefix
-                        new_state_dict = OrderedDict()
-                        for k, v in state_dict.items():
-                            new_state_dict[k.replace('module.', '')] = v
-                        state_dict = new_state_dict
+        # Process through intermediate layers
+        if self.typeNN == 'LSTM':
+            # For LSTM, we need to reshape and concatenate the inputs
+            batch_size = X.size(0)
 
-                    model.load_state_dict(state_dict)
-                    loaded_models[model_name] = model
-                except Exception as e:
-                    print(f"Error loading {model_name}: {e}")
-                    loaded_models[model_name] = None
+            # Concatenate the current state S with input X
+            combined = torch.cat([S, X], dim=1)
 
-            print(f"Models loaded successfully from {meta_path}")
-            return loaded_models
+            # Reshape for LSTM: (batch, seq_len=1, features)
+            combined = combined.unsqueeze(1)
+            with torch.backends.cudnn.flags(enabled=False):
+                # Process through LSTM
+                output, _ = self.lstm(combined)
 
-        except FileNotFoundError:
-            print(f"Model files not found at {meta_path}")
-            return [None]*len(models.keys())
-        except Exception as e:
-            print(f"Error loading models: {e}")
-            return [None]*len(models.keys())
+            # Extract the output of the last time step
+            S = output[:, -1, :]
+        elif self.typeNN == 'Dense':
+            for layer in self.layers:
+                S = layer(S)
 
-def get_gpu_specs():
-    """Print detailed information about available CUDA devices in PyTorch."""
+        elif self.typeNN == 'Transformer':
+            # For Transformer, reshape and concatenate similar to LSTM
+            combined = torch.cat([S, X], dim=1)
+            combined = combined.unsqueeze(1)  # Add sequence dimension (batch, seq_len=1, features)
 
-    print("=" * 40)
-    print("PYTORCH GPU INFORMATION")
-    print("=" * 40)
+            # Process through Transformer
+            S = self.transformer(combined)
 
-    # Check if CUDA is available
-    if not torch.cuda.is_available():
-        print("CUDA is not available. No GPU detected by PyTorch.")
-        return
+        # Call final layer
+        result = self.final_layer(S)
 
-    # Get the number of GPUs
-    gpu_count = torch.cuda.device_count()
-    print(f"Number of available GPUs: {gpu_count}")
+        # For regression, just return the result
+        if self.is_regression:
+            return result
 
-    # Current device
-    current_device = torch.cuda.current_device()
-    print(f"Current active device: {current_device}")
+        # For classification, return predicted class and probabilities
+        op = torch.argmax(result, 1)
+        op = op.reshape(op.shape[0], 1).float()
+        return op, result
 
-    # Get PyTorch CUDA version
-    cuda_version = torch.version.cuda
-    print(f"PyTorch CUDA version: {cuda_version}")
 
-    # Loop through each device and get its properties
-    for i in range(gpu_count):
-        print(f"\nGPU {i} specifications:")
-        print("-" * 30)
+# For backward compatibility
+class DGMNet(NeuralNet):
+    def __init__(self, layer_width, n_layers, input_dim, output_dim=1, final_trans=None,
+                 typeNN='LSTM', hidden_activation="tanh", transformer_config=None):
+        '''Regression-focused neural network model
 
-        # Get device properties
-        prop = torch.cuda.get_device_properties(i)
+        Args: Same as NeuralNet with backward compatibility
+        '''
+        super(DGMNet, self).__init__(
+            layer_width=layer_width,
+            n_layers=n_layers,
+            input_dim=input_dim,
+            output_dim=output_dim,
+            final_activation=final_trans,  # Renamed parameter
+            typeNN=typeNN,
+            is_regression=True,
+            hidden_activation=hidden_activation,
+            transformer_config=transformer_config
+        )
 
-        # Print device name and specifications
-        print(f"Name: {prop.name}")
-        print(f"Compute capability: {prop.major}.{prop.minor}")
-        print(f"Total memory: {prop.total_memory / 1024**3:.2f} GB")
 
-        # Additional properties
-        print(f"Multi-processor count: {prop.multi_processor_count}")
+class PIANet(NeuralNet):
+    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None,
+                 typeNN='LSTM', hidden_activation="tanh", transformer_config=None):
+        '''Classification-focused neural network model
 
-    # Check memory usage of current device
-    print("\nCurrent GPU Memory Usage:")
-    print("-" * 30)
-    print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
-    print(f"Cached: {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+        Args: Same as NeuralNet, with num_classes instead of output_dim
+        '''
+        super(PIANet, self).__init__(
+            layer_width=layer_width,
+            n_layers=n_layers,
+            input_dim=input_dim,
+            output_dim=num_classes,
+            final_activation=final_trans,  # Renamed parameter
+            typeNN=typeNN,
+            is_regression=False,
+            hidden_activation=hidden_activation,
+            transformer_config=transformer_config
+        )
 
-import json
-import matplotlib.pyplot as plt
-import os
-from datetime import datetime
 
-def plot_losses_from_json(json_path, show=True, save=True):
-    """Load loss data from JSON and create dual-scale plots"""
-    # Load data
-    with open(json_path, 'r') as f:
-        losses = json.load(f)
+class DenseNet(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers, output_dim, model0,
+                 final_activation=None, hidden_activation="tanh"):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            output_dim:        dimensionality of output
+            model0:            initial model to use
+            final_activation:  activation function used in final layer
+            hidden_activation: activation function for hidden layers
 
-    # Validate required keys
-    required_keys = ['phi', 'u', 'd']
-    for key in required_keys:
-        if key not in losses:
-            raise ValueError(f"Missing required key in JSON: {key}")
+        Returns: customized PyTorch model using another model's output as input
+        '''
+        super(DenseNet, self).__init__()
 
-    # Create figure
-    plt.figure(figsize=(18, 12))
-    epochs = range(1, len(losses['phi']) + 1)
+        self.is_regression = (output_dim == 1)
 
-    # Plotting function
-    def plot_pair(position, data, color, label, is_accuracy=False):
-        # Linear scale
-        plt.subplot(5, 2, position*2-1)
-        plt.plot(epochs, data, f'{color}-' if not is_accuracy else f'{color}.')
-        plt.title(f'{label} (Linear)')
-        plt.ylabel('Accuracy' if is_accuracy else 'Loss')
-        plt.grid(True)
+        # Initial layer uses output from another model
+        self.initial_layer = model0
 
-        # Log scale
-        plt.subplot(5, 2, position*2)
-        plot_data = data if not is_accuracy else [x + 1e-8 for x in data]  # Avoid log(0)
-        plt.semilogy(epochs, plot_data, f'{color}-' if not is_accuracy else f'{color}.')
-        plt.title(f'{label} (Log Scale)')
-        plt.ylabel('Log Accuracy' if is_accuracy else 'Log Loss')
-        plt.grid(True)
+        # Use PyTorch's Sequential for cleaner implementation of dense layers
+        layers = [DenseLayer(layer_width, input_dim, activation=hidden_activation)]
+        for _ in range(n_layers - 1):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.layers = nn.Sequential(*layers)
 
-    # Plot all components
-    plot_pair(1, losses['phi'], 'b', 'Value Function Loss')
-    plot_pair(2, losses['u'], 'g', 'Control Function Loss')
-    #plot_pair(3, losses['acc_u'], 'g', 'Control Function Accuracy', is_accuracy=True)
-    plot_pair(4, losses['d'], 'r', 'Decision Function Loss')
-    #plot_pair(5, losses['acc_d'], 'r', 'Decision Function Accuracy', is_accuracy=True)
+        # Final layer
+        self.final_layer = DenseLayer(output_dim, layer_width, activation=final_activation)
 
-    # Final formatting
-    plt.tight_layout(pad=3.0)
-    plt.subplot(5, 2, 9)
-    plt.xlabel('Epochs')
-    plt.subplot(5, 2, 10)
-    plt.xlabel('Epochs')
+    def forward(self, t, x):
+        '''
+        Args:
+            t: sampled time inputs
+            x: sampled space inputs
 
-    # Save/output
-    if save:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(os.path.dirname(json_path), f"loss_plot_{timestamp}.png")
-        plt.savefig(plot_path)
-        print(f"Plot saved to: {plot_path}")
+        Run the model and obtain predictions
+        '''
+        # Call initial layer (which is another model)
+        S = self.initial_layer(t, x)
 
-    if show:
-        plt.show()
+        # Call intermediate layers
+        S = self.layers(S)
 
-    return plt.gcf()
+        # Call final layer
+        result = self.final_layer(S)
 
-# Example usage
-# plot_losses_from_json('D:\\PhD\\results - hjbqvi\\training_logs_20250317_120356.json')
+        if self.is_regression:
+            return result
+
+        # For classification, get argmax and result
+        op = torch.argmax(result, 1)
+        op = op.reshape(op.shape[0], 1).float()
+
+        return op, result
+
+class MLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers, output_dim,
+                 final_activation=None, hidden_activation="tanh"):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            output_dim:        dimensionality of output
+            model0:            initial model to use
+            final_activation:  activation function used in final layer
+            hidden_activation: activation function for hidden layers
+
+        Returns: customized PyTorch model using another model's output as input
+        '''
+        super(MLP, self).__init__()
+
+        self.is_regression = (output_dim == 1)
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Use PyTorch's Sequential for cleaner implementation of dense layers
+        layers = [DenseLayer(layer_width, layer_width, activation=hidden_activation)]
+        for _ in range(n_layers - 1):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.layers = nn.Sequential(*layers)
+
+        # Final layer
+        self.final_layer = DenseLayer(output_dim, layer_width, activation=final_activation)
+        self.final_activation = final_activation
+    def forward(self, x):
+        '''
+        Args:
+            x: sampled space inputs
+
+        Run the model and obtain predictions
+        '''
+        # Call initial layer (which is another model)
+        # x = MinMaxScaler().fit_transform(x)
+        S = self.initial_layer(x)
+
+        # Call intermediate layers
+        S = self.layers(S)
+
+        # Call final layer
+        if self.final_activation != 'softmax':
+            result = self.final_layer(S)
+        else:
+            # print(S - torch.max(S))
+            result = self.final_layer(S) # - torch.max(S))
+
+        if self.is_regression:
+            return result
+
+        # For classification, get argmax and result
+        op = torch.argmax(result.clone(), 1)
+        op = op.reshape(op.shape[0], 1).float()
+
+        return op, result
+
+class ActorCriticMLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 actor_output_dim, actor_activation="softmax",
+                 hidden_activation="tanh", q_function = True):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            actor_output_dim:  dimensionality of actor output (action space)
+            actor_activation:  activation function used in actor's output layer
+            hidden_activation: activation function for hidden layers
+
+        Returns: A shared MLP network with separate heads for actor and critic
+        '''
+        super(ActorCriticMLP, self).__init__()
+
+        # Shared feature extraction layers
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build shared hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.shared_layers = nn.Sequential(*layers)
+
+        # Actor output layer (policy network)
+        self.actor_output = DenseLayer(actor_output_dim, layer_width, activation=actor_activation)
+
+        # Critic output layer (value function) - always outputs a single value
+        opDim = actor_output_dim if q_function else 1
+        self.critic_output = DenseLayer(opDim, layer_width, activation=None)
+
+        self.actor_activation = actor_activation
+
+    def forward(self, x):
+        '''
+        Process inputs through the shared network, then through
+        separate actor and critic heads
+
+        Args:
+            x: input state
+
+        Returns:
+            actor_output: policy distribution or action
+            critic_output: value estimate
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor head
+        actor_output = self.actor_output(features)
+
+        # Critic head (value function)
+        critic_output = self.critic_output(features)
+
+        # For classification policy, get argmax action
+        if self.actor_activation == 'softmax':
+            action = torch.argmax(actor_output.clone(), 1)
+            action = action.reshape(action.shape[0], 1).float()
+            return action, actor_output, critic_output
+
+        return actor_output, critic_output
+
+class ActorCriticSGMLP(nn.Module):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 actor_output_dim, actor_log_std_min=-20, actor_log_std_max=2,
+                 hidden_activation="tanh", q_function=True):
+        '''
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            actor_output_dim:  dimensionality of actor output (action space)
+            actor_log_std_min: minimum value for log standard deviation
+            actor_log_std_max: maximum value for log standard deviation
+            hidden_activation: activation function for hidden layers
+            q_function:        whether to use Q-function or V-function for critic
+
+        Returns: A shared MLP network with separate heads for actor and critic
+        '''
+        super(ActorCriticSGMLP, self).__init__()
+
+        # Shared feature extraction layers
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build shared hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.shared_layers = nn.Sequential(*layers)
+
+        # Actor mean and log std layers for Gaussian policy
+        self.actor_mean = DenseLayer(actor_output_dim, layer_width, activation=None)
+        self.actor_log_std = DenseLayer(actor_output_dim, layer_width, activation=None)
+
+        # Parameters for log std clamping
+        self.actor_log_std_min = actor_log_std_min
+        self.actor_log_std_max = actor_log_std_max
+
+        # Critic output layer
+        opDim = actor_output_dim if q_function else 1
+        self.critic_output = DenseLayer(opDim, layer_width, activation=None)
+
+    def forward(self, x):
+        '''
+        Process inputs through the shared network, then through
+        separate actor and critic heads
+
+        Args:
+            x: input state
+
+        Returns:
+            action: sampled action after squashing
+            actor_output: mean and log std of policy distribution
+            critic_output: value estimate
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor mean and log std
+        actor_mean = self.actor_mean(features)
+        actor_log_std = self.actor_log_std(features)
+
+        # Clamp log std to prevent extreme values
+        actor_log_std = torch.clamp(
+            actor_log_std,
+            min=self.actor_log_std_min,
+            max=self.actor_log_std_max
+        )
+
+        # Create distribution
+        actor_std = torch.exp(actor_log_std)
+        actor_dist = torch.distributions.Normal(actor_mean, actor_std)
+
+        # Sample action and apply tanh squashing
+        raw_action = actor_dist.rsample()
+        action = torch.tanh(raw_action)
+
+        # Compute log probability with squashing correction
+        log_prob = actor_dist.log_prob(raw_action)
+        log_prob -= torch.log(1 - action.pow(2) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        # Critic head (value function)
+        critic_output = self.critic_output(features)
+
+        return action, (actor_mean, actor_log_std, log_prob), critic_output
+
+    def get_log_prob(self, x, actions):
+        '''
+        Compute log probability of given actions
+
+        Args:
+            x: input state
+            actions: input actions to compute log probability for
+
+        Returns:
+            log_prob: log probability of actions
+        '''
+        # Forward through shared layers
+        features = self.initial_layer(x)
+        features = self.shared_layers(features)
+
+        # Actor mean and log std
+        actor_mean = self.actor_mean(features)
+        actor_log_std = self.actor_log_std(features)
+
+        # Clamp log std to prevent extreme values
+        actor_log_std = torch.clamp(
+            actor_log_std,
+            min=self.actor_log_std_min,
+            max=self.actor_log_std_max
+        )
+
+        # Create distribution
+        actor_std = torch.exp(actor_log_std)
+        actor_dist = torch.distributions.Normal(actor_mean, actor_std)
+
+        # Inverse squashing
+        raw_actions = torch.arctanh(torch.clamp(actions, -1+1e-6, 1-1e-6))
+
+        # Compute log probability with squashing correction
+        log_prob = actor_dist.log_prob(raw_actions)
+        log_prob -= torch.log(1 - actions.pow(2) + 1e-6)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        return log_prob

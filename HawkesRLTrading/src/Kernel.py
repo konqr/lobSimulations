@@ -13,7 +13,8 @@ from HawkesRLTrading.src.Messages.AgentMessages import *
 from HawkesRLTrading.src.Messages.ExchangeMessages import *
 from HawkesRLTrading.src.Utils.Exceptions import *
 from typing import Any, Dict, List, Optional, Tuple
-
+logging.basicConfig()
+logging.getLogger(__name__).setLevel(logging.INFO)
 logger=logging.getLogger(__name__)
 
 # trial=Message()
@@ -120,13 +121,23 @@ class Kernel:
             print(f"First action time is: {self.nearest_action_time} seconds")
         else:
             assert self.isrunning==True, f"Kernel must take an agent action once it has begun running"
-            agentID=action[0]
-            event=action[1][0]
-            size=action[1][1]
-            agent: GymTradingAgent=self.entity_registry[agentID]
-            assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
-            order=agent.action_to_order(action=(event, size))
-            agent.submitorder(order)
+            if type(action[0]) == int:
+                agentID=action[0]
+                event=action[1][0]
+                size=action[1][1]
+                agent: GymTradingAgent=self.entity_registry[agentID]
+                assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
+                order=agent.action_to_order(action=(event, size))
+                agent.submitorder(order)
+            else: # multiple actions
+                for a in action:
+                    agentID=a[0]
+                    event=a[1][0]
+                    size=a[1][1]
+                    agent: GymTradingAgent=self.entity_registry[agentID]
+                    assert agent in self.gymagents and agent in self.agents, f"Intended action to run does not belong to an experimental gym agent."
+                    order=agent.action_to_order(action=(event, size))
+                    agent.submitorder(order)
         #While there are still items in the queue, process them. And if there are no items in the queue left and time limit is not up yet, generate the next point.
         while (self.current_time<self.stop_time):
             logger.debug(f"Nearest Action time: {self.nearest_action_time}")
@@ -317,6 +328,7 @@ class Kernel:
                 agent.receivemessage(current_time=self.current_time, senderID=senderID, message=message)
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
+                if not self.isrunning: return None
                 assert self.agents_current_times[recipientID]>=timesent, f"Agent registry time: {self.agents_current_times[recipientID]}. Timesent: {timesent}"
                 if recipientID==-1 or recipientID==self.exchange.id:
                     raise UnexpectedMessageType("WakeAgent Messages should be sent to a valid agentID")
@@ -391,6 +403,9 @@ class Kernel:
         senderID: int=item[1][0]
         timesent: float=item[0]
         rtn={}
+        if not self.isrunning:
+            rtn[recipientIDs[0]] = None
+            return rtn
         if isinstance(message, ExchangeMsg):
             print(f"Batch message: {message}, {type(message)}")
             for recipientID in recipientIDs:
@@ -491,6 +506,10 @@ class Kernel:
         rtn["Positions"]=agentobs["Positions"]
         rtn['lobL3'] = self.entity_registry[self.exchange.id].lobl3
         rtn['lobL3_sizes'] = self.entity_registry[self.exchange.id].returnlob()
+        rtn['current_intensity'] = self.entity_registry[self.exchange.id].returnintensity()
+        pt = self.current_time - self.entity_registry[self.exchange.id].returnpasteventimes()
+        pt[pt==self.current_time+1] = -1
+        rtn['past_times']= pt
         return rtn
     
     def getinfo(self, data: Dict={}):
