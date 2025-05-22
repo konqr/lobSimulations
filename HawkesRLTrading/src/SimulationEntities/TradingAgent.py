@@ -59,10 +59,10 @@ class TradingAgent(Entity):
         self.cashlimit=cashlimit
         self.inventorylimit=inventorylimit
         self.cash=cash
-
+        self.mid = 0
         #private atributes
         self.profit=0
-        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy())] #List of [timecode, cash, #realized profit, inventory, positions]
+        self.statelog=[(0, self.cash, self.profit, Inventory.copy(), self.positions.copy(), self.mid)] #List of [timecode, cash, #realized profit, inventory, positions]
         self.actions=["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid", None]
         self.actionsToLevels = {

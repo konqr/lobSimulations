@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
+from HawkesRLTrading.src.SimulationEntities.ProbabilisticAgent import ProbabilisticAgent
 from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
@@ -94,6 +95,9 @@ class tradingEnv(gym.Env):
                                                     wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 elif j['strategy'] == 'ICRL':
                     new_agent = j['agent_instance']
+                elif j['strategy'] == 'Probabilistic':
+                    new_agent=ProbabilisticAgent( seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+                                                  wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -264,7 +268,7 @@ if __name__=="__main__":
                 "TradingAgent": [],
 
                 "GymTradingAgent": [{"cash": 2000,
-                                    "strategy": "ICRL",
+                                    "strategy": 'Probabilistic',#"ICRL",
 
                                     "action_freq": 0.2,
                                     "rewardpenalty": 100,
@@ -274,6 +278,7 @@ if __name__=="__main__":
                                     "inventorylimit": 1000000,
                                     "wake_on_MO": False,
                                     "wake_on_Spread": False}],
+
                 # "GymTradingAgent": [{"cash": 1000000,
                 #                     "strategy": "Random",
                 #                      'on_trade':False,
@@ -294,7 +299,6 @@ if __name__=="__main__":
                 #                      "action_freq":0.2,
                 #                      "Inventory": {"XYZ":1} #inventory cant be 0
                 #                     }],
-                "Exchange": {"symbol": "INTC",
                 #"GymTradingAgent": [{"cash": 1000000,
                 #                    "strategy": "ImpulseControl",
                 #                     'on_trade':True,
@@ -306,7 +310,8 @@ if __name__=="__main__":
                 #                     'label' : '20250325_160949_INTC_SIMESPPL',
                 #                     'epoch':2180,
                 #                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
-                #"Exchange": {"symbol": "INTC",
+
+                "Exchange": {"symbol": "INTC",
                 "ticksize":0.01,
                 "LOBlevels": 2,
                 "numOrdersPerLevel": 10,
@@ -322,23 +327,24 @@ if __name__=="__main__":
 
             }
     j = kwargs['GymTradingAgent'][0]
-    agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-               wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers)
-    j['agent_instance'] = agentInstance
-    kwargs['GymTradingAgent'] = [j]
+    # agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+    #            wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers)
+    # j['agent_instance'] = agentInstance
+    # kwargs['GymTradingAgent'] = [j]
     i=0
     cash, inventory, t, actions = [], [], [], []
     avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
+    episodic_rewards = []
     # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
-    for episode in range(500):
-        env=tradingEnv(stop_time=20, wall_time_limit=23400, seed=1, **kwargs)
+    for episode in range(2):
+        env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
 
         Simstate, observations, termination, truncation =env.step(action=None)
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-        agent.setupNNs(observations)
+        # agent.setupNNs(observations)
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
 
 
@@ -352,13 +358,14 @@ if __name__=="__main__":
             agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
             agentAction = agent.get_action(data=observations, epsilon = 0.5 if i < 100 else 0.1)
-            action=(agent.id, (agentAction[0],1))
+            # action=(agent.id, (agentAction[0],1))
+            action = [(agent.id, a) for a in agentAction]
             print(f"Limit Order Book: {observations['LOB0']}")
             print(f"Action: {action}")
             observations_prev = copy.deepcopy(observations)
             Simstate, observations, termination, truncation=env.step(action=action)
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-            agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
             print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
             i+=1
@@ -380,8 +387,8 @@ if __name__=="__main__":
             print("Truncation condition reached.")
         else:
             pass
-        for epoch in range(100):
-            d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
+        # for epoch in range(100):
+        #     d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
             # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
         # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
         # logger.save_logs()
@@ -397,17 +404,18 @@ if __name__=="__main__":
 
         plt.figure(figsize=(12,8))
 
-        plt.plot(np.arange(len(cash)), cash)
-        plt.title('Cash')
-        plt.subplot(222)
-        plt.plot(np.arange(len(cash)), inventory)
-        plt.title('Inventory')
-        plt.subplot(223)
-        plt.scatter(np.arange(len(cash)), actions)
-        plt.yticks(np.arange(0,13), agent.actions)
-        plt.title('Actions')
-        plt.savefig(log_dir + label+'_policy.png')
-        episodic_rewards = []
+        # plt.plot(np.arange(len(cash)), cash)
+        # plt.title('Cash')
+        # plt.subplot(222)
+        # plt.plot(np.arange(len(cash)), inventory)
+        # plt.title('Inventory')
+        # plt.subplot(223)
+        # plt.scatter(np.arange(len(cash)), actions)
+        # plt.yticks(np.arange(0,13), agent.actions)
+        # plt.title('Actions')
+        # # plt.savefig(log_dir + label+'_policy.png')
+        # plt.show()
+
         r=0
         tmp = agent.trajectory_buffer[0][0]
         for ij in agent.trajectory_buffer:
@@ -417,6 +425,7 @@ if __name__=="__main__":
                 episodic_rewards.append(r)
                 r = ij[1][3]
                 tmp=ij[0]
+        episodic_rewards.append(r)
         avgEpisodicRewards.append(np.mean(episodic_rewards))
         stdEpisodicRewards.append(np.std(episodic_rewards))
         finalcash.append(cash[-1] + inventory[-1]*agent.mid )
@@ -426,6 +435,7 @@ if __name__=="__main__":
         plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
         plt.title('Avg Episodic Rewards')
         plt.subplot(222)
-        plt.plot(np.arange(episode+1), finalcash)
-        plt.title('Final Cash')
-        plt.savefig(log_dir + label+'_avgepisodicreward.png')
+        plt.plot(np.arange(episode+1), np.array(finalcash)-2000)
+        plt.title('Final Profit')
+        # plt.savefig(log_dir + label+'_avgepisodicreward.png')
+        plt.show()
