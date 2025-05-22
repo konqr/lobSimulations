@@ -1431,7 +1431,7 @@ class PPOAgent(GymTradingAgent):
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
-        deltaInv = self.statelog[-1][3]*self.statelog[-1][-1] - self.statelog[-2][3]*self.statelog[-2][-1]
+        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1] - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]
         # if self.istruncated or termination:
         #     deltaPNL += self.countInventory() * self.mid
         # reward shaping

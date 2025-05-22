@@ -270,7 +270,7 @@ if __name__=="__main__":
                 "GymTradingAgent": [{"cash": 2000,
                                     "strategy": 'Probabilistic',#"ICRL",
 
-                                    "action_freq": 0.2,
+                                    "action_freq": 0.02,
                                     "rewardpenalty": 100,
                                     "Inventory": {"INTC": 0},
                                     "log_to_file": True,
@@ -337,8 +337,8 @@ if __name__=="__main__":
     episodic_rewards = []
     # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
-    for episode in range(2):
-        env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
+    for episode in range(10):
+        env=tradingEnv(stop_time=2000, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
 
         Simstate, observations, termination, truncation =env.step(action=None)
@@ -400,6 +400,7 @@ if __name__=="__main__":
         agent.Inventory = {"INTC": 0}
         agent.positions = {'INTC':{}}
         j['agent_instance'] = agent
+        j['Inventory'] = {"INTC": 0}
         kwargs['GymTradingAgent'] = [j]
 
         plt.figure(figsize=(12,8))
