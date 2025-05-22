@@ -135,6 +135,13 @@ class ProbabilisticAgent(GymTradingAgent):
                 if (data[0][-3] - data[0][5])/(0.5*(data[0][4] + data[0][5])) < skew:
                     if len(origData['Positions']['Bid_L2']) != 0: actions.append((11,size))
                     actions.append((9,size))
+            if skew < -0.5:
+                if (data[0][4] - data[0][-2])/(0.5*(data[0][4] + data[0][5])) > skew:
+                    if len(origData['Positions']['Ask_L2']) != 0: actions.append((1,size))
+                    actions.append((2,size))
+                if (data[0][-3] - data[0][5])/(0.5*(data[0][4] + data[0][5])) > skew:
+                    if len(origData['Positions']['Bid_L2']) != 0: actions.append((11,size))
+                    actions.append((9,size))
         if len(actions) == 0:
             if len(np.concat(list(origData['Positions'].values()))) == 0:
                 return ((2,size), (9,size))

@@ -301,7 +301,7 @@ class TradingAgent(Entity):
         if self.statelog[-1][0]==self.current_time:
             logger.info(f"Last agent LOG is {self.statelog[-1]} and new log to be appended is {(self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy())}")
             return False
-        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy()))
+        self.statelog.append((self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy(), self.mid))
     
     def getobservations(self):
         rtn={"Cash":self.cash,
