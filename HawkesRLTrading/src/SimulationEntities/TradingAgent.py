@@ -270,7 +270,7 @@ class TradingAgent(Entity):
                     self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        if self.cash<0 or self.countInventory()<-5 or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
+        if self.cash<0 or self.countInventory()<-1*self.inventorylimit or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
             self.istruncated=True
         
     def wakeup(self, current_time: int, delay=0) -> None:
