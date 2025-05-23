@@ -1618,28 +1618,29 @@ class PPOAgent(GymTradingAgent):
         rewards = [tr[1][3] for tr in self.trajectory_buffer]
         dones = [tr[1][5] for tr in self.trajectory_buffer]
 
-        # Compute values and log probabilities
-        with torch.no_grad():
-            # Decision network
-            d_logits_old, values_d_old = self.Actor_Critic_d(states)
-            d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
-            # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
-
-            # Utility network
-            u_logits_old, values_u_old = self.Actor_Critic_u(states)
-            u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
-            # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
-
-        # Compute Generalized Advantage Estimation
-        advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
-            rewards,
-            values_d_old.cpu().numpy().flatten().tolist(),
-            values_u_old.cpu().numpy().flatten().tolist(),
-            dones
-        )
+        #
 
         # PPO training for multiple epochs
         for _ in range(self.epochs):
+            # Compute values and log probabilities
+            with torch.no_grad():
+                # Decision network
+                d_logits_old, values_d_old = self.Actor_Critic_d(states)
+                d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
+                # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
+
+                # Utility network
+                u_logits_old, values_u_old = self.Actor_Critic_u(states)
+                u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
+                # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
+
+            # Compute Generalized Advantage Estimation
+            advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
+                rewards,
+                values_d_old.cpu().numpy().flatten().tolist(),
+                values_u_old.cpu().numpy().flatten().tolist(),
+                dones
+            )
             # Decision Network Training
             # Current policy output
             d_logits, d_values_pred = self.Actor_Critic_d(states)
