@@ -1611,17 +1611,17 @@ class PPOAgent(GymTradingAgent):
         if len(self.trajectory_buffer) < 2:
             return
 
-        # Prepare training data
-        states = torch.cat([tr[1][0] for tr in self.trajectory_buffer]).to(self.device)
-        d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer]).to(self.device)
-        u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer]).to(self.device)
-        rewards = [tr[1][3] for tr in self.trajectory_buffer]
-        dones = [tr[1][5] for tr in self.trajectory_buffer]
-
-        #
-
         # PPO training for multiple epochs
         for _ in range(self.epochs):
+            eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
+            eID = np.random.choice(eIDs)
+            # Prepare training data
+            states = torch.cat([tr[1][0] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            rewards = [tr[1][3] for tr in self.trajectory_buffer if tr[0] == eID]
+            dones = [tr[1][5] for tr in self.trajectory_buffer if tr[0] == eID]
+
             # Compute values and log probabilities
             with torch.no_grad():
                 # Decision network
