@@ -13,6 +13,7 @@ from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
 from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
+from typing import Dict, List, Tuple
 import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
@@ -85,9 +86,9 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
                 if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
+                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] ,  rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"])
                 elif j["strategy"] == "TWAP":
-                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], on_trade=j["on_trade"])
+                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
                 elif j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"],  wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 elif j['strategy'] == 'ImpulseControl':
@@ -185,6 +186,10 @@ class tradingEnv(gym.Env):
         return None
     def getAgent(self, ID):
         return self.kernel.entity_registry[ID]
+    def getActiveAgent(self):
+        pass
+
+    
 
 def preprocessdata(kernelparams):
     """Takes in params and todpath and spits out corresponding vectorised numpy arrays
@@ -228,9 +233,9 @@ if __name__=="__main__":
     label = 'PPO_ICRL'
     layer_widths=128
     n_layers=3
-    with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-        kernelparams = pickle.load(f)
-    kernelparams = preprocessdata(kernelparams)
+    # with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+        # kernelparams = pickle.load(f)
+    # kernelparams = preprocessdata(kernelparams)
     # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
     #     tod = pickle.load(f)
     cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -267,17 +272,17 @@ if __name__=="__main__":
     kwargs={
                 "TradingAgent": [],
 
-                "GymTradingAgent": [{"cash": 2000,
-                                    "strategy": 'Probabilistic',#"ICRL",
+                # "GymTradingAgent": [{"cash": 2000,
+                #                     "strategy": 'Probabilistic',#"ICRL",
 
-                                    "action_freq": 1,
-                                    "rewardpenalty": 100,
-                                    "Inventory": {"INTC": 0},
-                                    "log_to_file": True,
-                                    "cashlimit": 5000000,
-                                    "inventorylimit": 1000000,
-                                    "wake_on_MO": False,
-                                    "wake_on_Spread": False}],
+                #                     "action_freq": 1,
+                #                     "rewardpenalty": 100,
+                #                     "Inventory": {"INTC": 0},
+                #                     "log_to_file": True,
+                #                     "cashlimit": 5000000,
+                #                     "inventorylimit": 1000000,
+                #                     "wake_on_MO": False,
+                #                     "wake_on_Spread": False}],
 
                 # "GymTradingAgent": [{"cash": 1000000,
                 #                     "strategy": "Random",
@@ -287,18 +292,19 @@ if __name__=="__main__":
                 #                     "Inventory": {"XYZ": 1000},
                 #                     "log_to_file": True,
                 #                     "cashlimit": 100000000}],
-                #"GymTradingAgent": [{"cash":10000000,
-                #                     "cashlimit": 1000000000,
-                #                      "strategy": "TWAP",
-                #                      "on_trade":False,
-                #                      "total_order_size":500,
-                #                      "order_target":"XYZ",
-                #                      "total_time":100,
-                #                      "window_size":20, #window size, measured in seconds
-                #                      "side":"buy", #buy or sell
-                #                      "action_freq":0.2,
-                #                      "Inventory": {"XYZ":1} #inventory cant be 0
-                #                     }],
+                "GymTradingAgent": [{"cash":10000000,
+                                    "cashlimit": 1000000000,
+                                     "strategy": "TWAP",
+                                     "on_trade":False,
+                                     "total_order_size":500,
+                                     "order_target":"XYZ",
+                                     "total_time":100,
+                                     "window_size":20, #window size, measured in seconds
+                                     "side":"buy", #buy or sell
+                                     "action_freq":0.2,
+                                     "Inventory": {"XYZ":1}, #inventory cant be 0
+                                     "wake_on_MO": False,
+                                     "wake_on_Spread": False}],
                 #"GymTradingAgent": [{"cash": 1000000,
                 #                    "strategy": "ImpulseControl",
                 #                     'on_trade':True,
@@ -311,14 +317,14 @@ if __name__=="__main__":
                 #                     'epoch':2180,
                 #                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
 
-                "Exchange": {"symbol": "INTC",
+                "Exchange": {"symbol": "XYZ",
                 "ticksize":0.01,
                 "LOBlevels": 2,
                 "numOrdersPerLevel": 10,
                 "PriceMid0": 100,
                 "spread0": 0.03},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters": {"kernelparams": kernelparams,
+                                  "parameters": {"kernelparams": None,
                                             "tod": tod,
                                             "Pis": Pis,
                                             "beta": 0.941,
@@ -326,13 +332,19 @@ if __name__=="__main__":
                                             "Pi_Q0": Pi_Q0}}
 
             }
-    j = kwargs['GymTradingAgent'][0]
+    agents = kwargs['GymTradingAgent']
     # agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
     #            wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers)
     # j['agent_instance'] = agentInstance
     # kwargs['GymTradingAgent'] = [j]
     i=0
-    cash, inventory, t, actions = [], [], [], []
+    # cash, inventory, t, actions = [], [], [], []
+    t = []
+
+    cashs:Dict[int, List] = {}
+    inventories:Dict[int, List] = {}
+    actionss:Dict[int, List] = {}
+
     avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
     episodic_rewards = []
     # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -343,44 +355,47 @@ if __name__=="__main__":
 
         Simstate, observations, termination, truncation =env.step(action=None)
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-        agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+        observationsDict:Dict[int, Dict] = {d : None for d in AgentsIDs}
+        # agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
         # agent.setupNNs(observations)
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
-
-
 
         while Simstate["Done"]==False and termination!=True:
             logger.debug(f"ENV TERMINATION: {termination}")
             AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
             print(f"Agents with IDs {AgentsIDs} have an action available")
-            if len(AgentsIDs)>1:
-                raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
-            agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-            assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-            agentAction = agent.get_action(data=observations, epsilon = 0.5 if i < 100 else 0.1)
-            # action=(agent.id, (agentAction[0],1))
-            action = [(agent.id, a) for a in agentAction]
-            print(f"Limit Order Book: {observations['LOB0']}")
-            print(f"Action: {action}")
-            observations_prev = copy.deepcopy(observations)
-            Simstate, observations, termination, truncation=env.step(action=action)
+            # if len(AgentsIDs)>1:
+            #     raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
+            agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
+            # agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+            for agent in agents:
+                assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+                agentAction:Tuple[int, int] = agent.get_action(data=observations)
+                action = [(agent.id, agentAction)]
+                print(f"Limit Order Book: {observations['LOB0']}")
+                print(f"Action: {action}")
+                observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
+                Simstate, observations, termination, truncation=env.step(action=action)
+                observationsDict.update({agent.id:observations})
+                logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
+                # cash += [observations['Cash']]
+                cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
+                # inventory += [observations['Inventory']]
+                inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
+                # actions += [action[1][0]]
+                actionss.update({agent.id: inventories.get(agent.id, []) + [observations['Inventory']]})
+                print(f"ACTION DONE{i}")
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-            agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
-            print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
+            # agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            # print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
+            t += [Simstate['TimeCode']]
             i+=1
             # if i%100 == 0:
             #     for epoch in range(100):
             #         agent.learnSAC()
             # agent.learn(agent.getState(observations_prev), agent.calculaterewards(termination), agent.getState(observations), (termination or truncation))
-            logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-
-            cash += [observations['Cash']]
-            inventory += [observations['Inventory']]
-            t += [Simstate['TimeCode']]
-            actions += [action[1][0]]
-            print(f"ACTION DONE{i}")
-
+            
         if termination:
             print("Termination condition reached.")
         elif truncation:
@@ -394,16 +409,16 @@ if __name__=="__main__":
         # logger.save_logs()
         # logger.plot_losses(show=False, save=True)
         # ER = agent.experience_replay
-        agent.current_time = 0
-        agent.istruncated = False
-        agent.cash = j['cash']
-        agent.Inventory = {"INTC": 0}
-        agent.positions = {'INTC':{}}
-        j['agent_instance'] = agent
-        j['Inventory'] = {"INTC": 0}
-        kwargs['GymTradingAgent'] = [j]
+        # agent.current_time = 0
+        # agent.istruncated = False
+        # agent.cash = j['cash']
+        # agent.Inventory = {"INTC": 0}
+        # agent.positions = {'INTC':{}}
+        # j['agent_instance'] = agent
+        # j['Inventory'] = {"INTC": 0}
+        # kwargs['GymTradingAgent'] = [j]
 
-        plt.figure(figsize=(12,8))
+        # plt.figure(figsize=(12,8))
 
         # plt.plot(np.arange(len(cash)), cash)
         # plt.title('Cash')
@@ -417,26 +432,26 @@ if __name__=="__main__":
         # # plt.savefig(log_dir + label+'_policy.png')
         # plt.show()
 
-        r=0
-        tmp = agent.trajectory_buffer[0][0]
-        for ij in agent.trajectory_buffer:
-            if ij[0] == tmp:
-                r+=ij[1][3]
-            else:
-                episodic_rewards.append(r)
-                r = ij[1][3]
-                tmp=ij[0]
-        episodic_rewards.append(r)
-        avgEpisodicRewards.append(np.mean(episodic_rewards))
-        stdEpisodicRewards.append(np.std(episodic_rewards))
-        finalcash.append(cash[-1] + inventory[-1]*agent.mid )
-        plt.figure(figsize=(12,8))
-        plt.subplot(221)
-        plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
-        plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
-        plt.title('Avg Episodic Rewards')
-        plt.subplot(222)
-        plt.plot(np.arange(episode+1), np.array(finalcash)-2000)
-        plt.title('Final Profit')
-        # plt.savefig(log_dir + label+'_avgepisodicreward.png')
-        plt.show()
+        # r=0
+        # tmp = agent.trajectory_buffer[0][0]
+        # for ij in agent.trajectory_buffer:
+        #     if ij[0] == tmp:
+        #         r+=ij[1][3]
+        #     else:
+        #         episodic_rewards.append(r)
+        #         r = ij[1][3]
+        #         tmp=ij[0]
+        # episodic_rewards.append(r)
+        # avgEpisodicRewards.append(np.mean(episodic_rewards))
+        # stdEpisodicRewards.append(np.std(episodic_rewards))
+        # finalcash.append(cash[-1] + inventory[-1]*agent.mid )
+        # plt.figure(figsize=(12,8))
+        # plt.subplot(221)
+        # plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
+        # plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
+        # plt.title('Avg Episodic Rewards')
+        # plt.subplot(222)
+        # plt.plot(np.arange(episode+1), np.array(finalcash)-2000)
+        # plt.title('Final Profit')
+        # # plt.savefig(log_dir + label+'_avgepisodicreward.png')
+        # plt.show()

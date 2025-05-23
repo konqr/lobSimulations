@@ -80,9 +80,9 @@ class TradingAgent(Entity):
             "lo_inspread_Bid": "Bid_inspread"
         }
         # Simulation attributes
-        
         self.exchange=None
         self.istruncated=False
+        
         #What time does the agent think it is?
         self.current_time: int = 0
         

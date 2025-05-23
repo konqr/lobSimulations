@@ -5,12 +5,12 @@ import numpy as np
 from decimal import Decimal
 
 class TWAPGymTradingAgent(GymTradingAgent):
-    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, total_time:int, window_size:int, side:str, order_target:str, on_trade:bool = False):
+    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, total_time:int, window_size:int, side:str, order_target:str,  wake_on_MO:bool, wake_on_Spread:bool):
         if side=="sell": assert Inventory[order_target] >= total_order_size, "Not enough volume in inventory to execute sell order"
         assert total_order_size%window_size == 0, f"Order size {total_order_size} cannot be executed with window size {window_size}"
         assert total_order_size % (total_time/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} and action frequency {action_freq} "
 
-        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade, cashlimit=cashlimit)
+        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
         self.total_time = total_time
         self.actions_per_second:int = 1/self.action_freq
         self.total_order_size:int = total_order_size

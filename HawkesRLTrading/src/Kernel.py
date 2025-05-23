@@ -67,7 +67,7 @@ class Kernel:
         self.isrunning=False
         #The simulation times of the different entities, used to keep track of whose turn it is
         self.nearest_action_time=0
-        self.agents_current_times: Dict[inct, any] ={j.id: self.start_time for j in self.agents}
+        self.agents_current_times: Dict[int, any] ={j.id: self.start_time for j in self.agents}
         self.agents_action_freq: Dict[int, float]={j.id: j.action_freq for j in self.agents} #time between each action for each agent
         #Implementation of message queue
         #An item in the queue takes the form of (time, (senderID, recipientID, Message))
@@ -75,6 +75,7 @@ class Kernel:
         self.head=0 #Kernel Message counter
         self.parameters={k: v for k, v in parameters.items()}
         self.WakeUpDelay = parameters.get("WakeUpDelay", 0) # this is the agent wake-up delay
+
 
     def getparameter(self, name):
         try:
@@ -457,8 +458,8 @@ class Kernel:
 
         if self.current_time==self.agents_current_times[agentID]:
             agent=self.entity_registry[agentID]
-            self.current_time+= self.WakeUpDelay
-            agent.wakeup(self.current_time, delay=self.WakeUpDelay)
+            self.current_time+= self.WakeUpDelay 
+            agent.wakeup(self.current_time, delay=self.WakeUpDelay) 
             
         else:
             logger.info(f"Kernel time {self.current_time} does not match Agent {agentID} intended wake-up time {self.agents_current_times[agentID]}")

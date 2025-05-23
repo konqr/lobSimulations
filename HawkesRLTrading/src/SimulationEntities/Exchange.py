@@ -356,6 +356,7 @@ class Exchange(Entity):
                     logger.debug(f"\nItem size: {item.size}")
                     if remainingsize<item.size:
                         consumed=remainingsize
+                        self.marketvolume += consumed
                         totalvalue+=pricelvl*remainingsize
                         item.size=item.size-remainingsize
                         remainingsize=0
@@ -368,6 +369,7 @@ class Exchange(Entity):
                     else:
                         filled_order: Order=self.bids[pricelvl].pop(0)
                         remainingsize-=filled_order.size
+                        self.marketvolume += filled_order.size
                         totalvalue+=filled_order.size*pricelvl
                         filled_order.fill_time=self.current_time
                         filled_order.filled=True
@@ -402,6 +404,7 @@ class Exchange(Entity):
                     logger.debug(f"Remaining size: {remainingsize}, item size: {item.size}")
                     if remainingsize<item.size:
                         consumed=remainingsize
+                        self.marketvolume += consumed
                         item.size=item.size-remainingsize
                         totalvalue+=pricelvl*remainingsize
                         remainingsize=0
@@ -415,6 +418,7 @@ class Exchange(Entity):
                         filled_order: Order=self.asks[pricelvl].pop(0)
                         #print(f"Filled Order: {filled_order}")
                         remainingsize-=filled_order.size
+                        self.marketvolume += filled_order.size
                         totalvalue+=filled_order.size*pricelvl
                         #print(f"totalvalue: {totalvalue}")
                         filled_order.fill_time=self.current_time
