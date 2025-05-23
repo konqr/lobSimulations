@@ -1435,6 +1435,8 @@ class PPOAgent(GymTradingAgent):
         # if self.istruncated or termination:
         #     deltaPNL += self.countInventory() * self.mid
         # reward shaping
+        if self.istruncated:
+            penalty += 100
         if self.last_action != 12:
             penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
         if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
