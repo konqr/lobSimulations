@@ -380,7 +380,7 @@ if __name__=="__main__":
             print("Truncation condition reached.")
         else:
             pass
-        for epoch in range(100):
+        for epoch in range(1):
             d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
             # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
         # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
@@ -406,7 +406,7 @@ if __name__=="__main__":
         plt.scatter(np.arange(len(cash)), actions)
         plt.yticks(np.arange(0,13), agent.actions)
         plt.title('Actions')
-        plt.savefig(log_dir + label+'_policy.png')
+        # plt.savefig(log_dir + label+'_policy.png')
         episodic_rewards = []
         r=0
         tmp = agent.trajectory_buffer[0][0]
@@ -428,4 +428,4 @@ if __name__=="__main__":
         plt.subplot(222)
         plt.plot(np.arange(episode+1), finalcash)
         plt.title('Final Cash')
-        plt.savefig(log_dir + label+'_avgepisodicreward.png')
+        # plt.savefig(log_dir + label+'_avgepisodicreward.png')

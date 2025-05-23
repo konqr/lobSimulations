@@ -1610,11 +1610,9 @@ class PPOAgent(GymTradingAgent):
         # Ensure we have a full trajectory
         if len(self.trajectory_buffer) < 2:
             return
-
-        # PPO training for multiple epochs
-        for _ in range(self.epochs):
-            eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
-            eID = np.random.choice(eIDs)
+        tmp_buffer = []
+        eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
+        for eID in eIDs:
             # Prepare training data
             states = torch.cat([tr[1][0] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
             d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
@@ -1641,6 +1639,13 @@ class PPOAgent(GymTradingAgent):
                 values_u_old.cpu().numpy().flatten().tolist(),
                 dones
             )
+            tmp_buffer.append([states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u])
+        _states, _d_actions, _u_actions, _d_logits_old, _values_d_old, _d_log_probs_old, _u_logits_old, _values_u_old, _u_log_probs_old, _advantages_d, _returns_d, _advantages_u, _returns_u = [torch.cat([element[i] for element in tmp_buffer]) for i in range(len(tmp_buffer[0]))]
+        del tmp_buffer
+        # PPO training for multiple epochs
+        for _ in range(self.epochs):
+            idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
+            states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u = _states[idxs,:], _d_actions[idxs], _u_actions[idxs], _d_logits_old[idxs,:], _values_d_old[idxs,:], _d_log_probs_old[idxs], _u_logits_old[idxs,:], _values_u_old[idxs,:], _u_log_probs_old[idxs], _advantages_d[idxs], _returns_d[idxs], _advantages_u[idxs], _returns_u[idxs]
             # Decision Network Training
             # Current policy output
             d_logits, d_values_pred = self.Actor_Critic_d(states)
