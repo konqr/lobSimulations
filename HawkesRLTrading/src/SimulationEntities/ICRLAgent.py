@@ -1605,7 +1605,7 @@ class PPOAgent(GymTradingAgent):
         # returns_u = (returns_u - returns_u.mean()) / (returns_u.std() + 1e-8)
         return advantages_d, returns_d, advantages_u, returns_u
 
-    def train(self):
+    def train(self, train_logger):
         """
         PPO training method using entire episode trajectory
         """
@@ -1728,10 +1728,11 @@ class PPOAgent(GymTradingAgent):
                   f'Value Loss: {d_value_loss.item():.4f}, '
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
 
-        return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
-
+            train_logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
         # Clear trajectory buffer after training
         while len(self.trajectory_buffer) > self.buffer_capacity:
             eID = self.trajectory_buffer[0][0]
             end_idx = np.max([i for i in range(len(self.trajectory_buffer)) if self.trajectory_buffer[i][0] == eID]) + 1
             self.trajectory_buffer = self.trajectory_buffer[end_idx:]
+        return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
+
