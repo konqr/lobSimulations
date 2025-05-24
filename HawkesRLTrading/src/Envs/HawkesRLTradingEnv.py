@@ -323,13 +323,13 @@ if __name__=="__main__":
     }
     j = kwargs['GymTradingAgent'][0]
     agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-                              wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers)
+                              wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers, epochs=1000)
     j['agent_instance'] = agentInstance
     kwargs['GymTradingAgent'] = [j]
     i=0
     cash, inventory, t, actions = [], [], [], []
     avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
-    # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+    train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
     for episode in range(500):
         env=tradingEnv(stop_time=20, wall_time_limit=23400, seed=1, **kwargs)
@@ -338,7 +338,7 @@ if __name__=="__main__":
         Simstate, observations, termination, truncation =env.step(action=None)
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-        agent.setupNNs(observations)
+        if episode== 0: agent.setupNNs(observations)
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
 
 
@@ -381,7 +381,7 @@ if __name__=="__main__":
         else:
             pass
         for epoch in range(1):
-            d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
+            d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger)
             # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
         # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
         # logger.save_logs()

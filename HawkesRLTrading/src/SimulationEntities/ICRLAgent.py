@@ -1398,7 +1398,11 @@ class PPOAgent(GymTradingAgent):
     def setupTraining(self, net):
         def lr_lambda(epoch):
             # Learning rate schedule
-            return np.max([1e-6, 0.1**(epoch//1000)])
+            x =1
+            if epoch > 500:
+                x= 1e-1
+            x = x*np.max([1e-3,(1e-1)**(epoch//5000)])
+            return x
 
         optimizer = optim.Adam(net.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
