@@ -1678,7 +1678,7 @@ class PPOAgent(GymTradingAgent):
             d_loss.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(self.Actor_Critic_d.parameters(), self.max_grad_norm)
             self.optimizer_d.step()
-
+            self.scheduler_d.step()
             # Utility Network Training
             # Only train utility network for trajectories with d=1
             d_mask = (d_actions == 1)
@@ -1717,7 +1717,7 @@ class PPOAgent(GymTradingAgent):
                 u_loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.Actor_Critic_u.parameters(), self.max_grad_norm)
                 self.optimizer_u.step()
-
+                self.scheduler_u.step()
                 # Print losses for monitoring
                 print(f'Utility Network - Policy Loss: {u_policy_loss.item():.4f}, '
                       f'Value Loss: {u_value_loss.item():.4f}, '
