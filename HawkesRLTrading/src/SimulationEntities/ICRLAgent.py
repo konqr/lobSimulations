@@ -1401,7 +1401,7 @@ class PPOAgent(GymTradingAgent):
             x =1
             if epoch > 500:
                 x= 1e-1
-            x = x*np.max([1e-3,(1e-1)**(epoch//5000)])
+            # x = x*np.max([1e-1,(1e-1)**(epoch//5000)])
             return x
 
         optimizer = optim.Adam(net.parameters(), lr=self.lr)

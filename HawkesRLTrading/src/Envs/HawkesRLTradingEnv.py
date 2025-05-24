@@ -323,7 +323,7 @@ if __name__=="__main__":
     }
     j = kwargs['GymTradingAgent'][0]
     agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-                              wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers, epochs=1000)
+                              wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"], batch_size=256, layer_widths=layer_widths, n_layers =n_layers, epochs=1000, value_loss_coef=1e-3, clip_ratio=0.5)
     j['agent_instance'] = agentInstance
     kwargs['GymTradingAgent'] = [j]
     i=0
