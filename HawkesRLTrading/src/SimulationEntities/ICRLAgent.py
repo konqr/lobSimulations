@@ -1728,7 +1728,7 @@ class PPOAgent(GymTradingAgent):
                   f'Value Loss: {d_value_loss.item():.4f}, '
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
 
-            return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
+        return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
 
         # Clear trajectory buffer after training
         while len(self.trajectory_buffer) > self.buffer_capacity:
