@@ -1404,7 +1404,7 @@ class PPOAgent(GymTradingAgent):
             # x = x*np.max([1e-1,(1e-1)**(epoch//5000)])
             return x
 
-        optimizer = optim.Adam(net.parameters(), lr=self.lr)
+        optimizer = optim.Adam(net.parameters(), lr=self.lr, weight_decay=1e-3)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
         return optimizer, scheduler
 
