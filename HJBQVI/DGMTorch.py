@@ -606,6 +606,11 @@ class ActorCriticMLP(BaseNet):
         self.shared_layers = nn.Sequential(*layers)
 
         # Actor output layer (policy network)
+        # Build shared hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.actor_layers = nn.Sequential(*layers)
         self.actor_output = DenseLayer(actor_output_dim, layer_width, activation=actor_activation)
 
         # Critic output layer (value function) - always outputs a single value
@@ -631,7 +636,8 @@ class ActorCriticMLP(BaseNet):
         features = self.shared_layers(features)
 
         # Actor head
-        actor_output = self.actor_output(features)
+        actor_features = self.actor_layers(features)
+        actor_output = self.actor_output(actor_features)
 
         # Critic head (value function)
         critic_output = self.critic_output(features)
