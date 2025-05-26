@@ -499,8 +499,8 @@ class Exchange(Entity):
     
     def resolve_crossedorderbook(self):
         assert self.askprice==self.bidprice==self.askprices["Ask_L1"]==self.bidprices["Bid_L1"], f'Crossed Orderbook: ASKPRICE: {self.askprice}, BIDPRICE: {self.bidprice}, ASK_L1{self.askprices["Ask_L1"]}, BID_L1{self.bidprices["Bid_L1"]}'
-        totalask1=sum([j.size for j in self.asks[self.askprices["Ask_L1"]]])
-        totalbid1=sum([j.size for j in self.bids[self.bidprices["Bid_L1"]]])
+        #totalask1=sum([j.size for j in self.asks[self.askprices["Ask_L1"]]])
+        #totalbid1=sum([j.size for j in self.bids[self.bidprices["Bid_L1"]]])
         ask_q=self.asks[self.askprices[self.askprice]]
         bid_q=self.asks[self.bidprices[self.bidprice]]
         while len(ask_q)>0 and len(bid_q)>0:

@@ -120,7 +120,7 @@ class TradingAgent(Entity):
                 message=MarketOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             else:
-                # message=CancelOrderMsg(order=order)
+                message=CancelOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             return 0
         
@@ -312,7 +312,6 @@ class TradingAgent(Entity):
         self.istruncated=False
         #What time does the agent think it is?
         self.current_time: int = 0 
-        pass
 
     def updatestatelog(self):
         if self.statelog[-1][0]==self.current_time:

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
+from HawkesRLTrading.src.SimulationEntities.DiscreteSACGymAgent import DiscreteSACGymTradingAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -99,7 +100,6 @@ class tradingEnv(gym.Env):
         #Construct Exchange:
         ExchangeKwargs=self.kwargs.get("Exchange")
         exchange=Exchange(**ExchangeKwargs)
-        print("Exchange ID: "+ str(exchange.id))
         #Construct agents: Right now only compatible with 1 trading agent
         assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
         self.agents=[]
@@ -107,7 +107,6 @@ class tradingEnv(gym.Env):
             pass
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
-                print(j)
                 new_agent=None
                 if j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"])
@@ -118,6 +117,8 @@ class tradingEnv(gym.Env):
                 elif j['strategy'] == 'ImpulseControl':
                     new_agent = ImpulseControlAgent(j['label'], j['epoch'], j['model_dir'], seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                                                     on_trade=j['on_trade'], cashlimit=j["cashlimit"])
+                elif j['strategy'] =="DiscreteSAC":
+                    new_agent=DiscreteSACGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"], inventorylimit=j["inventorylimit"], hyperparameter_config=j['hyperparameter_config'])
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")      
                 self.agents.append(new_agent)
@@ -149,7 +150,8 @@ class tradingEnv(gym.Env):
         rewards=self.calculaterewards()
         termination=self.isterminated()
         truncation=self.istruncated()
-        return simstate, Observations, rewards, termination, truncation
+        infos=self.getinfos()
+        return simstate, Observations, rewards, termination, truncation, infos
         #return observations, rewards, dones, infos    
         
         
@@ -194,7 +196,12 @@ class tradingEnv(gym.Env):
         close any active running windows/tasks
         """
         self.kernel.terminate()
-    
+    def getstate(self):
+        """
+        Returns kernel state
+        Returns a dictionary with keys: LOB0, Cash, Inventory, Positions, lobL3, lobL3_sizes
+        """
+        return self.kernel.getobservations(agentID=self.agents[0].id) 
     #Wrappers
     def getobservations(self):
         #Wrapper to convert kernel observations to gym observations
@@ -202,18 +209,20 @@ class tradingEnv(gym.Env):
         observations={
             "Inventory": np.array([tmp["Inventory"]]),
             "Spread": np.array([abs(np.round(tmp['LOB0']['Ask_L1'][0]-tmp['LOB0']['Bid_L1'][0], decimals=2))]),
-            "Trend_var": np.array([0])
+            "Trend_var": np.array([self.kernel.exchange.Arrival_model.get_alpha_t(self.kernel.current_time)])
         }
         return observations
 
         
-    def getstate(self):
-        """
-        Returns kernel state
-        Returns a dictionary with keys: LOB0, Cash, Inventory, Positions, lobL3, lobL3_sizes
-        """
-        return self.kernel.getobservations(agentID=self.agents[0].id) 
-        
+    def getinfos(self):
+        tmp=self.getstate()
+        infos={
+            "LOB0": tmp["LOB0"],
+            "Cash": tmp["Cash"],
+            "Positions": tmp["Positions"],
+            'lobL3': tmp["lobL3"]
+        }
+        return infos
         
     def calculaterewards(self):
         rewards={}
@@ -236,8 +245,18 @@ if __name__=="__main__":
     kwargs={
                 "TradingAgent": [],
 
+                # "GymTradingAgent": [{"cash": 800, 
+                #                     "strategy": "Random",
+                #                     "action_freq": 2,
+                #                     "rewardpenalty": 0.4,
+                #                     "Inventory": {"XYZ": 4},
+                #                     "log_to_file": True,
+                #                     "cashlimit": 1000, 
+                #                     "inventorylimit": 10,
+                #                     "wake_on_MO": True,
+                #                     "wake_on_Spread": False}],
                 "GymTradingAgent": [{"cash": 800, 
-                                    "strategy": "Random",
+                                    "strategy": "DiscreteSAC",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 4},
@@ -245,15 +264,14 @@ if __name__=="__main__":
                                     "cashlimit": 1000, 
                                     "inventorylimit": 10,
                                     "wake_on_MO": True,
-                                    "wake_on_Spread": False}],
-                # "GymTradingAgent": [{"cash": 1000000,
-                #                     "strategy": "Random",
-                #                      'on_trade':False,
-                #                     "action_freq": .2,
-                #                     "rewardpenalty": 0.4,
-                #                     "Inventory": {"XYZ": 1000},
-                #                     "log_to_file": True,
-                #                     "cashlimit": 100000000}],
+                                    "wake_on_Spread": False,
+                                    "hyperparameter_config":{
+                                                            'lr':2e-5,
+                                                            'minibatch_size': 512,
+                                                            'discount_rate': 0.999,
+                                                            "tau":0.80,
+                                                            "alpha_0":1}
+                                    }],
                 #"GymTradingAgent": [{"cash":10000000,
                 #                     "cashlimit": 1000000000,
                 #                      "strategy": "TWAP",
@@ -269,14 +287,14 @@ if __name__=="__main__":
                 "Exchange": {"symbol": "XYZ",
                             "ticksize":0.01,
                             "LOBlevels": 2,
-                            "numOrdersPerLevel": 10,
+                            "numOrdersPerLevel": 11,
                             "PriceMid0": 100,
-                            "spread0": 0.03},
+                            "spread0": 0.04},
                 "Arrival_model": {"name": "Hawkes",
                                 "params": {"kernelparams": None,
                                                 "tod": None,
                                                 "Pis": None, 
-                                                "beta": 0.91,
+                                                "beta": 0.94,
                                                 "avgSpread": 0.0101,
                                                 "Pi_Q0": None,
                                                 "kernelparamspath": "HawkesRLTrading/src/AAPL.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10",
@@ -285,41 +303,38 @@ if __name__=="__main__":
             }
     from stable_baselines3.common.env_checker import check_env
     env=tradingEnv(stop_time=500, seed=2, **kwargs)
-    check_env(env=env)
-    print("done")
-
-
-
-
-
-    ##########
-    # env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
-    # print("Initial Observations"+ str(env.getobservations()))
-    # Simstate, observations, termination, truncation =env.step(action=None)
-    # logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
-    # i=0
-
-    # cash, inventory, t, actions = [], [], [], []
-    # while Simstate["Done"]==False and termination!=True:
-    #     logger.debug(f"ENV TERMINATION: {termination}")
-    #     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-    #     print(f"Agents with IDs {AgentsIDs} have an action available")
-    #     if len(AgentsIDs)>1:
-    #         raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
-    #     agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-    #     assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-    #     action=(agent.id, agent.get_action(data=observations))   
-    #     print(f"Limit Order Book: {observations['LOB0']}")
-    #     print(f"Action: {action}")
-    #     Simstate, observations, termination, truncation=env.step(action=action) 
-    #     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-    #     i+=1
-    #     cash += [observations['Cash']]
-    #     inventory += [observations['Inventory']]
-    #     t += [Simstate['TimeCode']]
-    #     actions += [action[1][0]]
-    #     print(f"ACTION DONE{i}")
-
+    print("Initial observations"+ str(env.getobservations()))
+    Simstate, observations, rewards, termination, truncation, infos =env.step(action=None)
+    logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nRewards: {rewards}\nTermination: {termination}")
+    i=0
+    cash, inventory, t, actions = [], [], [], []
+    while Simstate["Done"]==False and termination!=True:
+        logger.debug(f"ENV TERMINATION: {termination}")
+        AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+        print(f"Agents with IDs {AgentsIDs} have an action available")
+        if len(AgentsIDs)>1:
+            raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
+        agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+        assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+        keys=["Inventory", "Spread", "Trend_var"]
+        state=np.concatenate([np.ravel(observations[key][0]) for key in keys]).astype(np.float32)
+        action=(agent.id, agent.get_action(state=state))   
+        #print(f"Limit Order Book: {observations['LOB0']}")
+        print(f"Action: {action}")
+        Simstate, next_observations, rewards, termination, truncation, infos=env.step(action=action) 
+        next_state=np.concatenate([np.ravel(next_observations[key][0]) for key in keys]).astype(np.float32)
+        done=Simstate["Done"]
+        transition=(state.copy(), action[1], rewards[AgentsIDs[0]], next_state.copy(), done)
+        agent.learn(transition)
+        logger.debug(f"\nSimstate: {Simstate}\nObservations: {next_observations}\nTermination: {termination}\nTruncation: {truncation}")
+        i+=1
+        cash += [infos['Cash']]
+        inventory += [observations['Inventory']]
+        t += [Simstate['TimeCode']]
+        actions += [action[1][0]]
+        observations=next_observations
+        print(f"ACTION DONE{i}")
+    print("Stepcount: ", i)
     # if termination:
     #     print("Termination condition reached.")
     # elif truncation:
