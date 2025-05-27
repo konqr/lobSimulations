@@ -57,5 +57,6 @@ class PolicyNetwork(nn.Module, ABC):
         x = F.relu(self.layer_1(states))
         y = F.relu(self.layer_2(x))
         logits = self.logits(y)
-        probs = self.activation(logits)
-        return probs
+        probs = F.softmax(logits, dim=-1)
+        z= (probs == 0.0).float() * 1e-8  # avoid zero probability
+        return Categorical(probs), probs+z

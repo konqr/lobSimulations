@@ -11,8 +11,6 @@ from HawkesRLTrading.src.Messages.ExchangeMessages import *
 from HawkesRLTrading.src.Messages.AgentMessages import *
 from HawkesRLTrading.src.SimulationEntities.Entity import Entity
 from HawkesRLTrading.src.Utils.Exceptions import *
-logging.basicConfig()
-logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 class TradingAgent(Entity):
@@ -43,7 +41,7 @@ class TradingAgent(Entity):
         inventorylimit: total inventory limit ( a truncation condition)
         cash: starting cash level
         """
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000, start_trading_lag = 0) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000) -> None:
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
@@ -55,12 +53,12 @@ class TradingAgent(Entity):
         self.wake_on_Spread=wake_on_Spread
         self.tradeNotif=self.wake_on_MO or self.wake_on_Spread
         self.positions={key: {} for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
-        self.start_trading_lag = start_trading_lag
+        
         #Truncation conditions
         self.cashlimit=cashlimit
         self.inventorylimit=inventorylimit
         self.cash=cash
-        self.mid = 0
+
         #private atributes
         self.profit=0
         self.statelog=[(0, self.cash, self.profit, copy(Inventory), deepcopy(self.positions))] #List of [timecode, cash, #realized profit, inventory, positions]
@@ -95,7 +93,7 @@ class TradingAgent(Entity):
         assert self.exchange is not None, f"Exchange not linked to TradingAgent: {self.id}"
         for key in self.exchange.levels:
             self.positions[self.exchange.symbol][key]=[]
-        wakeuptime=self.start_trading_lag+self.current_time + self.action_freq
+        wakeuptime=self.current_time + self.action_freq
         logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")
         self.set_wakeup(requested_time= wakeuptime)
         
@@ -122,7 +120,7 @@ class TradingAgent(Entity):
                 message=MarketOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             else:
-                message=CancelOrderMsg(order=order)
+                # message=CancelOrderMsg(order=order)
                 self.sendmessage(recipientID=self.exchange.id, message=message)
             return 0
         
@@ -240,7 +238,7 @@ class TradingAgent(Entity):
         elif isinstance(message, LimitOrderAcceptedMsg):
                 level=self.exchange.getlevel(price=message.order.price)
                 print(f"Level of limit Order is: {level} ")
-                self.positions[message.order.symbol][level]+=[message.order]
+                self.positions[message.order.symbol][level]=[message.order]
                 logger.debug(f"Agent new state: {self.statelog[-1]}")
         elif isinstance(message, WakeAgentMsg):
             #Here, ideally the agent should cancel all existing orders, needs code refactoring
@@ -314,11 +312,11 @@ class TradingAgent(Entity):
         self.istruncated=False
         #What time does the agent think it is?
         self.current_time: int = 0 
+        pass
 
     def updatestatelog(self):
         if self.statelog[-1][0]==self.current_time:
-            logger.info(f"Last agent LOG is {self.statelog[-1]} and new log to be appended is {(self.current_time, self.cash, self.profit, self.Inventory.copy(), self.positions.copy())}")
-            return False
+            logger.error(f"New log time same as previous log time")
         self.statelog.append((self.current_time, self.cash, self.profit, copy(self.Inventory), deepcopy(self.positions)))
     
     def getobservations(self):

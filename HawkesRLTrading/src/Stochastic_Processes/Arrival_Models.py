@@ -61,46 +61,46 @@ class HawkesArrival(ArrivalModel):
         required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "Pi_Q0"]
         exclusive_pairs=[("kernelparams", "kernelparamspath"),("tod", "todpath")]
         for key1, key2 in exclusive_pairs:
-            if params.get(key1) is not None and params.get(key2) is not None:
+            if params.get(key1) not in [None, {}, ""] and params.get(key2) not in [None, {}, ""]:
                 raise ValueError(f"Cannot provide both '{key1}' and '{key2}'. Please specify only one.")
         kernelparams = params.get("kernelparams")
         kernelparamspath = params.get("kernelparamspath")
-        if kernelparams is not None and kernelparamspath is None:
+        if kernelparams is not None:
             self.kernelparams= kernelparams
             required_keys.remove("kernelparams")
-        elif kernelparamspath is not None and kernelparams is None:
+        elif kernelparamspath is not None:
             self.kernelparams = self.read_kernelparams_from_pickle(kernelparamspath)
             required_keys.remove("kernelparams")
-        else: 
+        else:
             self.kernelparams = None  # will be generated later if missing
+        
         tod = params.get("tod")
         todpath = params.get("todpath")
-        if tod is not None and todpath is None:
+        if tod is not None:
             self.tod = tod
             required_keys.remove("tod")
-        elif todpath is not None and tod is None:
+        elif todpath is not None:
             self.tod = self.read_tod_from_pickle(todpath)
             required_keys.remove("tod")
         else:
             self.tod = None  # will be generated later if missing
-        for key in required_keys:
-            value=params.get(key)
-            setattr(self, key, value)
-        missing_keys = [key for key in required_keys if ((key not in params.keys()) or params.get(key) is None)]
-        missing_with_defaults=None
+        missing_keys = [key for key in required_keys if (key not in params.keys()) or params.get(key) is None]
         if missing_keys:
-            logger.warning(f"Missing required model parameters {missing_keys}. Generating default values.")
+            logger.warning("Missing required model parameters or kernel/tod inputs. Generating default values.")
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
+            #logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
+            params.update(missing_with_defaults)
         else:
             pass 
         #print(params)
-        for key, value in missing_with_defaults.items():
+        
+        for key, value in params.items():
             setattr(self, key, value)
-        #print(f"kernel params: {self.kernelparams[1]}")
+        
         #Initializing storage variables for thinning simulation    
         self.todmult=None
-        self.baselines=self.num_nodes*[0]
+        self.baselines=None
         self.s=None   
         self.n = None
         self.Ts=None
@@ -108,6 +108,7 @@ class HawkesArrival(ArrivalModel):
         self.lamb = None
         self.left=None
         self.pointcount=0
+        #
         self.current_intensities=None #initializing intensity variable for reinforcement learning purposes
         
     def generatefakeparams(self):
@@ -341,6 +342,7 @@ class HawkesArrival(ArrivalModel):
         if T is None:
             raise ValueError("Expected 'float' for Thinning Ogata time limit, received 'NoneType'")
         if self.n is None: self.n = self.num_nodes*[0]
+        if self.baselines is None: self.baselines=self.num_nodes*[0]
         if self.Ts is None: self.Ts = self.num_nodes*[()]
         if self.spread is None: self.spread = 1
         """Setting up thinningOgata params"""
@@ -353,9 +355,9 @@ class HawkesArrival(ArrivalModel):
         #todMult*kernelParams[0]*kernelParams[1][0]/((-1 + kernelParams[1][1])*kernelParams[1][2])
         if not np.sum(self.kernelparams[0][3]) == 0:
             mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
-        mat = np.nan_to_num(mat)
         self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
         self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
+        specRad = np.max(np.linalg.eig(mat)[0])
         #print("spectral radius = ", specRad)
         specRad = np.max(np.linalg.eig(mat)[0]).real
         if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
@@ -415,14 +417,13 @@ class HawkesArrival(ArrivalModel):
                 decays[5] = decays[6] = 0
             self.lamb = float(sum(decays))
             #print("LAMBDA: ", lamb)
-
+            
             """Testing candidate point"""
             D=np.random.uniform(0, 1)
             #print("Candidate D: ", D)
             #logger.debug(f"Candidate: {self.s}")
             if D*lamb_bar<=self.lamb:
                 pointcount+=1
-                self.current_intensity = decays.copy()
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
                 k=0
                 total=decays[k]
@@ -431,6 +432,8 @@ class HawkesArrival(ArrivalModel):
                     total+=decays[k]
                 """dimension is cols[k]"""   
                 """Update values of lambda for next simulation loop and append point to Ts"""
+                if k in [5, 6]:
+                    self.spread=self.spread-0.01      
                 
                 """Precalc next value of lambda_bar"""    
                 newdecays=self.todmult * self.kernelparams[0][0][k].reshape(12, 1)*self.kernelparams[0][1][k].reshape(12, 1)
@@ -460,8 +463,8 @@ class HawkesArrival(ArrivalModel):
                     self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
                 self.pointcount+=pointcount
                 return pointcount
-        return pointcount
-      
+        return pointcount  
+          
     def orderwrapper(self, time:float, k: int, size: int):
         """
         Takes in an event tuple of (time, event) and wraps it into information compatible with the exchange
@@ -542,23 +545,20 @@ class HawkesArrival(ArrivalModel):
         Returns:
             np.ndarray: A (12, 1) numpy array representing λ(t) for each process.
         """
-        logger.debug(f"Calculating alpha_t at t={time}")
         if self.baselines is None or self.kernelparams is None:
             raise ValueError("Model parameters must be initialized before calling calculate_intensities at.")
-        self.baselines =self.kernelparams[1].copy()
         mat = np.zeros((self.num_nodes, self.num_nodes))
-        hourIndex = min(12,int(time//1800))
-        self.todmult=self.tod[:, hourIndex].reshape((12, 1))
         if not np.sum(self.kernelparams[0][3]) == 0:
             mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
+        specRad = np.max(np.linalg.eig(mat)[0])
         specRad = np.max(np.linalg.eig(mat)[0]).real
         if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
-        self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
-        self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
-        decays=(0.99/specRad) *self.todmult * self.baselines
         
+        hourIndex = min(12,int(time//1800))
+        self.todmult=self.tod[:, hourIndex].reshape((12, 1)) * (0.99/specRad)
+        decays=self.todmult * self.baselines
         if time==0:
-            print(f"init decays: {decays}")
+            decays=(0.99/specRad) *decays
             return decays
         if self.timeseries==[]:
             pass
@@ -580,7 +580,6 @@ class HawkesArrival(ArrivalModel):
         if 100*np.round(self.spread, 2)  < 2 : 
             decays[5] = decays[6] = 0
         assert decays.shape==(12,1)
-        print(f"decays at t={time}: {decays}")
         return decays
 
     def get_alpha_t(self, time: float):
