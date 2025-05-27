@@ -18,6 +18,9 @@ import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+import os
+import sys
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
@@ -78,16 +81,14 @@ class tradingEnv(gym.Env):
         self.seed=seed
         
         #Construct agents: Right now only compatible with 1 trading agent
-        assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
+        # assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
         self.agents=[]
         if len(kwargs["TradingAgent"])>0:
             pass
         if len(kwargs["GymTradingAgent"])>0:
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
-                if j["strategy"]=="Random":
-                    new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] ,  rewardpenalty=j["rewardpenalty"], cashlimit=j["cashlimit"])
-                elif j["strategy"] == "TWAP":
+                if j["strategy"] == "TWAP":
                      new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
                 elif j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"],  wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
@@ -132,7 +133,7 @@ class tradingEnv(gym.Env):
         """
         #Observations=cash, inventory, LOB state, current positions
         simstate=self.kernel.run(action=action)
-        Observations=self.getobservations()
+        Observations= (self.getobservations(agentID=action[0]) if action is not None else self.getobservations())
         # rewards=self.calculaterewards()
         termination=self.isterminated()
         truncation=self.istruncated()
@@ -165,11 +166,11 @@ class tradingEnv(gym.Env):
         self.kernel.terminate()
     
     #Wrappers
-    def getobservations(self):
+    def getobservations(self, agentID:int=1):
         """
         Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
         """
-        return self.kernel.getobservations(agentID=self.agents[0].id)
+        return self.kernel.getobservations(agentID=agentID)
     def calculaterewards(self):
         rewards={}
         for gymagent in self.kernel.gymagents:
@@ -271,7 +272,6 @@ if __name__=="__main__":
                        [(10, 1.)]]}
     kwargs={
                 "TradingAgent": [],
-
                 # "GymTradingAgent": [{"cash": 2000,
                 #                     "strategy": 'Probabilistic',#"ICRL",
 
@@ -284,15 +284,18 @@ if __name__=="__main__":
                 #                     "wake_on_MO": False,
                 #                     "wake_on_Spread": False}],
 
-                # "GymTradingAgent": [{"cash": 1000000,
-                #                     "strategy": "Random",
-                #                      'on_trade':False,
-                #                     "action_freq": .2,
-                #                     "rewardpenalty": 0.4,
-                #                     "Inventory": {"XYZ": 1000},
-                #                     "log_to_file": True,
-                #                     "cashlimit": 100000000}],
-                "GymTradingAgent": [{"cash":10000000,
+                "GymTradingAgent": 
+                                    [{"cash": 1000000,
+                                    "strategy": "Random",
+                                     'on_trade':False,
+                                    "action_freq": 0.3,
+                                    "rewardpenalty": 0.4,
+                                    "Inventory": {"XYZ": 1000},
+                                    "wake_on_MO": False,
+                                    "wake_on_Spread": False,
+                                    "log_to_file": True,
+                                    "cashlimit": 100000000},
+                                    {"cash":10000000,
                                     "cashlimit": 1000000000,
                                      "strategy": "TWAP",
                                      "on_trade":False,
@@ -353,9 +356,10 @@ if __name__=="__main__":
         env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
         print("Initial Observations"+ str(env.getobservations()))
 
-        Simstate, observations, termination, truncation =env.step(action=None)
+        Simstate, observations, termination, truncation =env.step(action=None) 
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-        observationsDict:Dict[int, Dict] = {d : None for d in AgentsIDs}
+        agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
+        observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Positions": []} for agent, agentid in zip(agents, AgentsIDs)}
         # agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
         # agent.setupNNs(observations)
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
@@ -364,15 +368,14 @@ if __name__=="__main__":
             logger.debug(f"ENV TERMINATION: {termination}")
             AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
             print(f"Agents with IDs {AgentsIDs} have an action available")
-            # if len(AgentsIDs)>1:
-            #     raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
             agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-            # agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+            action:list[Tuple] = []
             for agent in agents:
                 assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-                agentAction:Tuple[int, int] = agent.get_action(data=observations)
-                action = [(agent.id, agentAction)]
-                print(f"Limit Order Book: {observations['LOB0']}")
+                agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
+                action = (agent.id, agentAction)
+                # print(f"Limit Order Book: {observations['LOB0']}")
+                print(f"Inventory: {observations['Inventory']}")
                 print(f"Action: {action}")
                 observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
                 Simstate, observations, termination, truncation=env.step(action=action)
@@ -383,7 +386,7 @@ if __name__=="__main__":
                 # inventory += [observations['Inventory']]
                 inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
                 # actions += [action[1][0]]
-                actionss.update({agent.id: inventories.get(agent.id, []) + [observations['Inventory']]})
+                actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
                 print(f"ACTION DONE{i}")
             # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
             # agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))

@@ -43,7 +43,7 @@ class Kernel:
         self.kernel_name=kernel_name
         self.agents: List[TradingAgent]=agents
         self.gymagents= [agent for agent in self.agents if isinstance(agent, GymTradingAgent)]
-        assert len(self.gymagents)==1, f"This Kernel is currently incompatible with more than one Gym Agent"
+        # assert len(self.gymagents)==1, f"This Kernel is currently incompatible with more than one Gym Agent"
         assert len(agents)>0, f"Number of agents must be more than 0" 
         self.exchange: Exchange=exchange
         assert exchange, f"Expected a valid exchange but received None"
@@ -497,7 +497,7 @@ class Kernel:
     def isterminated(self):
         return self.current_time>=self.stop_time
     
-    def getobservations(self, agentID: int):
+    def getobservations(self, agentID: int=1):
         rtn={"LOB0": self.exchange.lob0,
         }
         agent=self.entity_registry[agentID]

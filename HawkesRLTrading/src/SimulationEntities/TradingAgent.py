@@ -378,8 +378,6 @@ class CTradingAgent(TradingAgent):
                 raise InvalidActionError(f"Agent {self.id} cannot cancel orders without placing any orders")
             else:
                 # tocancel: LimitOrder=np.random.choice(positions)
-                if len(positions) > 5:
-                    breakpoint()
                 tocancel:LimitOrder = self._mostCompetitiveOrder(side, positions)
             price=np.round(price ,2)
             order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  price=price, cancelID=tocancel.order_id, _level=level)
