@@ -7,11 +7,13 @@ class DeterministicTradingAgent(TradingAgent):
     @abstractmethod
     def get_action(self, data=None)-> str:
         pass
+
 class UniformAgent(DeterministicTradingAgent):
     def __init__(self, seed=1, log_events = True, log_to_file = False, strategy = "R", Inventory = None, cash = 5000, action_freq = 3, wake_on_MO = False, wake_on_Spread=False, cashlimit=1000000, inventorylimit=100000):
         super().__init__(seed, log_events, log_to_file, strategy, Inventory, cash, action_freq, wake_on_MO, wake_on_Spread, cashlimit, inventorylimit)
         assert self.on_trade==False
     def get_action(self, data: dict)-> str:
         return self.actions[0]
-
-
+    
+    def calculaterewards(self) -> Any:
+        pass

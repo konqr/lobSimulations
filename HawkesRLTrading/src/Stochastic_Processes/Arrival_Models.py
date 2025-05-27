@@ -4,6 +4,8 @@ from HawkesRLTrading.src.Stochastic_Processes.Stochastic_Models import Stochasti
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
 import logging
 from HawkesRLTrading.src.Utils import logging_config
+import os
+import pickle
 logger = logging.getLogger(__name__)
 class ArrivalModel(StochasticModel, ABC):
     """ArrivalModel models the arrival of orders to the order book. It also generates an initial starting state for the limit order book.
@@ -35,16 +37,15 @@ class ArrivalModel(StochasticModel, ABC):
 class HawkesArrival(ArrivalModel):
     def __init__(self, spread0: float, seed=1, **params):
         """
-        params:"kernelparams", "tod", "Pis", "beta", "avgSpread", "spread", "Pi_Q0"
+        params:"kernelparams", "tod", "Pis", "beta", "avgSpread", "spread", "Pi_Q0", "kernelparamspath", "todpath"
             
         
         """
         assert spread0, "ArrivalModel requires spread for construction"
         self.spread=spread0
-        if not params:
-            params={}
         self.cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
             "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+        self.num_nodes=len(self.cols) 
         self.coltolevel={0: "Ask_L2",
                          1: "Ask_L2",
                          2: "Ask_L1",
@@ -58,23 +59,48 @@ class HawkesArrival(ArrivalModel):
                          10: "Bid_L2",
                          11: "Bid_L2"}
         required_keys=["kernelparams", "tod", "Pis", "beta", "avgSpread", "Pi_Q0"]
-        missing_keys = [key for key in required_keys if (key not in params.keys()) or params.get(key) is None]
-        if len(missing_keys)>0:
+        exclusive_pairs=[("kernelparams", "kernelparamspath"),("tod", "todpath")]
+        for key1, key2 in exclusive_pairs:
+            if params.get(key1) is not None and params.get(key2) is not None:
+                raise ValueError(f"Cannot provide both '{key1}' and '{key2}'. Please specify only one.")
+        kernelparams = params.get("kernelparams")
+        kernelparamspath = params.get("kernelparamspath")
+        if kernelparams is not None and kernelparamspath is None:
+            self.kernelparams= kernelparams
+            required_keys.remove("kernelparams")
+        elif kernelparamspath is not None and kernelparams is None:
+            self.kernelparams = self.read_kernelparams_from_pickle(kernelparamspath)
+            required_keys.remove("kernelparams")
+        else: 
+            self.kernelparams = None  # will be generated later if missing
+        tod = params.get("tod")
+        todpath = params.get("todpath")
+        if tod is not None and todpath is None:
+            self.tod = tod
+            required_keys.remove("tod")
+        elif todpath is not None and tod is None:
+            self.tod = self.read_tod_from_pickle(todpath)
+            required_keys.remove("tod")
+        else:
+            self.tod = None  # will be generated later if missing
+        for key in required_keys:
+            value=params.get(key)
+            setattr(self, key, value)
+        missing_keys = [key for key in required_keys if ((key not in params.keys()) or params.get(key) is None)]
+        missing_with_defaults=None
+        if missing_keys:
+            logger.warning(f"Missing required model parameters {missing_keys}. Generating default values.")
             defaultparams=self.generatefakeparams()
             missing_with_defaults={key: defaultparams[key] for key in missing_keys}
-            #logger.info(f"Missing Hawkes Arrival model parameters: {', '.join(missing_keys)}. Assuming default values: \n {missing_with_defaults}")
-            logger.error(f"Missing HawkesArrival model parameters: {', '.join(missing_keys)}. \nAssuming default values")
-            params.update(missing_with_defaults)
         else:
-            pass
-        self.num_nodes=len(self.cols)  
-        for key, value in params.items():
+            pass 
+        #print(params)
+        for key, value in missing_with_defaults.items():
             setattr(self, key, value)
-            
-        
+        #print(f"kernel params: {self.kernelparams[1]}")
         #Initializing storage variables for thinning simulation    
         self.todmult=None
-        self.baselines=None
+        self.baselines=self.num_nodes*[0]
         self.s=None   
         self.n = None
         self.Ts=None
@@ -82,7 +108,7 @@ class HawkesArrival(ArrivalModel):
         self.lamb = None
         self.left=None
         self.pointcount=0
-        self.current_intensity = np.random.rand(len(self.cols)) # start with correct dims
+        self.current_intensities=None #initializing intensity variable for reinforcement learning purposes
         
     def generatefakeparams(self):
         """
@@ -186,6 +212,67 @@ class HawkesArrival(ArrivalModel):
         defaultparams["kernelparams"]=[fakekernelparams, baselines]
         return defaultparams  
     
+    def read_tod_from_pickle(self, todPath):
+        """Takes in params and todpath and spits out corresponding vectorised numpy arrays
+
+        Returns:
+        tod: a [12, 13] matrix containing values of f(Q_t), the time multiplier for the 13 different 30 min bins of the trading day.
+        params=[kernelparams, baselines]
+            kernelparams=params[0]: an array of [12, 12] matrices consisting of mask, alpha0, beta, gamma. the item at arr[i][j] corresponds to the corresponding value from params[cols[i] + "->" + cols[j]]
+            So mask=params[0][0], alpha0=params[0][1], beta=params[0][2], gamma=params[0][3]
+            baselines=params[1]: a vector of dim=(num_nodes, 1) consisting of baseline intensities
+        """
+        os.path.exists("")
+        with open(todPath, "rb") as f:
+            data = pickle.load(f)
+        tod=np.zeros(shape=(self.num_nodes, 13))
+        for i in range(self.num_nodes):
+            tod[i]=[data[self.cols[i]][k] for k in range(13)]
+        return tod
+    
+    def read_kernelparams_from_pickle(self, kernelparamspath, kernel='powerlaw'):
+        with open(kernelparamspath, "rb") as f:
+            data=pickle.load(f)
+            #print(data.keys())
+        baselines=np.zeros(shape=(self.num_nodes, 1)) #vectorising baselines
+        for i in range(self.num_nodes):
+            baselines[i]=data[self.cols[i]]
+            #baselines[i]=data.pop(cols[i], None)
+
+        if kernel == 'powerlaw':
+            #params=[mask, alpha, beta, gamma] where each is a 12x12 matrix
+            mask, alpha, beta, gamma=[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(4)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(self.cols[i] + "->" + self.cols[j], None)
+                    if kernelParams is None:
+                        mask[i][j]=0
+                        alpha[i][j]=0
+                        beta[i][j]=0
+                        gamma[i][j]=1
+                    elif np.isnan(kernelParams[1][2]):
+                        mask[i][j]=0
+                        alpha[i][j]=0
+                        beta[i][j]=0
+                        gamma[i][j]=1
+                    else:
+                        mask[i][j]=kernelParams[0]
+                        alpha[i][j]=kernelParams[1][0]
+                        beta[i][j]=kernelParams[1][1]
+                        gamma[i][j]=kernelParams[1][2]
+            kernelparams=[mask, alpha, beta, gamma]
+        elif kernel == 'exp':
+            mask, alpha, beta =[np.zeros(shape=(self.num_nodes, self.num_nodes)) for _ in range(3)]
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    kernelParams = data.get(self.cols[i] + "->" + self.cols[j], None)
+                    mask[i][j]=kernelParams[0]
+                    alpha[i][j]=kernelParams[1][0]
+                    beta[i][j]=kernelParams[1][1]
+            kernelparams=[mask, alpha, beta]
+        return [kernelparams, baselines]
+    
+
     def generate_actionsize(self, actionlevel) -> int:
         pi = self.Pis[actionlevel] #geometric + dirac deltas; pi = (p, diracdeltas(i,p_i))
         p = pi[0]
@@ -254,7 +341,6 @@ class HawkesArrival(ArrivalModel):
         if T is None:
             raise ValueError("Expected 'float' for Thinning Ogata time limit, received 'NoneType'")
         if self.n is None: self.n = self.num_nodes*[0]
-        if self.baselines is None: self.baselines=self.num_nodes*[0]
         if self.Ts is None: self.Ts = self.num_nodes*[()]
         if self.spread is None: self.spread = 1
         """Setting up thinningOgata params"""
@@ -270,7 +356,6 @@ class HawkesArrival(ArrivalModel):
         mat = np.nan_to_num(mat)
         self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
         self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
-        specRad = np.max(np.linalg.eig(mat)[0])
         #print("spectral radius = ", specRad)
         specRad = np.max(np.linalg.eig(mat)[0]).real
         if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
@@ -283,6 +368,7 @@ class HawkesArrival(ArrivalModel):
             self.left=0
         if self.timeseries is None:
             self.timeseries=[]
+        
             
         """simulate a point"""
         pointcount=0
@@ -367,7 +453,7 @@ class HawkesArrival(ArrivalModel):
                 
                 """Updating history and returns"""
                 self.Ts[k]+=(self.s,)
-                tau = decays[k][0]
+                #tau = decays[k][0]
                 self.n[k]+=1
                 self.timeseries.append((self.s, k)) #(time, event)
                 if self.timeseries[-1][0] - self.timeseries[0][0] > 600: # purge too big timeseries
@@ -375,7 +461,7 @@ class HawkesArrival(ArrivalModel):
                 self.pointcount+=pointcount
                 return pointcount
         return pointcount
-
+      
     def orderwrapper(self, time:float, k: int, size: int):
         """
         Takes in an event tuple of (time, event) and wraps it into information compatible with the exchange
@@ -450,7 +536,63 @@ class HawkesArrival(ArrivalModel):
         size=self.generate_actionsize(self.coltolevel[k])
         return self.orderwrapper(time=t, k=k, size=size)
         
-            
+    def calculate_intensities(self, time: float):
+        """
+        Calculate the 12-dimensional vector of intensities for all 12 processes at any given time
+        Returns:
+            np.ndarray: A (12, 1) numpy array representing λ(t) for each process.
+        """
+        logger.debug(f"Calculating alpha_t at t={time}")
+        if self.baselines is None or self.kernelparams is None:
+            raise ValueError("Model parameters must be initialized before calling calculate_intensities at.")
+        self.baselines =self.kernelparams[1].copy()
+        mat = np.zeros((self.num_nodes, self.num_nodes))
+        hourIndex = min(12,int(time//1800))
+        self.todmult=self.tod[:, hourIndex].reshape((12, 1))
+        if not np.sum(self.kernelparams[0][3]) == 0:
+            mat=self.todmult*self.kernelparams[0][0]*self.kernelparams[0][1]/((self.kernelparams[0][2]-1) *self.kernelparams[0][3])
+        specRad = np.max(np.linalg.eig(mat)[0]).real
+        if specRad < 1 : specRad = 0.99 #  # dont change actual specRad if already good
+        self.baselines[5] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[5]
+        self.baselines[6] = ((self.spread/self.avgSpread)**self.beta)*self.baselines[6]
+        decays=(0.99/specRad) *self.todmult * self.baselines
+        
+        if time==0:
+            print(f"init decays: {decays}")
+            return decays
+        if self.timeseries==[]:
+            pass
+        else:
+            while self.left<len(self.timeseries):
+                #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
+                if time-self.timeseries[self.left][0]>=500:
+                    self.left+=1 
+                else:
+                    break
+            for point in self.timeseries[self.left:]: #point is of the form(s, k)
+                kern=powerLawCutoff(time=time-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
+                kern=kern.reshape((12, 1))
+                decays+=self.todmult*kern
+        #print(decays.shape) #should be (12, 1)
+        decays=np.maximum(decays, 0)
+        decays[5] = ((self.spread/self.avgSpread)**self.beta)*decays[5]
+        decays[6] = ((self.spread/self.avgSpread)**self.beta)*decays[6]
+        if 100*np.round(self.spread, 2)  < 2 : 
+            decays[5] = decays[6] = 0
+        assert decays.shape==(12,1)
+        print(f"decays at t={time}: {decays}")
+        return decays
+
+    def get_alpha_t(self, time: float):
+        """
+        Returns the following trend variable as defined in paper
+        alpha_t= intensity_(Market order, buy, inspread) + intensity_(Market order, buy, non aggressive) - intensity_(Market order, sell, inspread) - intensity_(Market order, sell, non aggressive)
+                            (Bid_inspread)                              ()
+        """
+        intensities=self.calculate_intensities(time=time)
+        return intensities[6]+intensities[7]-intensities[5]-intensities[4]
+
+
     #Concrete implementations of Abstract Base Class Methods
     def update(self, time:float, side: str, order_type: str, level: str, size: int):
         """
@@ -488,17 +630,16 @@ class HawkesArrival(ArrivalModel):
         
         """Updating history and returns"""
         self.Ts[k]+=(s,)
-        tau = decays[k][0]
+        #tau = decays[k][0]
         self.n[k]+=1
         self.timeseries.append((s, k)) #(time, event)
         #print("point added")
         
         
         return
-    
     def reset(self, params={}):
-        #Variables to reset
-        self.__init__(params=params)
+        #Variables to reset --todo
+        pass
     
     def seed(self):
         return super().seed()
