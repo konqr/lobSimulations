@@ -40,7 +40,7 @@ class RandomGymTradingAgent(GymTradingAgent):
         if action in [1,3,8,10]: # cancels
             a = self.actions[action]
             lvl = self.actionsToLevels[a]
-            if len(self.positions[self.exchange.symbol][lvl]) == 0: #no position to cancel
+            if len(data['Positions'][lvl]) == 0: #no position to cancel
                 return self.get_action(data) # retry
         if (action in [5,6]) and np.isclose( self.exchange.spread, 0.01): #inspread
             return self.get_action(data) # retry
@@ -56,4 +56,3 @@ class RandomGymTradingAgent(GymTradingAgent):
         self.updatestatelog()
         deltaPNL=self.statelog[-1][2] - self.statelog[-2][2]
         return deltaPNL - penalty
-

@@ -39,7 +39,8 @@ class Kernel:
     Note that the simulation timefloor is in microseconds
     
     """
-    def __init__(self, agents: List[TradingAgent], exchange: Exchange, seed: int=1, stop_time: int=100, wall_time_limit: int=600, log_to_file: bool=True, **parameters) -> None:
+    def __init__(self, agents: List[TradingAgent], exchange: Exchange, seed: int=1, kernel_name: str="Alpha", stop_time: int=100, wall_time_limit: int=600, log_to_file: bool=True, **parameters) -> None:
+        self.kernel_name=kernel_name
         self.agents: List[TradingAgent]=agents
         self.gymagents= [agent for agent in self.agents if isinstance(agent, GymTradingAgent)]
         assert len(self.gymagents)==1, f"This Kernel is currently incompatible with more than one Gym Agent"
@@ -445,7 +446,7 @@ class Kernel:
                 logger.debug(f"Agent {agentID} wake-up time set to {requested_time}")
                 return True
             else:
-                raise KeyError(f"Agent {agentID} is valid but is not registered in Kernel registry")
+                raise KeyError(f"Agent {agentID} is valid but is not registered in Kernel {self.kernel_name} registry")
             
         else:
             raise KeyError(f"No agent exists with ID {agentID}")       

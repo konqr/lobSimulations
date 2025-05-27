@@ -16,7 +16,3 @@ Bug2: Implement Delay
 (Done) Autocancel only limit orders that leave top 2 levels upon inspread
 (Done) Flag for wake up messages, boolean for market orders + inspread shifts
 add noncontrollable randomagents non_gym
-
-Todo:
-implement custom parameters
-edge_case where at the start of a turn, if you cancel an order, and that order is the last of L1, and the bid/ask changes, but old action is made in accustomed to that.
