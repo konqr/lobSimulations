@@ -13,6 +13,7 @@ from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
 from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
+from gymnasium.spaces import Discrete, Dict, Box
 import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
