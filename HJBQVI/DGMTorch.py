@@ -877,6 +877,7 @@ class ActorCriticSeparate(nn.Module):
             hidden_activation: activation function for hidden layers
             q_function:        whether critic is Q-function (True) or V-function (False)
         '''
+        super(ActorCriticSeparate, self).__init__()
         # Create separate actor and critic networks
         self.actor = ActorMLP(
             input_dim=input_dim,
