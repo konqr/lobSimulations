@@ -769,3 +769,166 @@ class ActorCriticSGMLP(nn.Module):
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         return log_prob
+
+class ActorMLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 output_dim, output_activation="softmax",
+                 hidden_activation="tanh"):
+        '''
+        Actor network for policy learning
+
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            output_dim:        dimensionality of actor output (action space)
+            output_activation: activation function used in output layer
+            hidden_activation: activation function for hidden layers
+        '''
+        super(ActorMLP, self).__init__()
+
+        # Initial layer
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.hidden_layers = nn.Sequential(*layers)
+
+        # Output layer (policy network)
+        self.output_layer = DenseLayer(output_dim, layer_width, activation=output_activation)
+
+    def forward(self, x):
+        '''
+        Forward pass through actor network
+
+        Args:
+            x: input state
+
+        Returns:
+            policy distribution or action probabilities
+        '''
+        x = self.initial_layer(x)
+        x = self.hidden_layers(x)
+        output = self.output_layer(x)
+        return output
+
+
+class CriticMLP(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 output_dim=1, hidden_activation="tanh", q_function=False):
+        '''
+        Critic network for value function estimation
+
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            output_dim:        dimensionality of critic output (1 for V, action_dim for Q)
+            hidden_activation: activation function for hidden layers
+            q_function:        whether this is a Q-function (True) or V-function (False)
+        '''
+        super(CriticMLP, self).__init__()
+
+        # Initial layer
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build hidden layers
+        layers = []
+        for _ in range(n_layers):
+            layers.append(DenseLayer(layer_width, layer_width, activation=hidden_activation))
+        self.hidden_layers = nn.Sequential(*layers)
+
+        # Output layer (value function) - no activation for value estimation
+        self.output_layer = DenseLayer(output_dim, layer_width, activation=None)
+
+        self.q_function = q_function
+
+    def forward(self, x):
+        '''
+        Forward pass through critic network
+
+        Args:
+            x: input state
+
+        Returns:
+            value estimate
+        '''
+        x = self.initial_layer(x)
+        x = self.hidden_layers(x)
+        output = self.output_layer(x)
+        return output
+
+
+class ActorCriticSeparate:
+    def __init__(self, input_dim, layer_width, n_layers,
+                 actor_output_dim, actor_activation="softmax",
+                 hidden_activation="tanh", q_function=True):
+        '''
+        Separate Actor-Critic networks
+
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of intermediate layers
+            actor_output_dim:  dimensionality of actor output (action space)
+            actor_activation:  activation function used in actor's output layer
+            hidden_activation: activation function for hidden layers
+            q_function:        whether critic is Q-function (True) or V-function (False)
+        '''
+        # Create separate actor and critic networks
+        self.actor = ActorMLP(
+            input_dim=input_dim,
+            layer_width=layer_width,
+            n_layers=n_layers,
+            output_dim=actor_output_dim,
+            output_activation=actor_activation,
+            hidden_activation=hidden_activation
+        )
+
+        critic_output_dim = actor_output_dim if q_function else 1
+        self.critic = CriticMLP(
+            input_dim=input_dim,
+            layer_width=layer_width,
+            n_layers=n_layers,
+            output_dim=critic_output_dim,
+            hidden_activation=hidden_activation,
+            q_function=q_function
+        )
+
+    def forward(self, x):
+        '''
+        Process inputs through both networks
+
+        Args:
+            x: input state
+
+        Returns:
+            actor_output: policy distribution or action
+            critic_output: value estimate
+        '''
+        actor_output = self.actor(x)
+        critic_output = self.critic(x)
+        return actor_output, critic_output
+
+    def actor_forward(self, x):
+        '''Forward pass through actor only'''
+        return self.actor(x)
+
+    def critic_forward(self, x):
+        '''Forward pass through critic only'''
+        return self.critic(x)
+
+    def parameters(self):
+        '''Get all parameters from both networks'''
+        import itertools
+        return itertools.chain(self.actor.parameters(), self.critic.parameters())
+
+    def actor_parameters(self):
+        '''Get actor parameters only'''
+        return self.actor.parameters()
+
+    def critic_parameters(self):
+        '''Get critic parameters only'''
+        return self.critic.parameters()

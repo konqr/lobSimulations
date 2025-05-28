@@ -1,5 +1,5 @@
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
-from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP
+from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP, ActorCriticSeparate
 from HJBQVI.utils import MinMaxScaler
 from typing import Dict, Optional, Any
 import torch
@@ -1410,7 +1410,7 @@ class PPOAgent(GymTradingAgent):
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
         return optimizer, scheduler
 
-    def setupNNs(self, data0):
+    def setupNNs(self, data0 ,type='separate'):
         """
         Setup neural networks for PPO with two networks (d and u)
 
@@ -1421,8 +1421,12 @@ class PPOAgent(GymTradingAgent):
         state_dim = len(data0[0])
 
         # Initialize main networks with shared architecture
-        self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
-        self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+        if type == 'separate':
+            self.Actor_Critic_d = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
+            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+        else:
+            self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
+            self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
 
         # Move all models to appropriate device
         self.Actor_Critic_d.to(self.device)
