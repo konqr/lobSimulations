@@ -1292,7 +1292,8 @@ class PPOAgent(GymTradingAgent):
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
-                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu'):
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
+                 transaction_cost = 0.01):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1340,6 +1341,7 @@ class PPOAgent(GymTradingAgent):
         self.gamma = 0.99  # discount factor
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
+        self.transaction_cost = transaction_cost
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
@@ -1435,7 +1437,7 @@ class PPOAgent(GymTradingAgent):
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
-        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1] - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]
+        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1]*(1- self.transaction_cost*np.sign(self.statelog[-1][3]['INTC'])) - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]*(1-self.transaction_cost*np.sign(self.statelog[-1][3]['INTC']))
         # if self.istruncated or termination:
         #     deltaPNL += self.countInventory() * self.mid
         # reward shaping
