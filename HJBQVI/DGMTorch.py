@@ -861,7 +861,7 @@ class CriticMLP(BaseNet):
         return output
 
 
-class ActorCriticSeparate:
+class ActorCriticSeparate(nn.Module):
     def __init__(self, input_dim, layer_width, n_layers,
                  actor_output_dim, actor_activation="softmax",
                  hidden_activation="tanh", q_function=True):
