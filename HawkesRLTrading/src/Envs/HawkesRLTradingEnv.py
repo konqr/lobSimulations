@@ -17,9 +17,6 @@ import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-import os
-import sys
-sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
@@ -162,7 +159,7 @@ class tradingEnv(gym.Env):
         self.kernel.terminate()
 
     #Wrappers
-    def getobservations(self, agentID:int=1):
+    def getobservations(self, agentID:int=self.agents[0].id):
         """
         Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
         """
