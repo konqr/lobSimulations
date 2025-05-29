@@ -159,10 +159,12 @@ class tradingEnv(gym.Env):
         self.kernel.terminate()
 
     #Wrappers
-    def getobservations(self, agentID:int=self.agents[0].id):
+    def getobservations(self, agentID:int):
         """
         Returns a dictionary with keys: LOB0, Cash, Inventory, Positions
         """
+        if(agentID is None):
+            agentID=self.agents[0].id
         return self.kernel.getobservations(agentID=agentID)
     def calculaterewards(self):
         rewards={}
