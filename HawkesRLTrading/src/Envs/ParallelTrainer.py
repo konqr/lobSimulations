@@ -5,7 +5,7 @@ import logging
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ICRLAgent import PPOAgent
 from HJBQVI.utils import TrainingLogger, ModelManager
-from HawkesRLTradingEnv import tradingEnv, preprocessdata
+from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import tradingEnv, preprocessdata
 import pickle
 import torch
 import matplotlib.pyplot as plt
