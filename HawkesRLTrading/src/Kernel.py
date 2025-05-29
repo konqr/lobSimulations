@@ -500,7 +500,10 @@ class Kernel:
     def getobservations(self, agentID: int=1):
         rtn={"LOB0": self.exchange.lob0,
         }
-        agent=self.entity_registry[agentID]
+        try:
+            agent=self.entity_registry[agentID]
+        except KeyError:
+            return None
         agentobs=agent.getobservations()
         rtn["Cash"]=agentobs["Cash"]
         rtn["Inventory"]=agentobs["Inventory"]
