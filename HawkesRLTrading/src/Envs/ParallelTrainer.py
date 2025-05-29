@@ -1,28 +1,17 @@
-import numpy as np
-import multiprocessing as mp
 from multiprocessing import Process, Queue, Event
-import time
-from typing import List, Dict, Any, Tuple
-import copy
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import gymnasium as gym
 import numpy as np
 import copy
-from typing import Any, Optional
 import logging
-import matplotlib.pyplot as plt
-from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
-from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
-from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
-from HawkesRLTrading.src.SimulationEntities.ProbabilisticAgent import ProbabilisticAgent
-from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent
-from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
-from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
-from HawkesRLTrading.src.Kernel import Kernel
-from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
+from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
+from HawkesRLTrading.src.SimulationEntities.ICRLAgent import PPOAgent
+from HJBQVI.utils import TrainingLogger, ModelManager
 from HawkesRLTradingEnv import tradingEnv, preprocessdata
 import pickle
+import torch
+import matplotlib.pyplot as plt
+import os
+from collections import defaultdict
+
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,7 +26,8 @@ class ParallelPPOTrainer:
                  env_kwargs: dict = None,
                  log_dir: str = None,
                  model_dir: str = None,
-                 label: str = None):
+                 label: str = None,
+                 transaction_cost: float = 0.0001):
 
         self.n_actors = n_actors
         self.rollout_steps = rollout_steps
@@ -48,6 +38,7 @@ class ParallelPPOTrainer:
         self.log_dir = log_dir
         self.model_dir = model_dir
         self.label = label
+        self.tc = transaction_cost
 
         # Initialize shared components
         self.train_logger = TrainingLogger(
@@ -65,6 +56,21 @@ class ParallelPPOTrainer:
         self.episode_rewards = []
         self.episode_lengths = []
         self.training_stats = []
+
+        # Plotting data tracking
+        self.cash_history = []
+        self.inventory_history = []
+        self.time_history = []
+        self.actions_history = []
+        self.episode_boundaries = [0]
+        self.pnl_history = []
+        self.avgEpisodicRewards = []
+        self.stdEpisodicRewards = []
+        self.finalcash = []
+        self.profit_counter = 0
+
+        # Episode-wise tracking for individual episodes
+        self.episode_data = defaultdict(list)  # Store data per episode for detailed plotting
 
     def _create_agent(self, config):
         """Create a PPO agent instance"""
@@ -86,7 +92,8 @@ class ParallelPPOTrainer:
             buffer_capacity=config.get('buffer_capacity', 100000),
             rewardpenalty=config.get('rewardpenalty', 0.5),
             epochs=config.get('epochs',10),
-            start_trading_lag = config.get('start_trading_lag', 0)
+            start_trading_lag = config.get('start_trading_lag', 0),
+            transaction_cost=self.tc
         )
 
     def _actor_worker(self, actor_id: int, pause_event:Event, shared_weights_queue: Queue,
@@ -125,17 +132,17 @@ class ParallelPPOTrainer:
                 pass
 
             # Run rollout
-            experience_batch = self._run_rollout(local_agent, local_env_kwargs, actor_id)
+            experience_batch = self._run_rollout(local_agent, local_env_kwargs, actor_id, episode_count)
 
             # Send experience to training process
             experience_queue.put((actor_id, experience_batch))
             episode_count += 1
 
-    def _run_rollout(self, agent, env_kwargs, actor_id):
+    def _run_rollout(self, agent, env_kwargs, actor_id, episode_id):
         """Run a single rollout of T timesteps"""
 
         # Create environment
-        env = tradingEnv( stop_time=self.rollout_steps, wall_time_limit=23400, **env_kwargs)
+        env = tradingEnv(stop_time=self.rollout_steps, wall_time_limit=23400, **env_kwargs)
 
         # Initialize episode
         Simstate, observations, termination, truncation = env.step(action=None)
@@ -151,6 +158,12 @@ class ParallelPPOTrainer:
         experiences = []
         step_count = 0
         episode_reward = 0
+
+        # Episode-specific tracking for plotting
+        episode_cash = []
+        episode_inventory = []
+        episode_time = []
+        episode_actions = []
 
         while (Simstate["Done"] == False and
                termination != True):
@@ -184,22 +197,213 @@ class ParallelPPOTrainer:
                 'reward': reward,
                 'next_state': gym_agent.readData(observations),
                 'done': (termination or truncation),
-                'log_prob': agent_action[2] if len(agent_action) > 2 else None,  # Store log prob if available
-                'value': agent_action[3] if len(agent_action) > 3 else None     # Store value if available
+                'log_prob': agent_action[2] if len(agent_action) > 2 else None,
+                'value': agent_action[3] if len(agent_action) > 3 else None
             }
             experiences.append(experience)
 
+            # Collect data for plotting
+            episode_cash.append(observations['Cash'])
+            episode_inventory.append(observations['Inventory'])
+            episode_time.append(Simstate['TimeCode'])
+            episode_actions.append(action[1][0])
+
             step_count += 1
+
+        # Calculate final PnL for this episode
+        final_pnl = episode_cash[-1] + episode_inventory[-1] * gym_agent.mid * (1 - self.tc * np.sign(episode_inventory[-1])) if episode_cash else 0
 
         return {
             'experiences': experiences,
             'episode_reward': episode_reward,
             'episode_length': step_count,
-            'actor_id': actor_id
+            'actor_id': actor_id,
+            'episode_id': episode_id,
+            'plotting_data': {
+                'cash': episode_cash,
+                'inventory': episode_inventory,
+                'time': episode_time,
+                'actions': episode_actions,
+                'final_pnl': final_pnl,
+                'mid_price': gym_agent.mid if hasattr(gym_agent, 'mid') else 100
+            }
         }
+
+    def _update_plotting_data(self, experiences_batch):
+        """Update plotting data from collected experiences"""
+
+        for actor_id, batch in experiences_batch:
+            plotting_data = batch['plotting_data']
+
+            # Check for episode boundary (reset in time)
+            if (len(self.time_history) > 0 and
+                    len(plotting_data['time']) > 0 and
+                    plotting_data['time'][0] < self.time_history[-1]):
+                self.episode_boundaries.append(len(self.cash_history))
+
+            # Append data to global history
+            self.cash_history.extend(plotting_data['cash'])
+            self.inventory_history.extend(plotting_data['inventory'])
+            self.time_history.extend(plotting_data['time'])
+            self.actions_history.extend(plotting_data['actions'])
+
+            # Calculate PnL for each step
+            mid_price = plotting_data['mid_price']
+            for i, (cash, inventory) in enumerate(zip(plotting_data['cash'], plotting_data['inventory'])):
+                pnl = cash + inventory * mid_price * (1 - self.tc * np.sign(inventory) if inventory != 0 else 0)
+                self.pnl_history.append(pnl)
+
+            # Store episode final cash
+            if plotting_data['cash']:
+                final_cash = plotting_data['cash'][-1] + plotting_data['inventory'][-1] * mid_price
+                self.finalcash.append(final_cash)
+
+            self.profit_counter += len(plotting_data['cash'])
+
+    def _calculate_sharpe_ratio(self):
+        """Calculate Sharpe ratio using episode boundaries"""
+        all_log_returns = []
+        pft = np.array(self.pnl_history)
+
+        # Calculate log returns for each episode separately
+        for i in range(len(self.episode_boundaries)):
+            start_idx = self.episode_boundaries[i]
+            end_idx = self.episode_boundaries[i + 1] if i + 1 < len(self.episode_boundaries) else len(pft)
+
+            if end_idx - start_idx > 1:  # Need at least 2 points for log returns
+                episode_pnl = pft[start_idx:end_idx]
+                episode_log_returns = np.diff(np.log(np.maximum(episode_pnl, 1e-8)))  # Avoid log(0)
+                all_log_returns.extend(episode_log_returns)
+
+        # Calculate Sharpe on concatenated log returns from all episodes
+        if len(all_log_returns) > 0:
+            all_log_returns = np.array(all_log_returns)
+            sr = np.mean(all_log_returns) / np.std(all_log_returns) if np.std(all_log_returns) > 0 else 0
+        else:
+            sr = 0
+
+        return sr
+
+    def _plot_profit_overlay(self, save_path=None):
+        """Plot profit with episode overlay similar to original"""
+        if len(self.pnl_history) == 0:
+            return
+
+        plt.figure(figsize=(12, 8))
+
+        pft = np.array(self.pnl_history)
+        t_array = np.array(self.time_history)
+        sr = self._calculate_sharpe_ratio()
+
+        # Plot each episode as a separate line
+        for i in range(len(self.episode_boundaries)):
+            start_idx = self.episode_boundaries[i]
+            end_idx = self.episode_boundaries[i + 1] if i + 1 < len(self.episode_boundaries) else len(pft)
+
+            if end_idx > start_idx:  # Valid episode
+                episode_t = t_array[start_idx:end_idx]
+                episode_pnl = pft[start_idx:end_idx]
+                episode_profit = episode_pnl - self.agent_config.get('cash', 2500)  # Profit relative to starting capital
+
+                # Plot this episode
+                if i == 0:
+                    plt.plot(episode_t, episode_profit, alpha=0.7, label=f'Sharpe:{sr:0.4f}')
+                else:
+                    plt.plot(episode_t, episode_profit, alpha=0.7)
+
+        plt.legend()
+        plt.ticklabel_format(useOffset=False, style='plain')
+        plt.xlabel('Time in seconds')
+        plt.ylabel('Profit in Dollars')
+        plt.title('Final Profit - All Episodes Overlaid')
+
+        if save_path:
+            plt.savefig(save_path)
+            np.save(save_path.replace('.png', ''), np.array([self.time_history, self.pnl_history]))
+        plt.close()
+
+    def _plot_policy_summary(self, save_path=None):
+        """Plot policy summary (cash, inventory, actions)"""
+        if len(self.cash_history) == 0:
+            return
+
+        plt.figure(figsize=(12, 8))
+
+        plt.subplot(221)
+        plt.plot(np.arange(len(self.cash_history)), self.cash_history)
+        plt.title('Cash')
+
+        plt.subplot(222)
+        plt.plot(np.arange(len(self.inventory_history)), self.inventory_history)
+        plt.title('Inventory')
+
+        plt.subplot(223)
+        plt.scatter(np.arange(len(self.actions_history)), self.actions_history, alpha=0.6)
+        if hasattr(self.master_agent, 'actions'):
+            plt.yticks(np.arange(len(self.master_agent.actions)), self.master_agent.actions)
+        plt.title('Actions')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path)
+        plt.close()
+
+    def _plot_episodic_rewards(self, save_path=None):
+        """Plot average episodic rewards with standard deviation"""
+        if len(self.avgEpisodicRewards) == 0:
+            return
+
+        # Calculate moving average of final profits
+        pft = np.array(self.finalcash) - self.agent_config.get('cash', 2500) if self.finalcash else np.array([])
+        ma = np.convolve(pft, np.ones(min(5, len(pft)))/min(5, len(pft)), mode='valid') if len(pft) >= 5 else pft
+
+        plt.figure(figsize=(12, 8))
+
+        plt.subplot(211)
+        if len(self.avgEpisodicRewards) > 0:
+            plt.plot(np.arange(len(self.avgEpisodicRewards)), self.avgEpisodicRewards)
+            if len(self.stdEpisodicRewards) > 0:
+                plt.fill_between(np.arange(len(self.avgEpisodicRewards)),
+                                 np.array(self.avgEpisodicRewards) - np.array(self.stdEpisodicRewards),
+                                 np.array(self.avgEpisodicRewards) + np.array(self.stdEpisodicRewards),
+                                 alpha=0.3)
+        plt.title('Avg Episodic Rewards')
+
+        plt.subplot(212)
+        if len(ma) > 0:
+            plt.plot(np.arange(len(ma)), ma)
+            plt.ticklabel_format(useOffset=False, style='plain')
+        plt.title('Final Profit MA')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path)
+        plt.close()
+
+    def _update_episodic_rewards(self):
+        """Update episodic rewards statistics"""
+        if hasattr(self.master_agent, 'trajectory_buffer') and len(self.master_agent.trajectory_buffer) > 0:
+            episodic_rewards = []
+            r = 0
+            tmp = self.master_agent.trajectory_buffer[0][0]
+
+            for ij in self.master_agent.trajectory_buffer:
+                if ij[0] == tmp:
+                    r += ij[1][3]  # Assuming reward is at index 3 in trajectory
+                else:
+                    episodic_rewards.append(r)
+                    r = ij[1][3]
+                    tmp = ij[0]
+
+            if episodic_rewards:
+                self.avgEpisodicRewards.append(np.mean(episodic_rewards))
+                self.stdEpisodicRewards.append(np.std(episodic_rewards))
 
     def _update_master_weights(self, experiences_batch):
         """Update master agent with collected experiences and perform PPO update"""
+
+        # Update plotting data first
+        self._update_plotting_data(experiences_batch)
 
         # Aggregate all experiences
         all_experiences = []
@@ -208,6 +412,7 @@ class ParallelPPOTrainer:
         eID = 0
         if len(self.master_agent.trajectory_buffer) > 0:
             eID = self.master_agent.trajectory_buffer[-1][0] + 1
+
         for actor_id, batch in experiences_batch:
             all_experiences.append((eID, batch['experiences']))
             total_reward += batch['episode_reward']
@@ -221,7 +426,7 @@ class ParallelPPOTrainer:
         for epID, exp in all_experiences:
             for one_exp in exp:
                 self.master_agent.store_transition(
-                    epID,  # Episode number not used in this context
+                    epID,
                     one_exp['state'],
                     one_exp['action'],
                     one_exp['reward'],
@@ -237,6 +442,9 @@ class ParallelPPOTrainer:
         for epoch in range(self.ppo_epochs):
             stats = self.master_agent.train(self.train_logger)
             training_stats.append(stats)
+
+        # Update episodic rewards
+        self._update_episodic_rewards()
 
         # Log training statistics
         avg_reward = total_reward / max(total_episodes, 1)
@@ -263,7 +471,8 @@ class ParallelPPOTrainer:
         shared_weights_queues = [Queue() for _ in range(self.n_actors)]
         experience_queue = Queue()
         control_queues = [Queue() for _ in range(self.n_actors)]
-        pause_events =  [Event() for _ in range(self.n_actors)]
+        pause_events = [Event() for _ in range(self.n_actors)]
+
         # Start actor processes
         actors = []
         for i in range(self.n_actors):
@@ -307,8 +516,7 @@ class ParallelPPOTrainer:
                             shared_weights_queues[i].put(new_weights)
                             pause_events[i].set()
                         except Exception as e:
-                            print(e)
-                            print(f"Failed to send weights to actor {i}")
+                            print(f"Failed to send weights to actor {i}: {e}")
 
                 # Log progress
                 if len(self.episode_rewards) > 0:
@@ -316,14 +524,35 @@ class ParallelPPOTrainer:
                     avg_recent_reward = np.mean(recent_rewards)
                     print(f"Recent average reward: {avg_recent_reward:.4f}")
 
+                # Generate plots periodically
+                if (iteration + 1) % 10 == 0 or iteration == 0:  # Plot every 10 iterations
+                    if self.log_dir and self.label:
+                        # Create profit overlay plot
+                        profit_path = os.path.join(self.log_dir, f"{self.label}_profit.png")
+                        self._plot_profit_overlay(save_path=profit_path)
+
+                        # Create policy summary plot
+                        policy_path = os.path.join(self.log_dir, f"{self.label}_policy.png")
+                        self._plot_policy_summary(save_path=policy_path)
+
+                        # Create episodic rewards plot
+                        rewards_path = os.path.join(self.log_dir, f"{self.label}_avgepisodicreward.png")
+                        self._plot_episodic_rewards(save_path=rewards_path)
+
+                        print(f"Plots saved at iteration {iteration + 1}")
+
                 # Save model periodically
-                if (iteration + 1) % 50 == 0:
+                if (iteration + 1) % 10 == 0:
                     self.model_manager.save_models(
                         epoch=iteration + 1,
                         d=self.master_agent.Actor_Critic_d,
                         u=self.master_agent.Actor_Critic_u
                     )
                     print(f"Model saved at iteration {iteration + 1}")
+
+                torch.cuda.empty_cache()
+                self.train_logger.save_logs()
+                self.train_logger.plot_losses(show=False, save=True)
 
         finally:
             # Clean shutdown
@@ -338,6 +567,17 @@ class ParallelPPOTrainer:
                     actor.terminate()
                     actor.join()
 
+            # Generate final plots
+            if self.log_dir and self.label:
+                profit_path = os.path.join(self.log_dir, f"{self.label}_final_profit.png")
+                self._plot_profit_overlay(save_path=profit_path)
+
+                policy_path = os.path.join(self.log_dir, f"{self.label}_final_policy.png")
+                self._plot_policy_summary(save_path=policy_path)
+
+                rewards_path = os.path.join(self.log_dir, f"{self.label}_final_avgepisodicreward.png")
+                self._plot_episodic_rewards(save_path=rewards_path)
+
             print("Training completed!")
 
     def get_training_statistics(self):
@@ -347,9 +587,11 @@ class ParallelPPOTrainer:
             'episode_lengths': self.episode_lengths,
             'training_stats': self.training_stats,
             'avg_reward': np.mean(self.episode_rewards) if self.episode_rewards else 0,
-            'std_reward': np.std(self.episode_rewards) if self.episode_rewards else 0
+            'std_reward': np.std(self.episode_rewards) if self.episode_rewards else 0,
+            'sharpe_ratio': self._calculate_sharpe_ratio(),
+            'final_cash': self.finalcash,
+            'total_profit': np.sum(np.array(self.finalcash) - self.agent_config.get('cash', 2500)) if self.finalcash else 0
         }
-
 
 # Usage example
 def main():
