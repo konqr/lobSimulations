@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
-from HawkesRLTrading.src.SimulationEntities.ProbabilisticAgent import ProbabilisticAgent
 from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
@@ -24,7 +23,7 @@ sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimula
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
-    
+
     def __init__(self, render_mode="text", stop_time: int=100, wall_time_limit: int=300, kernel_name: str="Alpha", seed=1, log_to_file=True,**kwargs):
         """
         Initiates a trading environment. Arrivalmodel contains the simulation of the trading orders and params contains all other relevant information
@@ -32,18 +31,18 @@ class tradingEnv(gym.Env):
         render_mode
         stop_time: simulation stop time in simulationseconds
         wall_time_limit: simulation wall time limit
-        kernel_name: for human readability 
+        kernel_name: for human readability
         seed
         log_to_file
         kwargs -- Simulation default parameters specified as following:
             Dictionary{
                 "TradingAgent": [],
-                "GymTradingAgent": [{"cash": 10000000, 
+                "GymTradingAgent": [{"cash": 10000000,
                                     "strategy": "Random",
                                     "action_freq": 2,
                                     "rewardpenalty": 0.4,
                                     "Inventory": {"XYZ": 1000},
-                                    "log_to_file": True, 
+                                    "log_to_file": True,
                                     "cashlimit": 1000000000000,
                                     "inventorylimit": 100000,
                                     "wake_on_MO": True,
@@ -55,16 +54,16 @@ class tradingEnv(gym.Env):
                 "PriceMid0": 45,
                 "spread0": 0.05},
                 "Arrival_model": {"name": "Hawkes",
-                                  "parameters": {"kernelparams": None, 
-                                            "tod": None, 
-                                            "Pis": None, 
-                                            "beta": None, 
-                                            "avgSpread": None, 
+                                  "parameters": {"kernelparams": None,
+                                            "tod": None,
+                                            "Pis": None,
+                                            "beta": None,
+                                            "avgSpread": None,
                                             "Pi_Q0": None}}
 
             }
 
-        """               
+        """
         # self.observation_space=Dict({
         #     "Cash": Box(low=0, high=100000),
         #     "Inventory": Box(low=0, high=10000),
@@ -76,10 +75,10 @@ class tradingEnv(gym.Env):
         #     "Current_Positions": Sequence(Tuple(Text(), Box(low=0), Box(low=0)))
         # })
         # self.action_space=Tuple(Discrete(13), Box(0, 5000))
-        
+
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Render mode must be None, human or rgb_array or text"
         self.seed=seed
-        
+
         #Construct agents: Right now only compatible with 1 trading agent
         # assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
         self.agents=[]
@@ -97,11 +96,8 @@ class tradingEnv(gym.Env):
                                                     wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 elif j['strategy'] == 'ICRL':
                     new_agent = j['agent_instance']
-                elif j['strategy'] == 'Probabilistic':
-                    new_agent=ProbabilisticAgent( seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-                                                  wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 else:
-                    raise Exception("Program only supports RandomGymTrading Agents for now")      
+                    raise Exception("Program only supports RandomGymTrading Agents for now")
                 self.agents.append(new_agent)
         print("Agent IDs: " + str([agent.id for agent in self.agents]))
         #Construct Exchange:
@@ -118,18 +114,18 @@ class tradingEnv(gym.Env):
                 raise Exception("Program currently only supports Hawkes Arrival model")
         else:
             raise ValueError("Please specify Arrival model for exchange")
-            
-               
-        
+
+
+
         self.kernel=Kernel(agents=self.agents, exchange=exchange, seed=seed, kernel_name=kernel_name, stop_time=stop_time, wall_time_limit=wall_time_limit, log_to_file=log_to_file, Arrival_model=Arrival_model)
         self.kernel.initialize_kernel()
         np.random.seed(self.seed)
-            
+
     def step(self, action: Optional[Any]):
         """
         Wrapper for state step -- a step ends when the next trade happens or when tau seconds have passed by, whichever occurs first for the agent
         Input: Action
-        Output: Observations, Rewards, termination, truncation, Logging info+metrics 
+        Output: Observations, Rewards, termination, truncation, Logging info+metrics
         """
         #Observations=cash, inventory, LOB state, current positions
         simstate=self.kernel.run(action=action)
@@ -139,9 +135,9 @@ class tradingEnv(gym.Env):
         truncation=self.istruncated()
         return simstate, Observations, termination, truncation
         # return Observations, rewards, termination, truncation
-        #return observations, rewards, dones, infos    
-        
-        
+        #return observations, rewards, dones, infos
+
+
     def reset(self, seed=None):
         """
         Reset env to default starting state + clear all simulations
@@ -152,19 +148,19 @@ class tradingEnv(gym.Env):
         observations=self.kernel.getobservations()
         info=self.kernel.getinfos()
         return observations
-    
+
     def render(self):
         """
         Render an environment
         """
         pass
-    
+
     def close(self):
         """
         close any active running windows/tasks
         """
         self.kernel.terminate()
-    
+
     #Wrappers
     def getobservations(self, agentID:int=1):
         """
@@ -175,14 +171,14 @@ class tradingEnv(gym.Env):
         rewards={}
         for gymagent in self.kernel.gymagents:
             rewards[gymagent.id]=gymagent.calculaterewards()
-        return rewards        
+        return rewards
     def istruncated(self):
         return len(self.kernel.istruncated()) > 0
     def isterminated(self):
-        return self.kernel.isterminated()  
+        return self.kernel.isterminated()
     def getinfo(self):
         """
-        Returns auxiliary info: 
+        Returns auxiliary info:
         """
         return None
     def getAgent(self, ID):
@@ -271,6 +267,7 @@ if __name__=="__main__":
             'Bid_L2': [0.,
                        [(10, 1.)]]}
     kwargs={
+
                 "TradingAgent": [],
                 # "GymTradingAgent": [{"cash": 2000,
                 #                     "strategy": 'Probabilistic',#"ICRL",
@@ -349,12 +346,24 @@ if __name__=="__main__":
     actionss:Dict[int, List] = {}
 
     avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
-    episodic_rewards = []
-    # logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+    train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
+
     # for episode in range(10):
     env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
+
+#     for episode in range(500):
+#         env=tradingEnv(stop_time=20, wall_time_limit=23400, seed=1, **kwargs)
+#         print("Initial Observations"+ str(env.getobservations()))
+
+#         Simstate, observations, termination, truncation =env.step(action=None)
+#         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+#         agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
+#         if episode== 0: agent.setupNNs(observations)
+#         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+
+
 
     Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
@@ -372,12 +381,15 @@ if __name__=="__main__":
         action:list[Tuple] = []
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+
             agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
             action = (agent.id, agentAction)
             # print(f"Limit Order Book: {observations['LOB0']}")
             print(f"Action: {action}")
             observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
+            agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             observationsDict.update({agent.id:observations})
             logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
             # cash += [observations['Cash']]
@@ -387,16 +399,16 @@ if __name__=="__main__":
             # actions += [action[1][0]]
             actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
             print(f"ACTION DONE{i}")
-        # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-        # agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
-        # print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
-        # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
-        t += [Simstate['TimeCode']]
-        i+=1
-        # if i%100 == 0:
-        #     for epoch in range(100):
-        #         agent.learnSAC()
-        # agent.learn(agent.getState(observations_prev), agent.calculaterewards(termination), agent.getState(observations), (termination or truncation))
+            # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
+            # agent.store_transition(episode, agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            # print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
+            # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
+            t += [Simstate['TimeCode']]
+            i+=1
+            # if i%100 == 0:
+            #     for epoch in range(100):
+            #         agent.learnSAC()
+            # agent.learn(agent.getState(observations_prev), agent.calculaterewards(termination), agent.getState(observations), (termination or truncation))
         
     if termination:
         print("Termination condition reached.")
@@ -404,56 +416,56 @@ if __name__=="__main__":
         print("Truncation condition reached.")
     else:
         pass
-        # for epoch in range(100):
-        #     d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train()
+    for epoch in range(1):
+        d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger)
             # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
         # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
         # logger.save_logs()
         # logger.plot_losses(show=False, save=True)
         # ER = agent.experience_replay
-        # agent.current_time = 0
-        # agent.istruncated = False
-        # agent.cash = j['cash']
-        # agent.Inventory = {"INTC": 0}
-        # agent.positions = {'INTC':{}}
-        # j['agent_instance'] = agent
-        # j['Inventory'] = {"INTC": 0}
-        # kwargs['GymTradingAgent'] = [j]
+
+        agent.current_time = 0
+        agent.istruncated = False
+        agent.cash = j['cash']
+        agent.Inventory = {"INTC": 0}
+        agent.positions = {'INTC':{}}
+        j['agent_instance'] = agent
+        kwargs['GymTradingAgent'] = [j]
+
 
         # plt.figure(figsize=(12,8))
 
-        # plt.plot(np.arange(len(cash)), cash)
-        # plt.title('Cash')
-        # plt.subplot(222)
-        # plt.plot(np.arange(len(cash)), inventory)
-        # plt.title('Inventory')
-        # plt.subplot(223)
-        # plt.scatter(np.arange(len(cash)), actions)
-        # plt.yticks(np.arange(0,13), agent.actions)
-        # plt.title('Actions')
-        # # plt.savefig(log_dir + label+'_policy.png')
-        # plt.show()
 
-        # r=0
-        # tmp = agent.trajectory_buffer[0][0]
-        # for ij in agent.trajectory_buffer:
-        #     if ij[0] == tmp:
-        #         r+=ij[1][3]
-        #     else:
-        #         episodic_rewards.append(r)
-        #         r = ij[1][3]
-        #         tmp=ij[0]
-        # episodic_rewards.append(r)
-        # avgEpisodicRewards.append(np.mean(episodic_rewards))
-        # stdEpisodicRewards.append(np.std(episodic_rewards))
-        # finalcash.append(cash[-1] + inventory[-1]*agent.mid )
-        # plt.figure(figsize=(12,8))
-        # plt.subplot(221)
-        # plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
-        # plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
-        # plt.title('Avg Episodic Rewards')
-        # plt.subplot(222)
-        # plt.plot(np.arange(episode+1), np.array(finalcash)-2000)
-        # plt.title('Final Profit')
-        # # plt.savefig(log_dir + label+'_avgepisodicreward.png')
-        # plt.show()
+#         plt.plot(np.arange(len(cash)), cash)
+#         plt.title('Cash')
+#         plt.subplot(222)
+#         plt.plot(np.arange(len(cash)), inventory)
+#         plt.title('Inventory')
+#         plt.subplot(223)
+#         plt.scatter(np.arange(len(cash)), actions)
+#         plt.yticks(np.arange(0,13), agent.actions)
+#         plt.title('Actions')
+#         # plt.savefig(log_dir + label+'_policy.png')
+#         episodic_rewards = []
+#         r=0
+#         tmp = agent.trajectory_buffer[0][0]
+#         for ij in agent.trajectory_buffer:
+#             if ij[0] == tmp:
+#                 r+=ij[1][3]
+#             else:
+#                 episodic_rewards.append(r)
+#                 r = ij[1][3]
+#                 tmp=ij[0]
+#         avgEpisodicRewards.append(np.mean(episodic_rewards))
+#         stdEpisodicRewards.append(np.std(episodic_rewards))
+#         finalcash.append(cash[-1] + inventory[-1]*agent.mid )
+#         plt.figure(figsize=(12,8))
+#         plt.subplot(221)
+#         plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
+#         plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
+#         plt.title('Avg Episodic Rewards')
+#         plt.subplot(222)
+#         plt.plot(np.arange(episode+1), finalcash)
+#         plt.title('Final Cash')
+        # plt.savefig(log_dir + label+'_avgepisodicreward.png')
+

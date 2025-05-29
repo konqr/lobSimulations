@@ -43,7 +43,7 @@ class TradingAgent(Entity):
         inventorylimit: total inventory limit ( a truncation condition)
         cash: starting cash level
         """
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000, start_trading_lag = 0) -> None:
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
@@ -54,7 +54,7 @@ class TradingAgent(Entity):
         self.wake_on_Spread=wake_on_Spread
         self.tradeNotif=self.wake_on_MO or self.wake_on_Spread
         self.positions={key: {} for key in self.Inventory.keys()} #A Dictionary that describes an agent's active orders in the market
-        
+        self.start_trading_lag = start_trading_lag
         #Truncation conditions
         self.cashlimit=cashlimit
         self.inventorylimit=inventorylimit
@@ -94,7 +94,8 @@ class TradingAgent(Entity):
         assert self.exchange is not None, f"Exchange not linked to TradingAgent: {self.id}"
         for key in self.exchange.levels:
             self.positions[self.exchange.symbol][key]=[]
-        wakeuptime=self.current_time + self.action_freq
+        wakeuptime=self.start_trading_lag+self.current_time + self.action_freq
+        self.first_wakeup_time = wakeuptime
         logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")
         self.set_wakeup(requested_time= wakeuptime)
         

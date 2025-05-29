@@ -1,5 +1,5 @@
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
-from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP
+from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP, ActorCriticSeparate
 from HJBQVI.utils import MinMaxScaler
 from typing import Dict, Optional, Any
 import torch
@@ -1292,7 +1292,8 @@ class PPOAgent(GymTradingAgent):
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
-                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu'):
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
+                 transaction_cost = 0.01, start_trading_lag=0):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1318,7 +1319,7 @@ class PPOAgent(GymTradingAgent):
         """
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
-                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit)
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag)
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -1340,6 +1341,7 @@ class PPOAgent(GymTradingAgent):
         self.gamma = 0.99  # discount factor
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
+        self.transaction_cost = transaction_cost
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
@@ -1372,7 +1374,7 @@ class PPOAgent(GymTradingAgent):
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
         past_times = data['past_times']
-        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        state = torch.tensor([[self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         return state
 
     def getState(self, state):
@@ -1385,26 +1387,30 @@ class PPOAgent(GymTradingAgent):
         if type(state) == dict:
             state = self.readData(state)
 
-        # Scaling the state
-        if len(self.trajectory_buffer) > 10:
-            states = torch.cat([torch.cat([tr[1][0] for tr in self.trajectory_buffer])])
-            self.mmscaler.fit(states)
-            state = self.mmscaler.transform(state)
-        else:
-            state = self.mmscaler.fit_transform(state)
+        # # Scaling the state
+        # if len(self.trajectory_buffer) > 10:
+        #     states = torch.cat([torch.cat([tr[1][0] for tr in self.trajectory_buffer])])
+        #     self.mmscaler.fit(states)
+        #     state = self.mmscaler.transform(state)
+        # else:
+        #     state = self.mmscaler.fit_transform(state)
 
         return state
 
     def setupTraining(self, net):
         def lr_lambda(epoch):
             # Learning rate schedule
-            return np.max([1e-6, 0.1**(epoch//10000)])
+            x =1
+            if epoch > 500:
+                x= 1e-1
+            x = x*np.max([1e-1,(.5)**(epoch//5000)])
+            return x
 
         optimizer = optim.Adam(net.parameters(), lr=self.lr)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
         return optimizer, scheduler
 
-    def setupNNs(self, data0):
+    def setupNNs(self, data0 ,type='separate'):
         """
         Setup neural networks for PPO with two networks (d and u)
 
@@ -1415,8 +1421,12 @@ class PPOAgent(GymTradingAgent):
         state_dim = len(data0[0])
 
         # Initialize main networks with shared architecture
-        self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
-        self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+        if type == 'separate':
+            self.Actor_Critic_d = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
+            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+        else:
+            self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
+            self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
 
         # Move all models to appropriate device
         self.Actor_Critic_d.to(self.device)
@@ -1426,15 +1436,26 @@ class PPOAgent(GymTradingAgent):
         self.optimizer_d, self.scheduler_d = self.setupTraining(self.Actor_Critic_d)
         self.optimizer_u, self.scheduler_u = self.setupTraining(self.Actor_Critic_u)
 
+    def get_weights(self):
+        return {'d':self.Actor_Critic_d.state_dict(), 'u':self.Actor_Critic_u.state_dict()}
+
+    def update_weights(self, new_weights):
+        self.Actor_Critic_d.load_state_dict(new_weights['d'])
+        self.Actor_Critic_u.load_state_dict(new_weights['u'])
+        return 0
+
+
     def calculaterewards(self, termination) -> Any:
         penalty = self.rewardpenalty * (self.countInventory()**2)
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
-        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1] - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]
+        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1]*(1- self.transaction_cost*np.sign(self.statelog[-1][3]['INTC'])) - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]*(1-self.transaction_cost*np.sign(self.statelog[-1][3]['INTC']))
         # if self.istruncated or termination:
         #     deltaPNL += self.countInventory() * self.mid
         # reward shaping
+        if self.istruncated:
+            penalty += 100
         if self.last_action != 12:
             penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
         if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
@@ -1603,43 +1624,49 @@ class PPOAgent(GymTradingAgent):
         # returns_u = (returns_u - returns_u.mean()) / (returns_u.std() + 1e-8)
         return advantages_d, returns_d, advantages_u, returns_u
 
-    def train(self):
+    def train(self, train_logger):
         """
         PPO training method using entire episode trajectory
         """
         # Ensure we have a full trajectory
         if len(self.trajectory_buffer) < 2:
             return
+        tmp_buffer = []
+        eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
+        for eID in eIDs:
+            # Prepare training data
+            states = torch.cat([tr[1][0] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
+            rewards = [tr[1][3] for tr in self.trajectory_buffer if tr[0] == eID]
+            dones = [tr[1][5] for tr in self.trajectory_buffer if tr[0] == eID]
 
-        # Prepare training data
-        states = torch.cat([tr[1][0] for tr in self.trajectory_buffer]).to(self.device)
-        d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer]).to(self.device)
-        u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer]).to(self.device)
-        rewards = [tr[1][3] for tr in self.trajectory_buffer]
-        dones = [tr[1][5] for tr in self.trajectory_buffer]
+            # Compute values and log probabilities
+            with torch.no_grad():
+                # Decision network
+                d_logits_old, values_d_old = self.Actor_Critic_d(states)
+                d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
+                # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
 
-        # Compute values and log probabilities
-        with torch.no_grad():
-            # Decision network
-            d_logits_old, values_d_old = self.Actor_Critic_d(states)
-            d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
-            # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
+                # Utility network
+                u_logits_old, values_u_old = self.Actor_Critic_u(states)
+                u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
+                # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
 
-            # Utility network
-            u_logits_old, values_u_old = self.Actor_Critic_u(states)
-            u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
-            # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
-
-        # Compute Generalized Advantage Estimation
-        advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
-            rewards,
-            values_d_old.cpu().numpy().flatten().tolist(),
-            values_u_old.cpu().numpy().flatten().tolist(),
-            dones
-        )
-
+            # Compute Generalized Advantage Estimation
+            advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
+                rewards,
+                values_d_old.cpu().numpy().flatten().tolist(),
+                values_u_old.cpu().numpy().flatten().tolist(),
+                dones
+            )
+            tmp_buffer.append([states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u])
+        _states, _d_actions, _u_actions, _d_logits_old, _values_d_old, _d_log_probs_old, _u_logits_old, _values_u_old, _u_log_probs_old, _advantages_d, _returns_d, _advantages_u, _returns_u = [torch.cat([element[i] for element in tmp_buffer]) for i in range(len(tmp_buffer[0]))]
+        del tmp_buffer
         # PPO training for multiple epochs
         for _ in range(self.epochs):
+            idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
+            states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u = _states[idxs,:], _d_actions[idxs], _u_actions[idxs], _d_logits_old[idxs,:], _values_d_old[idxs,:], _d_log_probs_old[idxs], _u_logits_old[idxs,:], _values_u_old[idxs,:], _u_log_probs_old[idxs], _advantages_d[idxs], _returns_d[idxs], _advantages_u[idxs], _returns_u[idxs]
             # Decision Network Training
             # Current policy output
             d_logits, d_values_pred = self.Actor_Critic_d(states)
@@ -1670,7 +1697,7 @@ class PPOAgent(GymTradingAgent):
             d_loss.backward(retain_graph=True)
             torch.nn.utils.clip_grad_norm_(self.Actor_Critic_d.parameters(), self.max_grad_norm)
             self.optimizer_d.step()
-
+            self.scheduler_d.step()
             # Utility Network Training
             # Only train utility network for trajectories with d=1
             d_mask = (d_actions == 1)
@@ -1709,7 +1736,7 @@ class PPOAgent(GymTradingAgent):
                 u_loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.Actor_Critic_u.parameters(), self.max_grad_norm)
                 self.optimizer_u.step()
-
+                self.scheduler_u.step()
                 # Print losses for monitoring
                 print(f'Utility Network - Policy Loss: {u_policy_loss.item():.4f}, '
                       f'Value Loss: {u_value_loss.item():.4f}, '
@@ -1720,10 +1747,21 @@ class PPOAgent(GymTradingAgent):
                   f'Value Loss: {d_value_loss.item():.4f}, '
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
 
-            return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
-
+            train_logger.log_losses(d_policy_loss  = d_policy_loss.item(), d_value_loss = d_value_loss.item(), d_entropy_loss = d_entropy_loss.item(), u_policy_loss = u_policy_loss.item(), u_value_loss = u_value_loss.item(), u_entropy_loss = u_entropy_loss.item())
+            del d_policy_loss
+            del d_value_loss
+            del d_entropy_loss
+            del u_policy_loss
+            del u_value_loss
+            del u_entropy_loss
+            del u_logits
+            del u_values_pred
+            del d_logits
+            del d_values_pred
         # Clear trajectory buffer after training
         while len(self.trajectory_buffer) > self.buffer_capacity:
             eID = self.trajectory_buffer[0][0]
             end_idx = np.max([i for i in range(len(self.trajectory_buffer)) if self.trajectory_buffer[i][0] == eID]) + 1
             self.trajectory_buffer = self.trajectory_buffer[end_idx:]
+        # return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
+        return [0]*6
