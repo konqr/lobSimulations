@@ -1,6 +1,6 @@
 import numpy as np
 import multiprocessing as mp
-from multiprocessing import Process, Queue, Pipe
+from multiprocessing import Process, Queue, Event
 import time
 from typing import List, Dict, Any, Tuple
 import copy
@@ -21,6 +21,7 @@ from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
 from HJBQVI.utils import TrainingLogger, ModelManager, get_gpu_specs
+from HawkesRLTradingEnv import tradingEnv, preprocessdata
 import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
@@ -83,10 +84,12 @@ class ParallelPPOTrainer:
             layer_widths=config.get('layer_widths', [256, 256]),
             n_layers=config.get('n_layers', 2),
             buffer_capacity=config.get('buffer_capacity', 100000),
-            rewardpenalty=config.get('rewardpenalty', 0.5)
+            rewardpenalty=config.get('rewardpenalty', 0.5),
+            epochs=config.get('epochs',10),
+            start_trading_lag = config.get('start_trading_lag', 0)
         )
 
-    def _actor_worker(self, actor_id: int, shared_weights_queue: Queue,
+    def _actor_worker(self, actor_id: int, pause_event:Event, shared_weights_queue: Queue,
                       experience_queue: Queue, control_queue: Queue):
         """Worker function for parallel actors"""
 
@@ -97,11 +100,13 @@ class ParallelPPOTrainer:
 
         # Setup environment kwargs
         local_env_kwargs = copy.deepcopy(self.env_kwargs)
-        local_env_kwargs['agent_instance'] = local_agent
+        j = local_env_kwargs['GymTradingAgent'][0]
+        j['agent_instance'] = local_agent
+        local_env_kwargs['GymTradingAgent'] = [j]
 
         episode_count = 0
 
-        while True:
+        while pause_event.wait():
             # Check for control signals
             try:
                 if not control_queue.empty():
@@ -130,7 +135,7 @@ class ParallelPPOTrainer:
         """Run a single rollout of T timesteps"""
 
         # Create environment
-        env = tradingEnv(stop_time=self.rollout_steps, wall_time_limit=23400, **env_kwargs)
+        env = tradingEnv( stop_time=self.rollout_steps, wall_time_limit=23400, **env_kwargs)
 
         # Initialize episode
         Simstate, observations, termination, truncation = env.step(action=None)
@@ -148,8 +153,7 @@ class ParallelPPOTrainer:
         episode_reward = 0
 
         while (Simstate["Done"] == False and
-               termination != True and
-               step_count < self.rollout_steps):
+               termination != True):
 
             AgentsIDs = [k for k, v in Simstate["Infos"].items() if v == True]
 
@@ -201,33 +205,38 @@ class ParallelPPOTrainer:
         all_experiences = []
         total_reward = 0
         total_episodes = 0
-
+        eID = 0
+        if len(self.master_agent.trajectory_buffer) > 0:
+            eID = self.master_agent.trajectory_buffer[-1][0] + 1
         for actor_id, batch in experiences_batch:
-            all_experiences.extend(batch['experiences'])
+            all_experiences.append((eID, batch['experiences']))
             total_reward += batch['episode_reward']
             total_episodes += 1
-
+            eID += 1
             # Log episode statistics
             self.episode_rewards.append(batch['episode_reward'])
             self.episode_lengths.append(batch['episode_length'])
 
         # Store experiences in master agent's buffer
-        for exp in all_experiences:
-            self.master_agent.store_transition(
-                episode=0,  # Episode number not used in this context
-                state=exp['state'],
-                action=exp['action'],
-                reward=exp['reward'],
-                next_state=exp['next_state'],
-                done=exp['done']
-            )
+        for epID, exp in all_experiences:
+            for one_exp in exp:
+                self.master_agent.store_transition(
+                    epID,  # Episode number not used in this context
+                    one_exp['state'],
+                    one_exp['action'],
+                    one_exp['reward'],
+                    one_exp['next_state'],
+                    one_exp['done']
+                )
+                if not hasattr(self.master_agent, 'networks_setup'):
+                    self.master_agent.setupNNs(one_exp['state'])
+                    self.master_agent.networks_setup = True
 
         # Perform PPO training
         training_stats = []
-        if len(all_experiences) >= self.batch_size:
-            for epoch in range(self.ppo_epochs):
-                stats = self.master_agent.train_step()
-                training_stats.append(stats)
+        for epoch in range(self.ppo_epochs):
+            stats = self.master_agent.train(self.train_logger)
+            training_stats.append(stats)
 
         # Log training statistics
         avg_reward = total_reward / max(total_episodes, 1)
@@ -254,14 +263,15 @@ class ParallelPPOTrainer:
         shared_weights_queues = [Queue() for _ in range(self.n_actors)]
         experience_queue = Queue()
         control_queues = [Queue() for _ in range(self.n_actors)]
-
+        pause_events =  [Event() for _ in range(self.n_actors)]
         # Start actor processes
         actors = []
         for i in range(self.n_actors):
             actor = Process(
                 target=self._actor_worker,
-                args=(i, shared_weights_queues[i], experience_queue, control_queues[i])
+                args=(i, pause_events[i], shared_weights_queues[i], experience_queue, control_queues[i])
             )
+            pause_events[i].set()
             actor.start()
             actors.append(actor)
 
@@ -271,15 +281,17 @@ class ParallelPPOTrainer:
 
                 # Collect experiences from all actors
                 experiences_batch = []
-                actors_completed = 0
+                actors_completed = []
 
                 # Wait for all actors to complete their rollouts
-                while actors_completed < self.n_actors:
+                while len(actors_completed) < self.n_actors:
                     try:
                         actor_id, batch = experience_queue.get(timeout=300)  # 5 minute timeout
                         experiences_batch.append((actor_id, batch))
-                        actors_completed += 1
+                        actors_completed += [actor_id]
+                        actors_completed = np.unique(actors_completed).tolist()
                         print(f"Received experience from actor {actor_id}")
+                        pause_events[actor_id].clear()
                     except:
                         print("Timeout waiting for actor experience")
                         break
@@ -293,7 +305,9 @@ class ParallelPPOTrainer:
                     for i in range(self.n_actors):
                         try:
                             shared_weights_queues[i].put(new_weights)
-                        except:
+                            pause_events[i].set()
+                        except Exception as e:
+                            print(e)
                             print(f"Failed to send weights to actor {i}")
 
                 # Log progress
@@ -340,35 +354,88 @@ class ParallelPPOTrainer:
 # Usage example
 def main():
     # Configuration
+    with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+        kernelparams = pickle.load(f)
+    kernelparams = preprocessdata(kernelparams)
+    # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
+    #     tod = pickle.load(f)
+    cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+           "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+    # kernelparams = [[np.zeros((12,12))]*4, np.array([[kernelparams[c]] for c in cols])]
+    faketod = {}
+    for k in cols:
+        faketod[k] = {}
+        for k1 in np.arange(13):
+            faketod[k][k1] = 1.0
+    tod=np.zeros(shape=(len(cols), 13))
+    for i in range(len(cols)):
+        tod[i]=[faketod[cols[i]][k] for k in range(13)]
+    Pis={'Bid_L2': [0.,
+                    [(1, 1.)]],
+         'Bid_inspread': [0.,
+                          [(1, 1.)]],
+         'Bid_L1': [0.,
+                    [(1, 1.)]],
+         'Bid_MO': [0.,
+                    [(1, 1.)]]}
+    Pis["Ask_MO"] = Pis["Bid_MO"]
+    Pis["Ask_L1"] = Pis["Bid_L1"]
+    Pis["Ask_inspread"] = Pis["Bid_inspread"]
+    Pis["Ask_L2"] = Pis["Bid_L2"]
+    Pi_Q0= {'Ask_L1': [0.,
+                       [(10, 1.)]],
+            'Ask_L2': [0.,
+                       [(10, 1.)]],
+            'Bid_L1': [0.,
+                       [(10, 1.)]],
+            'Bid_L2': [0.,
+                       [(10, 1.)]]}
     agent_config = {
         'seed': 1,
         'log_events': True,
         'log_to_file': True,
-        'strategy': 'your_strategy',
-        'Inventory': 0,
-        'cash': 100000,
-        'action_freq': 1,
-        'wake_on_MO': False,
-        'wake_on_Spread': False,
+        'strategy': 'ICRL',
+        'Inventory': {"INTC": 0},
+        'cash': 2500,
+        'action_freq': .2,
+        'wake_on_MO': True,
+        'wake_on_Spread': True,
         'cashlimit': 1000000,
-        'inventorylimit': 1000,
-        'layer_widths': [256, 256],
-        'n_layers': 2,
+        'inventorylimit': 25,
+        'layer_widths': 128,
+        'n_layers': 3,
         'buffer_capacity': 100000,
-        'rewardpenalty': 0.5
+        'rewardpenalty': 0.5,
+        'epochs':1000,
+        'start_trading_lag' : 10,
+        'agent_instance': None
     }
+    env_kwargs={
+        "TradingAgent": [],
 
-    # Environment kwargs (adapt to your environment setup)
-    env_kwargs = {
-        'GymTradingAgent': [{'agent_instance': None}]  # Will be filled by trainer
-    }
+        "GymTradingAgent": [agent_config], # Will be filled by trainer
+        "Exchange": {"symbol": "INTC",
+                     "ticksize":0.01,
+                     "LOBlevels": 2,
+                     "numOrdersPerLevel": 10,
+                     "PriceMid0": 100,
+                     "spread0": 0.03},
+        "Arrival_model": {"name": "Hawkes",
+                          "parameters": {"kernelparams": kernelparams,
+                                         "tod": tod,
+                                         "Pis": Pis,
+                                         "beta": 0.941,
+                                         "avgSpread": 0.0101,
+                                         "Pi_Q0": Pi_Q0}}
+
+        }
 
     # Create trainer
     trainer = ParallelPPOTrainer(
-        n_actors=4,           # Number of parallel actors
-        rollout_steps=400,    # T stop_time for each rollout
-        ppo_epochs=4,         # Number of PPO epochs per training step
-        batch_size=256,
+        n_actors=8,           # Number of parallel actors
+        rollout_steps=20,    # T stop_time for each rollout
+        ppo_epochs=1,         # Number of PPO epochs per training step
+        batch_size=512,
         agent_config=agent_config,
         env_kwargs=env_kwargs,
         log_dir='logs',

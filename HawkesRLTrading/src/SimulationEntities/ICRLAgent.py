@@ -1293,7 +1293,7 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01):
+                 transaction_cost = 0.01, start_trading_lag=0):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1319,7 +1319,7 @@ class PPOAgent(GymTradingAgent):
         """
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
-                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit)
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag)
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -1387,13 +1387,13 @@ class PPOAgent(GymTradingAgent):
         if type(state) == dict:
             state = self.readData(state)
 
-        # Scaling the state
-        if len(self.trajectory_buffer) > 10:
-            states = torch.cat([torch.cat([tr[1][0] for tr in self.trajectory_buffer])])
-            self.mmscaler.fit(states)
-            state = self.mmscaler.transform(state)
-        else:
-            state = self.mmscaler.fit_transform(state)
+        # # Scaling the state
+        # if len(self.trajectory_buffer) > 10:
+        #     states = torch.cat([torch.cat([tr[1][0] for tr in self.trajectory_buffer])])
+        #     self.mmscaler.fit(states)
+        #     state = self.mmscaler.transform(state)
+        # else:
+        #     state = self.mmscaler.fit_transform(state)
 
         return state
 
@@ -1435,6 +1435,15 @@ class PPOAgent(GymTradingAgent):
         # Setup optimizers
         self.optimizer_d, self.scheduler_d = self.setupTraining(self.Actor_Critic_d)
         self.optimizer_u, self.scheduler_u = self.setupTraining(self.Actor_Critic_u)
+
+    def get_weights(self):
+        return {'d':self.Actor_Critic_d.state_dict(), 'u':self.Actor_Critic_u.state_dict()}
+
+    def update_weights(self, new_weights):
+        self.Actor_Critic_d.load_state_dict(new_weights['d'])
+        self.Actor_Critic_u.load_state_dict(new_weights['u'])
+        return 0
+
 
     def calculaterewards(self, termination) -> Any:
         penalty = self.rewardpenalty * (self.countInventory()**2)

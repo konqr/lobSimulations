@@ -95,6 +95,7 @@ class TradingAgent(Entity):
         for key in self.exchange.levels:
             self.positions[self.exchange.symbol][key]=[]
         wakeuptime=self.start_trading_lag+self.current_time + self.action_freq
+        self.first_wakeup_time = wakeuptime
         logger.debug(f"{type(self).__name__} {self.id} requesting kernel wakeup at time {wakeuptime}")
         self.set_wakeup(requested_time= wakeuptime)
         
