@@ -45,6 +45,9 @@ class Entity:
         if self.log_to_file:
             self.filename=None
         
+        #Market volume tracker
+        self.marketvolume = 0
+        
         #Finally, add the entity object to the registry
         Entity._registry[self.id]=self
     
