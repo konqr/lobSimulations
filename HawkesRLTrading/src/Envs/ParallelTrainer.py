@@ -27,7 +27,9 @@ class ParallelPPOTrainer:
                  log_dir: str = None,
                  model_dir: str = None,
                  label: str = None,
-                 transaction_cost: float = 0.0001):
+                 transaction_cost: float = 0.0001,
+                 master_device: str = 'cuda',  # GPU for master
+                 worker_device: str = 'cpu'):  # CPU for workers
 
         self.n_actors = n_actors
         self.rollout_steps = rollout_steps
@@ -39,6 +41,13 @@ class ParallelPPOTrainer:
         self.model_dir = model_dir
         self.label = label
         self.tc = transaction_cost
+        self.master_device = master_device
+        self.worker_device = worker_device
+
+        # Ensure CUDA is available if requested for master
+        if master_device == 'cuda' and not torch.cuda.is_available():
+            print("CUDA not available, using CPU for master")
+            self.master_device = 'cpu'
 
         # Initialize shared components
         self.train_logger = TrainingLogger(
@@ -49,8 +58,8 @@ class ParallelPPOTrainer:
         )
         self.model_manager = ModelManager(model_dir=model_dir, label=label)
 
-        # Create master agent for training
-        self.master_agent = self._create_agent(agent_config)
+        # Create master agent for training (on GPU)
+        self.master_agent = self._create_agent(agent_config, device=self.master_device)
 
         # Statistics tracking
         self.episode_rewards = []
@@ -72,9 +81,9 @@ class ParallelPPOTrainer:
         # Episode-wise tracking for individual episodes
         self.episode_data = defaultdict(list)  # Store data per episode for detailed plotting
 
-    def _create_agent(self, config):
-        """Create a PPO agent instance"""
-        return PPOAgent(
+    def _create_agent(self, config, device='cpu'):
+        """Create a PPO agent instance with specified device"""
+        agent = PPOAgent(
             seed=config.get('seed', 1),
             log_events=config.get('log_events', True),
             log_to_file=config.get('log_to_file', True),
@@ -96,14 +105,43 @@ class ParallelPPOTrainer:
             transaction_cost=self.tc
         )
 
+        # Set device for the agent
+        if hasattr(agent, 'set_device'):
+            agent.set_device(device)
+        else:
+            # If agent doesn't have set_device method, set device on networks after setup
+            agent._target_device = device
+
+        return agent
+
+    def _transfer_weights_to_device(self, weights, target_device):
+        """Transfer model weights to specified device"""
+        if weights is None:
+            return None
+
+        transferred_weights = {}
+        for key, value in weights.items():
+            if isinstance(value, torch.Tensor):
+                transferred_weights[key] = value.to(target_device)
+            elif isinstance(value, dict):
+                transferred_weights[key] = self._transfer_weights_to_device(value, target_device)
+            else:
+                transferred_weights[key] = value
+        return transferred_weights
+
     def _actor_worker(self, actor_id: int, pause_event:Event, shared_weights_queue: Queue,
                       experience_queue: Queue, control_queue: Queue):
-        """Worker function for parallel actors"""
+        """Worker function for parallel actors (CPU only)"""
 
-        # Create local agent and environment
+        # Force CPU usage in worker processes
+        torch.set_num_threads(1)  # Limit threads per worker
+        if torch.cuda.is_available():
+            torch.cuda.set_device(0)  # Set default GPU but don't use it
+
+        # Create local agent and environment (CPU only)
         local_agent_config = copy.deepcopy(self.agent_config)
         local_agent_config['seed'] = self.agent_config.get('seed', 1) + actor_id
-        local_agent = self._create_agent(local_agent_config)
+        local_agent = self._create_agent(local_agent_config, device=self.worker_device)
 
         # Setup environment kwargs
         local_env_kwargs = copy.deepcopy(self.env_kwargs)
@@ -112,6 +150,8 @@ class ParallelPPOTrainer:
         local_env_kwargs['GymTradingAgent'] = [j]
 
         episode_count = 0
+
+        print(f"Worker {actor_id} started on device: {self.worker_device}")
 
         while pause_event.wait():
             # Check for control signals
@@ -127,16 +167,20 @@ class ParallelPPOTrainer:
             try:
                 if not shared_weights_queue.empty():
                     new_weights = shared_weights_queue.get_nowait()
-                    local_agent.update_weights(new_weights)
-            except:
-                pass
+                    # Transfer weights to CPU for worker
+                    cpu_weights = self._transfer_weights_to_device(new_weights, self.worker_device)
+                    local_agent.update_weights(cpu_weights)
+            except Exception as e:
+                print(f"Worker {actor_id} failed to update weights: {e}")
 
             # Run rollout
-            experience_batch = self._run_rollout(local_agent, local_env_kwargs, actor_id, episode_count)
-
-            # Send experience to training process
-            experience_queue.put((actor_id, experience_batch))
-            episode_count += 1
+            try:
+                experience_batch = self._run_rollout(local_agent, local_env_kwargs, actor_id, episode_count)
+                # Send experience to training process
+                experience_queue.put((actor_id, experience_batch))
+                episode_count += 1
+            except Exception as e:
+                print(f"Worker {actor_id} failed during rollout: {e}")
 
     def _run_rollout(self, agent, env_kwargs, actor_id, episode_id):
         """Run a single rollout of T timesteps"""
@@ -153,6 +197,13 @@ class ParallelPPOTrainer:
         if not hasattr(gym_agent, 'networks_setup'):
             gym_agent.setupNNs(observations)
             gym_agent.networks_setup = True
+
+            # Ensure networks are on correct device
+            if hasattr(gym_agent, '_target_device'):
+                if hasattr(gym_agent, 'Actor_Critic_d') and gym_agent.Actor_Critic_d is not None:
+                    gym_agent.Actor_Critic_d = gym_agent.Actor_Critic_d.to(gym_agent._target_device)
+                if hasattr(gym_agent, 'Actor_Critic_u') and gym_agent.Actor_Critic_u is not None:
+                    gym_agent.Actor_Critic_u = gym_agent.Actor_Critic_u.to(gym_agent._target_device)
 
         # Collect experience for this rollout
         experiences = []
@@ -177,7 +228,11 @@ class ParallelPPOTrainer:
 
             # Get action from agent
             epsilon = 0.1 if step_count > 100 else 0.5
-            agent_action = gym_agent.get_action(data=observations, epsilon=epsilon)
+
+            # Ensure input data is on correct device
+            with torch.no_grad():  # No gradients needed for inference
+                agent_action = gym_agent.get_action(data=observations, epsilon=epsilon)
+
             action = (gym_agent.id, (agent_action[0], 1))
 
             # Store previous observations
@@ -190,15 +245,24 @@ class ParallelPPOTrainer:
             reward = gym_agent.calculaterewards(termination)
             episode_reward += reward
 
-            # Store experience
+            # Store experience (ensure tensors are moved to CPU for serialization)
+            state_data = gym_agent.readData(observations_prev)
+            next_state_data = gym_agent.readData(observations)
+
+            # Convert tensors to CPU and detach for serialization
+            if isinstance(state_data, torch.Tensor):
+                state_data = state_data.cpu().detach()
+            if isinstance(next_state_data, torch.Tensor):
+                next_state_data = next_state_data.cpu().detach()
+
             experience = {
-                'state': gym_agent.readData(observations_prev),
+                'state': state_data,
                 'action': agent_action[1],
                 'reward': reward,
-                'next_state': gym_agent.readData(observations),
+                'next_state': next_state_data,
                 'done': (termination or truncation),
-                'log_prob': agent_action[2] if len(agent_action) > 2 else None,
-                'value': agent_action[3] if len(agent_action) > 3 else None
+                'log_prob': agent_action[2].cpu().detach() if len(agent_action) > 2 and isinstance(agent_action[2], torch.Tensor) else (agent_action[2] if len(agent_action) > 2 else None),
+                'value': agent_action[3].cpu().detach() if len(agent_action) > 3 and isinstance(agent_action[3], torch.Tensor) else (agent_action[3] if len(agent_action) > 3 else None)
             }
             experiences.append(experience)
 
@@ -400,7 +464,9 @@ class ParallelPPOTrainer:
                 self.stdEpisodicRewards.append(np.std(episodic_rewards))
 
     def _update_master_weights(self, experiences_batch):
-        """Update master agent with collected experiences and perform PPO update"""
+        """Update master agent with collected experiences and perform PPO update (GPU training)"""
+
+        print(f"Master training on device: {self.master_device}")
 
         # Update plotting data first
         self._update_plotting_data(experiences_batch)
@@ -422,26 +488,43 @@ class ParallelPPOTrainer:
             self.episode_rewards.append(batch['episode_reward'])
             self.episode_lengths.append(batch['episode_length'])
 
-        # Store experiences in master agent's buffer
+        # Store experiences in master agent's buffer (transfer to GPU)
         for epID, exp in all_experiences:
             for one_exp in exp:
+                # Transfer experience data to master device (GPU)
+                state_data = one_exp['state']
+                next_state_data = one_exp['next_state']
+
+                if isinstance(state_data, torch.Tensor):
+                    state_data = state_data.to(self.master_device)
+                if isinstance(next_state_data, torch.Tensor):
+                    next_state_data = next_state_data.to(self.master_device)
+
                 self.master_agent.store_transition(
                     epID,
-                    one_exp['state'],
+                    state_data,
                     one_exp['action'],
                     one_exp['reward'],
-                    one_exp['next_state'],
+                    next_state_data,
                     one_exp['done']
                 )
+
                 if not hasattr(self.master_agent, 'networks_setup'):
-                    self.master_agent.setupNNs(one_exp['state'])
+                    self.master_agent.setupNNs(state_data)
                     self.master_agent.networks_setup = True
 
-        # Perform PPO training
+                    # Ensure master networks are on GPU
+                    if hasattr(self.master_agent, 'Actor_Critic_d') and self.master_agent.Actor_Critic_d is not None:
+                        self.master_agent.Actor_Critic_d = self.master_agent.Actor_Critic_d.to(self.master_device)
+                    if hasattr(self.master_agent, 'Actor_Critic_u') and self.master_agent.Actor_Critic_u is not None:
+                        self.master_agent.Actor_Critic_u = self.master_agent.Actor_Critic_u.to(self.master_device)
+
+        # Perform PPO training on GPU
         training_stats = []
         for epoch in range(self.ppo_epochs):
-            stats = self.master_agent.train(self.train_logger)
-            training_stats.append(stats)
+            with torch.cuda.device(self.master_device if self.master_device != 'cpu' else None):
+                stats = self.master_agent.train(self.train_logger)
+                training_stats.append(stats)
 
         # Update episodic rewards
         self._update_episodic_rewards()
@@ -451,10 +534,16 @@ class ParallelPPOTrainer:
         print(f"Average episode reward: {avg_reward:.4f}")
         print(f"Total experiences collected: {len(all_experiences)}")
 
-        return self.master_agent.get_weights(), training_stats
+        # Get weights (they should remain on GPU)
+        master_weights = self.master_agent.get_weights()
+
+        return master_weights, training_stats
 
     def train(self, num_iterations: int = 500, checkpoint_params=None):
         """Main training loop"""
+
+        print(f"Master agent training on: {self.master_device}")
+        print(f"Worker agents running on: {self.worker_device}")
 
         # Load checkpoint if provided
         if checkpoint_params is not None:
@@ -464,8 +553,8 @@ class ParallelPPOTrainer:
                 d=self.master_agent.Actor_Critic_d,
                 u=self.master_agent.Actor_Critic_u
             )
-            self.master_agent.Actor_Critic_d = loaded_models['d']
-            self.master_agent.Actor_Critic_u = loaded_models['u']
+            self.master_agent.Actor_Critic_d = loaded_models['d'].to(self.master_device)
+            self.master_agent.Actor_Critic_u = loaded_models['u'].to(self.master_device)
 
         # Initialize multiprocessing components
         shared_weights_queues = [Queue() for _ in range(self.n_actors)]
@@ -505,7 +594,7 @@ class ParallelPPOTrainer:
                         print("Timeout waiting for actor experience")
                         break
 
-                # Update master agent and get new weights
+                # Update master agent and get new weights (GPU training)
                 if experiences_batch:
                     new_weights, training_stats = self._update_master_weights(experiences_batch)
                     self.training_stats.extend(training_stats)
@@ -513,6 +602,7 @@ class ParallelPPOTrainer:
                     # Distribute new weights to all actors
                     for i in range(self.n_actors):
                         try:
+                            # Weights stay on GPU, workers will convert to CPU as needed
                             shared_weights_queues[i].put(new_weights)
                             pause_events[i].set()
                         except Exception as e:
@@ -550,7 +640,10 @@ class ParallelPPOTrainer:
                     )
                     print(f"Model saved at iteration {iteration + 1}")
 
-                torch.cuda.empty_cache()
+                # Clear GPU cache periodically
+                if self.master_device == 'cuda':
+                    torch.cuda.empty_cache()
+
                 self.train_logger.save_logs()
                 self.train_logger.plot_losses(show=False, save=True)
 
