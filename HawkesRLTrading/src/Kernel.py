@@ -66,7 +66,7 @@ class Kernel:
         self.wall_time_limit=wall_time_limit #in seconds
         self.isrunning=False
         #The simulation times of the different entities, used to keep track of whose turn it is
-        self.nearest_action_time=0
+        self.nearest_action_time= 0
         self.agents_current_times: Dict[int, any] ={j.id: self.start_time for j in self.agents}
         self.agents_action_freq: Dict[int, float]={j.id: j.action_freq for j in self.agents} #time between each action for each agent
         #Implementation of message queue
@@ -330,10 +330,13 @@ class Kernel:
             elif isinstance(message, WakeAgentMsg):
                 #Message sent to agents to tell them to start trading
                 if not self.isrunning: return None
+
                 assert self.agents_current_times[recipientID]>=timesent, f"Agent registry time: {self.agents_current_times[recipientID]}. Timesent: {timesent}"
                 if recipientID==-1 or recipientID==self.exchange.id:
                     raise UnexpectedMessageType("WakeAgent Messages should be sent to a valid agentID")
                 agent: TradingAgent=self.entity_registry[recipientID]
+                if hasattr(agent, 'first_wakeup_time'):
+                    if self.current_time < agent.first_wakeup_time: return {recipientID: None}
                 if isinstance(agent, GymTradingAgent):
                     #Interrupt the process and 
                     # if isinstance(message, TradeNotificationMsg) and not agent.wake_on_MO:
