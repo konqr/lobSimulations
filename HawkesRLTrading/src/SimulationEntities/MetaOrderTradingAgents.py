@@ -99,20 +99,36 @@ class TWAPGymTradingAgent(GymTradingAgent):
 
 
 class POVGymTradingAgent(GymTradingAgent):
-    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, side:str, order_target:str, participation_rate:int, on_trade:bool = False):
+    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, side:str, order_target:str, participation_rate:int, window_size:int, on_trade:bool = False, total_time:int = 23400):
         super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, on_trade=on_trade, cashlimit=cashlimit)
         self.side:str = side
-        self.starting_inventory = self.Inventory[order_target]
+        if side=="sell": assert Inventory[order_target] >= total_order_size, "Not enough volume in inventory to execute sell order"
+        assert total_order_size%window_size == 0, f"Order size {total_order_size} cannot be executed with window size {window_size}"
+        assert total_order_size % (total_time/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} and action frequency {action_freq} "
+        self.starting_volume = self.Inventory[order_target]
         self.partipation_rate:int = participation_rate
         self.total_order_size:int = total_order_size
+        self.window_size:int = window_size
         self.traded_so_far:int = 0
+        self.total_time:int = total_time
 
-        pass
+    def _set_windows(self):
+        self.num_windows:int = self.total_time // self.window_size 
+        
+        self.total_volume_window:int = 0 #depends on the market volume at the start of each window
+        self.market_order_size:int = 0
+        self.volume_traded_in_window:int = 0
+        self.window_time_elapsed:float = 0.0
+
 
     def get_action(self, data):
-        self.traded_so_far:int = abs(data["Inventory"] - self.starting_inventory)
+        self.traded_so_far:int = abs(data["Inventory"] - self.starting_volume)
         if(self.traded_so_far>=self.total_order_size):
             return(12, 0)
+        marketvolume = data["market_volume"]
+        individual_order_size:int = self.partipation_rate*marketvolume
+        return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
+        
 
         # order_size:int = 
         pass
