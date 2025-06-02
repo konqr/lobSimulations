@@ -43,7 +43,7 @@ class TradingAgent(Entity):
         inventorylimit: total inventory limit ( a truncation condition)
         cash: starting cash level
         """
-    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000, start_trading_lag = 0) -> None:
+    def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True,wake_on_Spread=True, cashlimit=1000000, inventorylimit=100000, start_trading_lag = 0, truncation_enabled=True) -> None:
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
@@ -58,6 +58,7 @@ class TradingAgent(Entity):
         #Truncation conditions
         self.cashlimit=cashlimit
         self.inventorylimit=inventorylimit
+        self.truncation_enabled = truncation_enabled
         self.cash=cash
         self.mid = 0
         #private atributes
@@ -271,7 +272,7 @@ class TradingAgent(Entity):
                     self.positions[order.symbol][key]=[j for j in self.exchange.get_orders_from_level(level=key) if j.agent_id==self.id]
         else:
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
-        if self.cash<0 or self.countInventory()<-1*self.inventorylimit or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit:
+        if self.truncation_enabled and (self.cash<0 or self.countInventory()<-1*self.inventorylimit or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit):
             self.istruncated=True
         
     def wakeup(self, current_time: int, delay=0) -> None:

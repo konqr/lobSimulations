@@ -1293,7 +1293,7 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01, start_trading_lag=0):
+                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1319,7 +1319,8 @@ class PPOAgent(GymTradingAgent):
         """
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
-                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag)
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag,
+                         truncation_enabled=truncation_enabled)
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

@@ -113,7 +113,7 @@ j = kwargs['GymTradingAgent'][0]
 tc = 0.01
 agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = .5, epochs = 1000, transaction_cost=tc) #, hidden_activation='sigmoid'
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = .5, epochs = 1000, transaction_cost=tc, truncation_enabled=False) #, hidden_activation='sigmoid'
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i=0
