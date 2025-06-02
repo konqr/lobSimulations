@@ -230,7 +230,7 @@ if __name__=="__main__":
     layer_widths=128
     n_layers=3
     # with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-        # kernelparams = pickle.load(f)
+    #     kernelparams = pickle.load(f)
     # kernelparams = preprocessdata(kernelparams)
     # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
     #     tod = pickle.load(f)

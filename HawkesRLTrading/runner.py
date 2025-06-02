@@ -105,7 +105,8 @@ kwargs={
                                      "Pis": Pis,
                                      "beta": 0.941,
                                      "avgSpread": 0.0101,
-                                     "Pi_Q0": Pi_Q0}}
+                                     "Pi_Q0": Pi_Q0,
+                                     'expapprox': False}}
 
 }
 j = kwargs['GymTradingAgent'][0]
