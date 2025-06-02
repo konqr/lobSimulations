@@ -1502,7 +1502,7 @@ class PPOAgent(GymTradingAgent):
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo
+            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo -> since it hits the bid
                 self.last_action = 12
                 return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
@@ -1526,9 +1526,16 @@ class PPOAgent(GymTradingAgent):
             u_logits, u_value = self.Actor_Critic_u(state)
             u_probs = torch.softmax(u_logits, dim=1).squeeze()
             u = torch.multinomial(u_probs, 1).item()
+
+
+            # Validation checks
+            if np.abs(self.countInventory()) >= self.inventorylimit -1: # cancel top orders if at inventory limit
+                if self.countInventory() < 0:
+                    u = 3
+                elif self.countInventory() > 0:
+                    u = 8
             u_log_prob = torch.log(u_probs[u])
 
-            # Validation checks (similar to original implementation)
             if int(u) in [1, 3, 8, 10]:  # cancels
                 a = self.actions[int(u)]
                 lvl = self.actionsToLevels[a]
@@ -1543,9 +1550,14 @@ class PPOAgent(GymTradingAgent):
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo
+            if (int(u) == 4) and ((self.countInventory() < 1) or (self.countInventory() >= self.inventorylimit - 2)):  # ask mo -> hits the bid
                 self.last_action = 12
                 return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+            if (int(u)==7) and (self.countInventory() <= 2 - self.inventorylimit): # bid mo
+                self.last_action = 12
+                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
             self.last_action = u
             return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
