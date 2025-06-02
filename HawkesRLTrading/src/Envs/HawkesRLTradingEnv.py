@@ -17,6 +17,9 @@ import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+import sys
+import os
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
@@ -345,7 +348,7 @@ if __name__=="__main__":
     actionss:Dict[int, List] = {}
 
     avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
-    train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
+    # train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
     # model_manager = ModelManager(model_dir = model_dir, label = label)
 
     # for episode in range(10):
@@ -387,8 +390,8 @@ if __name__=="__main__":
             print(f"Action: {action}")
             observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
-            agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
-            print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
+            # agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+            # print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
             observationsDict.update({agent.id:observations})
             logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
             # cash += [observations['Cash']]
@@ -415,21 +418,21 @@ if __name__=="__main__":
         print("Truncation condition reached.")
     else:
         pass
-    for epoch in range(1):
-        d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger)
-            # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
-        # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
-        # logger.save_logs()
-        # logger.plot_losses(show=False, save=True)
-        # ER = agent.experience_replay
+    # for epoch in range(1):
+    #     d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger)
+    #         # logger.log_losses(d_policy_loss  = d_policy_loss, d_value_loss = d_value_loss, d_entropy_loss = d_entropy_loss, u_policy_loss = u_policy_loss, u_value_loss = u_value_loss, u_entropy_loss = u_entropy_loss)
+    #     # model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
+    #     # logger.save_logs()
+    #     # logger.plot_losses(show=False, save=True)
+    #     # ER = agent.experience_replay
 
-        agent.current_time = 0
-        agent.istruncated = False
-        agent.cash = j['cash']
-        agent.Inventory = {"INTC": 0}
-        agent.positions = {'INTC':{}}
-        j['agent_instance'] = agent
-        kwargs['GymTradingAgent'] = [j]
+    #     agent.current_time = 0
+    #     agent.istruncated = False
+    #     agent.cash = j['cash']
+    #     agent.Inventory = {"INTC": 0}
+    #     agent.positions = {'INTC':{}}
+    #     j['agent_instance'] = agent
+    #     kwargs['GymTradingAgent'] = [j]
 
 
         # plt.figure(figsize=(12,8))

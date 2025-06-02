@@ -106,7 +106,7 @@ class POVGymTradingAgent(GymTradingAgent):
         assert total_order_size%window_size == 0, f"Order size {total_order_size} cannot be executed with window size {window_size}"
         assert total_order_size % (total_time/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} and action frequency {action_freq} "
         self.starting_volume = self.Inventory[order_target]
-        self.partipation_rate:int = participation_rate
+        self.partipation_rate:float = participation_rate
         self.total_order_size:int = total_order_size
         self.window_size:int = window_size
         self.traded_so_far:int = 0
@@ -115,7 +115,7 @@ class POVGymTradingAgent(GymTradingAgent):
     def _set_windows(self):
         self.num_windows:int = self.total_time // self.window_size 
         
-        self.total_volume_window:int = 0 #depends on the market volume at the start of each window
+        self.window_order_volume:int = 0 #depends on the market volume at the start of each window
         self.market_order_size:int = 0
         self.volume_traded_in_window:int = 0
         self.window_time_elapsed:float = 0.0
@@ -125,9 +125,45 @@ class POVGymTradingAgent(GymTradingAgent):
         self.traded_so_far:int = abs(data["Inventory"] - self.starting_volume)
         if(self.traded_so_far>=self.total_order_size):
             return(12, 0)
+        
         marketvolume = data["market_volume"]
-        individual_order_size:int = self.partipation_rate*marketvolume
-        return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
+
+        #update the time elapsed in this window so far
+        self.window_time_elapsed += self.action_freq
+
+        time_ratio = self.window_time_elapsed/self.window_size
+
+        #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
+        #decrement the number of windows left, and reset all window-dependent variables
+        if time_ratio>=1:
+            self.window_time_elapsed = 0
+            self.urgent = False
+            self.volume_traded_in_window = 0
+            self.window_order_volume = self.partipation_rate*marketvolume*(self.window_size//self.action_freq)
+
+        individual_order_size = (self.window_order_volume-self.volume_traded_in_window)//(self.window_size//self.action_freq)
+
+        #at every step, calculate the volume that has been executed so far in this window
+        
+        if self.side == "buy":
+            self.volume_traded_in_window += (self.agent_volume - self.old_volume)
+        elif self.side == "sell":
+            self.volume_traded_in_window += self.old_volume - self.agent_volume
+        self.old_volume = self.agent_volume
+
+        #if we have traded more than or equal to how much we should have traded so far, cancel some of the most viable limit orders
+        if (self.traded_so_far >= self.total_order_size*(self.current_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.window_order_volume):
+            lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
+            if len(data["Positions"][lvl]) > 0:
+                 return(8, 0) if self.side == "buy" else (3, 0)
+            #if we dont have any positions left, skip
+            return (12, 0)
+        
+        if not (time_ratio>=0.75 and self.volume_traded_in_window/(self.window_order_volume*time_ratio) < 0.9 and not self.urgent):
+            return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
+        
+
+        
         
 
         # order_size:int = 
