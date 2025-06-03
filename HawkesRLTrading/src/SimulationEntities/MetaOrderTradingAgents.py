@@ -50,15 +50,14 @@ class TWAPGymTradingAgent(GymTradingAgent):
         self.traded_so_far = self.agent_volume - self.starting_volume if self.side == "buy" else self.starting_volume - self.agent_volume
         individual_order_size = round((self.total_order_size-self.agent_volume) / ((self.total_time - self.current_time) / self.action_freq)) if self.side == "buy" else round((self.total_order_size-self.traded_so_far) / ((self.total_time - self.current_time) / self.action_freq))
         
-        #calculate the time elapsed in this window so far
+        #update the time elapsed in this window so far
         self.window_time_elapsed += self.action_freq
         
         time_ratio = self.window_time_elapsed/self.window_size  # this gives a ratio for how much time we have spent on this window
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
-        #decrement the number of windows left, and reset all window-dependent variables
+        #reset all window-dependent variables
         if time_ratio>=1:
-            #volume_traded_in_window is slightly inaccurate each time, perhaps due to latency/synchonous errors
             self.window_time_elapsed = 0
             self.urgent = False
             self.volume_traded_in_window = 0
@@ -123,6 +122,7 @@ class POVGymTradingAgent(GymTradingAgent):
 
     def get_action(self, data):
         self.traded_so_far:int = abs(data["Inventory"] - self.starting_volume)
+        self.agent_volume = data["Inventory"]
         if(self.traded_so_far>=self.total_order_size):
             return(12, 0)
         
@@ -134,7 +134,7 @@ class POVGymTradingAgent(GymTradingAgent):
         time_ratio = self.window_time_elapsed/self.window_size
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
-        #decrement the number of windows left, and reset all window-dependent variables
+        #reset all window-dependent variables
         if time_ratio>=1:
             self.window_time_elapsed = 0
             self.urgent = False
@@ -161,10 +161,13 @@ class POVGymTradingAgent(GymTradingAgent):
         
         if not (time_ratio>=0.75 and self.volume_traded_in_window/(self.window_order_volume*time_ratio) < 0.9 and not self.urgent):
             return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
+        #otherwise, place market orders
+        else:
+            lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
+            time_left:int = self.window_size - self.window_time_elapsed
+            num_actions_left_this_window:int = round(time_left * (1/self.action_freq))
+            if num_actions_left_this_window <= 0 : return(12, 0)
+            self.market_order_size = round((self.window_order_volume - self.volume_traded_in_window)/num_actions_left_this_window)
+            return(7, self.market_order_size) if self.side == "buy" else (4, self.market_order_size)
         
 
-        
-        
-
-        # order_size:int = 
-        pass
