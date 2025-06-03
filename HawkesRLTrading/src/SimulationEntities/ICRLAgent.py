@@ -1296,7 +1296,7 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0):
+                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1335,6 +1335,8 @@ class PPOAgent(GymTradingAgent):
         elif action_space_config == 1:
             self.allowed_actions= ["lo_top_Ask","co_top_Ask","co_top_Bid", "lo_top_Bid" ]
             self.convert_dict = {0:2, 1:3, 2:8, 3:9}
+        self.include_time = include_time
+        self.alt_state = alt_state
         # PPO Hyperparameters
         self.epochs = epochs
         self.batch_size = batch_size
@@ -1370,6 +1372,7 @@ class PPOAgent(GymTradingAgent):
         :param data: Input trading data
         :return: Processed state tensor
         """
+        time = data['current_time']
         p_a, q_a = data['LOB0']['Ask_L1']
         p_b, q_b = data['LOB0']['Bid_L1']
         self.mid = 0.5*(p_a + p_b)
@@ -1385,7 +1388,12 @@ class PPOAgent(GymTradingAgent):
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
         past_times = data['past_times']
-        state = torch.tensor([[self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        if self.include_time:
+            state = torch.tensor([[time, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        elif self.alt_state:
+            state = torch.tensor([[time, self.Inventory['INTC'], p_a - p_b, n_a/q_a, n_b/q_b] + list(lambdas.flatten()/np.sum(lambdas.flatten())) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        else:
+            state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         return state
 
     def getState(self, state):
