@@ -1297,7 +1297,7 @@ class PPOAgent(GymTradingAgent):
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
-                 policy_loss_coef = 1):
+                 policy_loss_coef = 1, optim_type = 'ADAM'):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1356,6 +1356,7 @@ class PPOAgent(GymTradingAgent):
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
         self.transaction_cost = transaction_cost
+        self.optim = optim_type
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
@@ -1425,8 +1426,10 @@ class PPOAgent(GymTradingAgent):
                 x= 1e-1
             x = x*np.max([1e-1,(.5)**(epoch//5000)])
             return x
-
-        optimizer = optim.Adam(net.parameters(), lr=self.lr)
+        if self.optim == 'SGD':
+            optimizer = optim.SGD(net.parameters(), lr=self.lr)
+        else:
+            optimizer = optim.Adam(net.parameters(), lr = self.lr)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
         return optimizer, scheduler
 
