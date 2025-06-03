@@ -1,3 +1,5 @@
+import copy
+
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
 from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP, ActorCriticSeparate
 from HJBQVI.utils import MinMaxScaler
@@ -1294,7 +1296,7 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True):
+                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1325,7 +1327,14 @@ class PPOAgent(GymTradingAgent):
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        #allowed actions:
+        if action_space_config == 0:
+            self.allowed_actions= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
+                               "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
+            self.convert_dict = {}
+        elif action_space_config == 1:
+            self.allowed_actions= ["lo_top_Ask","co_top_Ask","co_top_Bid", "lo_top_Bid" ]
+            self.convert_dict = {0:2, 1:3, 2:8, 3:9}
         # PPO Hyperparameters
         self.epochs = epochs
         self.batch_size = batch_size
@@ -1425,10 +1434,10 @@ class PPOAgent(GymTradingAgent):
         # Initialize main networks with shared architecture
         if type == 'separate':
             self.Actor_Critic_d = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
-            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, len(self.allowed_actions), actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
         else:
             self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
-            self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 12, actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+            self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, len(self.allowed_actions), actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
 
         # Move all models to appropriate device
         self.Actor_Critic_d.to(self.device)
@@ -1479,8 +1488,8 @@ class PPOAgent(GymTradingAgent):
         if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
             # Random decision
             d = random.randint(0, 1)
-            u = random.randint(0, 11)
-
+            u = random.randint(0, len(self.allowed_actions) - 1)
+            u = self.convert_dict.get(u, u)
             # Compute dummy logits for logging
             d_logits, d_value = self.Actor_Critic_d(state)
             u_logits, u_value = self.Actor_Critic_u(state)
@@ -1528,7 +1537,8 @@ class PPOAgent(GymTradingAgent):
             u_logits, u_value = self.Actor_Critic_u(state)
             u_probs = torch.softmax(u_logits, dim=1).squeeze()
             u = torch.multinomial(u_probs, 1).item()
-
+            _u = copy.deepcopy(u)
+            u = self.convert_dict.get(u, u)
 
             # Validation checks
             if np.abs(self.countInventory()) >= self.inventorylimit -1: # cancel top orders if at inventory limit
@@ -1561,7 +1571,7 @@ class PPOAgent(GymTradingAgent):
                 return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
             self.last_action = u
-            return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+            return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
     def store_transition(self, ep, state, action, reward, next_state, done):
         """
