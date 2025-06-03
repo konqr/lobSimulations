@@ -1296,7 +1296,8 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False):
+                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
+                 policy_loss_coef = 1):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1345,7 +1346,7 @@ class PPOAgent(GymTradingAgent):
         self.entropy_coef = entropy_coef
         self.max_grad_norm = max_grad_norm
         self.gae_lambda = gae_lambda
-
+        self.policy_loss_coef = policy_loss_coef
         # Training parameters
         self.layer_widths = layer_widths
         self.n_layers = n_layers
@@ -1527,7 +1528,7 @@ class PPOAgent(GymTradingAgent):
                 return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
             self.last_action = u
-            return u, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+            return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
         # Exploitation
         with torch.no_grad():
@@ -1721,7 +1722,7 @@ class PPOAgent(GymTradingAgent):
             d_entropy_loss = -(torch.softmax(d_logits, dim=1) * F.log_softmax(d_logits, dim=1)).sum(dim=1).mean()
 
             # Total Decision Network Loss
-            d_loss = (d_policy_loss +
+            d_loss = (self.policy_loss_coef*d_policy_loss +
                       self.value_loss_coef * d_value_loss -
                       self.entropy_coef * d_entropy_loss)
 
