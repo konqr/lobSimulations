@@ -1489,6 +1489,7 @@ class PPOAgent(GymTradingAgent):
             # Random decision
             d = random.randint(0, 1)
             u = random.randint(0, len(self.allowed_actions) - 1)
+            _u = copy.deepcopy(u)
             u = self.convert_dict.get(u, u)
             # Compute dummy logits for logging
             d_logits, d_value = self.Actor_Critic_d(state)
@@ -1496,7 +1497,7 @@ class PPOAgent(GymTradingAgent):
 
             # Get log probabilities
             d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
-            u_log_prob = torch.log_softmax(u_logits, dim=1)[0, u]
+            u_log_prob = torch.log_softmax(u_logits, dim=1)[0, _u]
 
             # Validation checks (similar to original implementation)
             if int(u) in [1, 3, 8, 10]:  # cancels
@@ -1546,7 +1547,7 @@ class PPOAgent(GymTradingAgent):
                     u = 3
                 elif self.countInventory() > 0:
                     u = 8
-            u_log_prob = torch.log(u_probs[u])
+            u_log_prob = torch.log(u_probs[_u])
 
             if int(u) in [1, 3, 8, 10]:  # cancels
                 a = self.actions[int(u)]
