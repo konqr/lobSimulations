@@ -1480,9 +1480,9 @@ class PPOAgent(GymTradingAgent):
         if self.istruncated:
             penalty += 100
         if self.last_action != 12:
-            penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
+            penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
         if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
-            penalty -= 20 # custom reward for double sided quoting
+            penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         return deltaPNL + deltaInv - penalty
 
     def get_action(self, data, epsilon=0.1):
