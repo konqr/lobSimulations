@@ -1912,8 +1912,8 @@ class PPOAgent(GymTradingAgent):
                 print(f"Episode {episode}: too short (< K steps)")
         if type == 'd':
             d_logits, d_values_pred = self.Actor_Critic_d(torch.cat(states))
-            loss = F.cross_entropy(d_logits, torch.tensor(actions))
+            loss = F.cross_entropy(d_logits, torch.tensor(actions).to(self.device))
         elif type == 'u':
             u_logits, u_values_pred = self.Actor_Critic_u(torch.cat(states))
-            loss = F.cross_entropy(u_logits, torch.tensor(actions))
+            loss = F.cross_entropy(u_logits, torch.tensor(actions).to(self.device))
         return loss
