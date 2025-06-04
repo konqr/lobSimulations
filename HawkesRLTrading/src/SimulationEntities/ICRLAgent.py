@@ -1661,7 +1661,7 @@ class PPOAgent(GymTradingAgent):
         # returns_u = (returns_u - returns_u.mean()) / (returns_u.std() + 1e-8)
         return advantages_d, returns_d, advantages_u, returns_u
 
-    def train(self, train_logger):
+    def train(self, train_logger, use_CEM = False):
         """
         PPO training method using entire episode trajectory
         """
@@ -1707,15 +1707,18 @@ class PPOAgent(GymTradingAgent):
             # Decision Network Training
             # Current policy output
             d_logits, d_values_pred = self.Actor_Critic_d(states)
-            d_log_probs = F.log_softmax(d_logits, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
+            if use_CEM:
+                d_policy_loss = self.get_CEM_loss(type='d')
+            else:
+                d_log_probs = F.log_softmax(d_logits, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
 
-            # Compute ratios
-            d_ratios = torch.exp(d_log_probs - d_log_probs_old)
+                # Compute ratios
+                d_ratios = torch.exp(d_log_probs - d_log_probs_old)
 
-            # PPO Clipped Objective for Decision Network
-            d_surr1 = d_ratios * advantages_d
-            d_surr2 = torch.clamp(d_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_d
-            d_policy_loss = -torch.min(d_surr1, d_surr2).mean()
+                # PPO Clipped Objective for Decision Network
+                d_surr1 = d_ratios * advantages_d
+                d_surr2 = torch.clamp(d_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_d
+                d_policy_loss = -torch.min(d_surr1, d_surr2).mean()
 
             # Value loss for Decision Network
             # d_values_pred, _ = self.Critic_d(states)
@@ -1748,15 +1751,18 @@ class PPOAgent(GymTradingAgent):
 
                 # Current policy output
                 u_logits, u_values_pred = self.Actor_Critic_u(states_u)
-                u_log_probs = F.log_softmax(u_logits, dim=1).gather(1, u_actions_u.unsqueeze(1)).squeeze()
+                if use_CEM:
+                    u_policy_loss = self.get_CEM_loss(type='u')
+                else:
+                    u_log_probs = F.log_softmax(u_logits, dim=1).gather(1, u_actions_u.unsqueeze(1)).squeeze()
 
-                # Compute ratios
-                u_ratios = torch.exp(u_log_probs - u_log_probs_old_filtered)
+                    # Compute ratios
+                    u_ratios = torch.exp(u_log_probs - u_log_probs_old_filtered)
 
-                # PPO Clipped Objective for Utility Network
-                u_surr1 = u_ratios * advantages_u_filtered
-                u_surr2 = torch.clamp(u_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_u_filtered
-                u_policy_loss = -torch.min(u_surr1, u_surr2).mean()
+                    # PPO Clipped Objective for Utility Network
+                    u_surr1 = u_ratios * advantages_u_filtered
+                    u_surr2 = torch.clamp(u_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * advantages_u_filtered
+                    u_policy_loss = -torch.min(u_surr1, u_surr2).mean()
 
                 u_value_loss = F.mse_loss(u_values_pred.squeeze(), returns_u_filtered)
 
@@ -1803,3 +1809,111 @@ class PPOAgent(GymTradingAgent):
             gc.collect()
         # return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
         return [0]*6
+
+    def get_max_contiguous_rewards(self, K):
+        """
+        Find maximum contiguous subarray of rewards for each episode with minimum length K
+
+        :param K: Minimum length of subarray
+        :return: Dictionary mapping episode -> (start_idx, end_idx, max_sum)
+                 where indices are relative to the episode's trajectory
+        """
+        if not self.trajectory_buffer:
+            return {}
+
+        # Group trajectories by episode
+        episodes = {}
+        for ep, transition in self.trajectory_buffer:
+            if ep not in episodes:
+                episodes[ep] = []
+            episodes[ep].append(transition)
+
+        results = {}
+
+        for ep, transitions in episodes.items():
+            if len(transitions) < K:
+                # Episode too short for minimum length K
+                results[ep] = None
+                continue
+
+            rewards = [t[3] for t in transitions]  # Extract rewards (index 3 in transition tuple)
+
+            max_sum = float('-inf')
+            best_start = 0
+            best_end = K - 1
+
+            # Check all possible subarrays of length >= K
+            for start in range(len(rewards) - K + 1):
+                current_sum = sum(rewards[start:start + K])  # Initial window of size K
+
+                # Check if this K-length window is better
+                if current_sum > max_sum:
+                    max_sum = current_sum
+                    best_start = start
+                    best_end = start + K - 1
+
+                # Extend the window beyond K if possible
+                for end in range(start + K, len(rewards)):
+                    current_sum += rewards[end]
+                    if current_sum > max_sum:
+                        max_sum = current_sum
+                        best_start = start
+                        best_end = end
+
+            results[ep] = (best_start, best_end, max_sum)
+
+        return results
+
+    def get_subarray_data(self, episode, start_idx, end_idx):
+        """
+        Helper method to extract state, d, u data for a given episode and index range
+
+        :param episode: Episode number
+        :param start_idx: Start index (inclusive)
+        :param end_idx: End index (inclusive)
+        :return: List of (state, d, u) tuples for the specified range
+        """
+        episode_data = []
+        for ep, transition in self.trajectory_buffer:
+            if ep == episode:
+                episode_data.append(transition)
+
+        if start_idx < 0 or end_idx >= len(episode_data) or start_idx > end_idx:
+            return []
+
+        result = []
+        for i in range(start_idx, end_idx + 1):
+            state, d, u, reward, next_state, done = episode_data[i]
+            result.append((state, d, u))
+
+        return result
+
+    def get_CEM_loss(self, type='d'):
+        states = []
+        actions = []
+        results = self.get_max_contiguous_rewards(K=10)
+
+        for episode, result in results.items():
+            if result is not None:
+                start_idx, end_idx, max_sum = result
+                print(f"Episode {episode}: indices {start_idx}-{end_idx}, sum={max_sum}")
+
+                # Get the corresponding state, d, u data
+                subarray_data = self.get_subarray_data(episode, start_idx, end_idx)
+                if type=='d':
+                    for s, d, u in subarray_data:
+                        states.append(s)
+                        actions.append(d)
+                else:
+                    for s, d, u in subarray_data:
+                        states.append(s)
+                        actions.append(u)
+            else:
+                print(f"Episode {episode}: too short (< K steps)")
+        if type == 'd':
+            d_logits, d_values_pred = self.Actor_Critic_d(torch.cat(states))
+            loss = F.cross_entropy(d_logits, torch.tensor(actions))
+        elif type == 'u':
+            u_logits, u_values_pred = self.Actor_Critic_u(torch.cat(states))
+            loss = F.cross_entropy(u_logits, torch.tensor(actions))
+        return loss

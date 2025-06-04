@@ -5,13 +5,13 @@ from HJBQVI.utils import get_gpu_specs
 import torch
 get_gpu_specs()
 
-log_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/logs'
-model_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/models'
+log_dir = './logs'
+model_dir = './models'
 label = 'PPO_ctstrain_tc'
 layer_widths=128
 n_layers=3
 checkpoint_params = None #('20250525_083145_PPO_weitlgtp_0.5_ICRL_2side_lr3', 231)
-with open("/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
@@ -174,11 +174,11 @@ for episode in range(500):
         finalcash2.append(current_pnl)
 
         print(f"ACTION DONE{i}")
-        if (counter_profit % 1000 == 0):
+        if (counter_profit % 100 == 0):
 
             if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
                 for epoch in range(1):
-                    d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger)
+                    d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = True)
                     train_logger.save_logs()
                 train_logger.plot_losses(show=False, save=True)
 
@@ -294,3 +294,4 @@ for episode in range(500):
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
     torch.cuda.empty_cache()
+
