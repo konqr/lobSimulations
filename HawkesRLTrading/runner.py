@@ -7,10 +7,10 @@ get_gpu_specs()
 
 log_dir = './logs'
 model_dir = './models'
-label = 'PPO_ctstrain_tc'
+label = 'smallPen2_alt_limitedAction_exp'
 layer_widths=128
 n_layers=3
-checkpoint_params = None #('20250525_083145_PPO_weitlgtp_0.5_ICRL_2side_lr3', 231)
+checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
 with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
@@ -54,11 +54,12 @@ kwargs={
                          "strategy": "ICRL",
 
                          "action_freq": 0.2,
-                         "rewardpenalty": 100,
+                         "rewardpenalty": 0.5,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
                          "inventorylimit": 25,
+                         'start_trading_lag' : 0,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}],
     # "GymTradingAgent": [{"cash": 1000000,
@@ -106,17 +107,18 @@ kwargs={
                                      "beta": 0.941,
                                      "avgSpread": 0.0101,
                                      "Pi_Q0": Pi_Q0,
-                                     'expapprox': False}}
+                                     'expapprox' : True}}
 
 }
 j = kwargs['GymTradingAgent'][0]
-tc = 0.01
+tc = 0.0001
 agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = .5, epochs = 1000, transaction_cost=tc, truncation_enabled=False) #, hidden_activation='sigmoid'
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'], #
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0.1) #, hidden_activation='sigmoid'
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
-i=0
+i_eps=0
 cash, inventory, t, actions = [], [], [], []
 avgEpisodicRewards, stdEpisodicRewards , finalcash, finalcash2= [], [],[],[]
 train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
@@ -124,14 +126,14 @@ model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0
 episode_boundaries = [0]
 for episode in range(500):
-    env=tradingEnv(stop_time=23400, wall_time_limit=23400, **kwargs)
+    env=tradingEnv(stop_time=20, wall_time_limit=23400, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
 
     Simstate, observations, termination, truncation =env.step(action=None)
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
     agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
     if episode == 0:
-        agent.setupNNs(observations,type='separate')
+        agent.setupNNs(observations)
     if checkpoint_params is not None:
         loaded_models = model_manager.load_models(timestamp=checkpoint_params[0], epoch = checkpoint_params[1], d = agent.Actor_Critic_d, u = agent.Actor_Critic_u)
         agent.Actor_Critic_d = loaded_models['d']
@@ -146,7 +148,7 @@ for episode in range(500):
             raise Exception("Code should be unreachable: Multiple gym agents are not yet implemented")
         agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
         assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-        agentAction = agent.get_action(data=observations, epsilon = 0.5 if i < 100 else 0.1)
+        agentAction = agent.get_action(data=observations, epsilon = 0.5 if i_eps < 100 else 0.1)
         action=(agent.id, (agentAction[0],1))
         print(f"Limit Order Book: {observations['LOB0']}")
         print(f"Action: {action}")
@@ -156,7 +158,7 @@ for episode in range(500):
         agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
         print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
         # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
-        i+=1
+        i_eps+=1
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
 
 
@@ -174,15 +176,7 @@ for episode in range(500):
         finalcash2.append(current_pnl)
 
         print(f"ACTION DONE{i}")
-        if (counter_profit % 100 == 0):
 
-            if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
-                for epoch in range(1):
-                    d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = True)
-                    train_logger.save_logs()
-                train_logger.plot_losses(show=False, save=True)
-
-            model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
         # Calculate Sharpe ratio on log returns within episodes
         all_log_returns = []
         pft = np.array(finalcash2)
@@ -221,7 +215,7 @@ for episode in range(500):
                 if end_idx > start_idx:  # Valid episode
                     episode_t = t_array[start_idx:end_idx]
                     episode_pnl = pft[start_idx:end_idx]
-                    episode_profit = episode_pnl - 2500  # Profit relative to starting capital
+                    episode_profit = episode_pnl - j["cash"] # Profit relative to starting capital
 
                     # Plot this episode
                     if i == 0:
@@ -244,7 +238,14 @@ for episode in range(500):
     else:
         pass
 
+    if ((episode) % 2 == 0):
+        if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
+            for epoch in range(1):
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = bool(episode% 4))
+                train_logger.save_logs()
+            train_logger.plot_losses(show=False, save=True)
 
+        model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
     # ER = agent.experience_replay
     agent.current_time = 0
     agent.istruncated = False
@@ -279,7 +280,7 @@ for episode in range(500):
     avgEpisodicRewards.append(np.mean(episodic_rewards))
     stdEpisodicRewards.append(np.std(episodic_rewards))
     finalcash.append(cash[-1] + inventory[-1]*agent.mid )
-    pft = np.array(finalcash) - 2500
+    pft = np.array(finalcash) - j["cash"]
     ma = np.convolve(pft, np.ones(5)/5, mode='valid')
     plt.figure(figsize=(12,8))
     plt.subplot(211)
@@ -294,4 +295,3 @@ for episode in range(500):
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
     torch.cuda.empty_cache()
-
