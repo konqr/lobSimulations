@@ -1701,8 +1701,8 @@ class PPOAgent(GymTradingAgent):
         _states, _d_actions, _u_actions, _d_logits_old, _values_d_old, _d_log_probs_old, _u_logits_old, _values_u_old, _u_log_probs_old, _advantages_d, _returns_d, _advantages_u, _returns_u = [torch.cat([element[i] for element in tmp_buffer]) for i in range(len(tmp_buffer[0]))]
         del tmp_buffer
         if use_CEM:
-            cem_states_d, d_actions = self.get_CEM_data(type='d')
-            cem_states_u, u_actions = self.get_CEM_data(type='u')
+            cem_states_d, cem_d_actions = self.get_CEM_data(type='d')
+            cem_states_u, cem_u_actions = self.get_CEM_data(type='u')
         # PPO training for multiple epochs
         for _ in range(self.epochs):
             idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
@@ -1712,7 +1712,7 @@ class PPOAgent(GymTradingAgent):
             d_logits, d_values_pred = self.Actor_Critic_d(states)
             if use_CEM:
                 d_logits, _ = self.Actor_Critic_d(torch.cat(cem_states_d))
-                d_policy_loss = F.cross_entropy(d_logits, torch.tensor(d_actions).to(self.device))
+                d_policy_loss = F.cross_entropy(d_logits, torch.tensor(cem_d_actions).to(self.device))
 
             else:
                 d_log_probs = F.log_softmax(d_logits, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
@@ -1758,7 +1758,7 @@ class PPOAgent(GymTradingAgent):
                 u_logits, u_values_pred = self.Actor_Critic_u(states_u)
                 if use_CEM:
                     u_logits, _ = self.Actor_Critic_u(torch.cat(cem_states_u))
-                    u_policy_loss = F.cross_entropy(u_logits, torch.tensor(u_actions).to(self.device))
+                    u_policy_loss = F.cross_entropy(u_logits, torch.tensor(cem_u_actions).to(self.device))
                 else:
                     u_log_probs = F.log_softmax(u_logits, dim=1).gather(1, u_actions_u.unsqueeze(1)).squeeze()
 

@@ -238,10 +238,10 @@ for episode in range(500):
     else:
         pass
 
-    if ((episode) % 2 == 0):
+    if ((episode) % 1 == 0):
         if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
             for epoch in range(1):
-                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = bool(episode% 4))
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = bool(episode% 2))
                 train_logger.save_logs()
             train_logger.plot_losses(show=False, save=True)
 
