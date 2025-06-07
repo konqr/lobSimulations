@@ -770,6 +770,71 @@ class ActorCriticSGMLP(nn.Module):
 
         return log_prob
 
+class ResidualBlock(nn.Module):
+    def __init__(self, width, activation="tanh"):
+        '''
+        Residual block with skip connection
+
+        Args:
+            width: width of the block (input and output dimensions)
+            activation: activation function for hidden layers
+        '''
+        super(ResidualBlock, self).__init__()
+
+        self.block = nn.Sequential(
+            DenseLayer(width, width, activation=activation),
+            DenseLayer(width, width, activation=activation)
+        )
+
+    def forward(self, x):
+        '''Forward pass with residual connection'''
+        return x + self.block(x)
+
+
+class ActorResNet(BaseNet):
+    def __init__(self, input_dim, layer_width, n_layers,
+                 output_dim, output_activation="softmax",
+                 hidden_activation="tanh"):
+        '''
+        Actor network with ResNet architecture for policy learning
+
+        Args:
+            input_dim:         spatial dimension of input data
+            layer_width:       width of intermediate layers
+            n_layers:          number of residual blocks
+            output_dim:        dimensionality of actor output (action space)
+            output_activation: activation function used in output layer
+            hidden_activation: activation function for hidden layers
+        '''
+        super(ActorResNet, self).__init__()
+
+        # Initial layer to project input to layer_width
+        self.initial_layer = DenseLayer(layer_width, input_dim, activation=hidden_activation)
+
+        # Build residual blocks
+        blocks = []
+        for _ in range(n_layers):
+            blocks.append(ResidualBlock(layer_width, activation=hidden_activation))
+        self.residual_blocks = nn.Sequential(*blocks)
+
+        # Output layer (policy network)
+        self.output_layer = DenseLayer(output_dim, layer_width, activation=output_activation)
+
+    def forward(self, x):
+        '''
+        Forward pass through actor ResNet
+
+        Args:
+            x: input state
+
+        Returns:
+            policy distribution or action probabilities
+        '''
+        x = self.initial_layer(x)
+        x = self.residual_blocks(x)
+        output = self.output_layer(x)
+        return output
+
 class ActorMLP(BaseNet):
     def __init__(self, input_dim, layer_width, n_layers,
                  output_dim, output_activation="softmax",

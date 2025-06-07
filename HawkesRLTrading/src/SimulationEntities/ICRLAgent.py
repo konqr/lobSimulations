@@ -1445,8 +1445,8 @@ class PPOAgent(GymTradingAgent):
 
         # Initialize main networks with shared architecture
         if type == 'separate':
-            self.Actor_Critic_d = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
-            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, len(self.allowed_actions), actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
+            self.Actor_Critic_d = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, 2, actor_activation=None, hidden_activation=self.hidden_activation, q_function = False)
+            self.Actor_Critic_u = ActorCriticSeparate(state_dim, self.layer_widths, self.n_layers, len(self.allowed_actions), actor_activation=None, hidden_activation=self.hidden_activation,q_function = False)
         else:
             self.Actor_Critic_d = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, 2, actor_activation='tanh', hidden_activation=self.hidden_activation, q_function = False)
             self.Actor_Critic_u = ActorCriticMLP(state_dim, self.layer_widths, self.n_layers, len(self.allowed_actions), actor_activation='tanh', hidden_activation=self.hidden_activation,q_function = False)
