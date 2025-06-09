@@ -5,13 +5,13 @@ from HJBQVI.utils import get_gpu_specs
 import torch
 get_gpu_specs()
 
-log_dir = './logs'
-model_dir = './models'
-label = 'smallPen2_alt_limitedAction_exp'
+log_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/logs'
+model_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/models'
+label = 'test_NoActFull_CEM_noEnt_alt_la_exp'
 layer_widths=128
 n_layers=3
-checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
-with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+checkpoint_params = ('20250607_212833_cont_NoActFull_CEM_noEnt_alt_la_exp', 11)
+with open("/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
@@ -59,42 +59,10 @@ kwargs={
                          "log_to_file": True,
                          "cashlimit": 5000000,
                          "inventorylimit": 25,
-                         'start_trading_lag' : 0,
+                         'start_trading_lag' : 100,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}],
-    # "GymTradingAgent": [{"cash": 1000000,
-    #                     "strategy": "Random",
-    #                      'on_trade':False,
-    #                     "action_freq": .2,
-    #                     "rewardpenalty": 0.4,
-    #                     "Inventory": {"XYZ": 1000},
-    #                     "log_to_file": True,
-    #                     "cashlimit": 100000000}],
-    #"GymTradingAgent": [{"cash":10000000,
-    #                     "cashlimit": 1000000000,
-    #                      "strategy": "TWAP",
-    #                      "on_trade":False,
-    #                      "total_order_size":500,
-    #                      "order_target":"XYZ",
-    #                      "total_time":100,
-    #                      "window_size":20, #window size, measured in seconds
-    #                      "side":"buy", #buy or sell
-    #                      "action_freq":0.2,
-    #                      "Inventory": {"XYZ":1} #inventory cant be 0
-    #                     }],
     "Exchange": {"symbol": "INTC",
-                 #"GymTradingAgent": [{"cash": 1000000,
-                 #                    "strategy": "ImpulseControl",
-                 #                     'on_trade':True,
-                 #                    "action_freq": .2,
-                 #                    "rewardpenalty": 0.4,
-                 #                    "Inventory": {"INTC":5},
-                 #                    "log_to_file": True,
-                 #                    "cashlimit": 100000000,
-                 #                     'label' : '20250325_160949_INTC_SIMESPPL',
-                 #                     'epoch':2180,
-                 #                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
-                 #"Exchange": {"symbol": "INTC",
                  "ticksize":0.01,
                  "LOBlevels": 2,
                  "numOrdersPerLevel": 10,
@@ -114,8 +82,8 @@ j = kwargs['GymTradingAgent'][0]
 tc = 0.0001
 agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'], #
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0.1) #, hidden_activation='sigmoid'
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 1000, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5) #, hidden_activation='sigmoid'
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -126,7 +94,7 @@ model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0
 episode_boundaries = [0]
 for episode in range(500):
-    env=tradingEnv(stop_time=20, wall_time_limit=23400, **kwargs)
+    env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
 
     Simstate, observations, termination, truncation =env.step(action=None)
@@ -154,6 +122,8 @@ for episode in range(500):
         print(f"Action: {action}")
         observations_prev = observations.copy()
         Simstate, observations, termination, truncation=env.step(action=action)
+        if 'test' in label:
+            observations['current_time'] = 100+((observations['current_time'] - 100)%300)
         # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
         agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
         print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
@@ -218,8 +188,8 @@ for episode in range(500):
                     episode_profit = episode_pnl - j["cash"] # Profit relative to starting capital
 
                     # Plot this episode
-                    if i == 0:
-                        plt.plot(episode_t, episode_profit, alpha=0.7, label=f'Sharpe:{sr:0.4f}')
+                    if i == len(episode_boundaries) - 1:
+                        plt.plot(episode_t, episode_profit, alpha=0.7, label=f'Sharpe:{sr:0.4f}', marker = 'X')
                     else:
                         plt.plot(episode_t, episode_profit, alpha=0.7)
 
@@ -238,10 +208,10 @@ for episode in range(500):
     else:
         pass
 
-    if ((episode) % 1 == 0):
+    if ((episode) % 4 == 0):
         if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
             for epoch in range(1):
-                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = bool(episode% 2))
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger) #, use_CEM = bool((episode+1) % 4))
                 train_logger.save_logs()
             train_logger.plot_losses(show=False, save=True)
 
@@ -277,20 +247,24 @@ for episode in range(500):
             episodic_rewards.append(r)
             r = ij[1][3]
             tmp=ij[0]
-    avgEpisodicRewards.append(np.mean(episodic_rewards))
-    stdEpisodicRewards.append(np.std(episodic_rewards))
+    avgEpisodicRewards.append(np.mean(episodic_rewards[-4:]))
+    stdEpisodicRewards.append(np.std(episodic_rewards[-4:]))
     finalcash.append(cash[-1] + inventory[-1]*agent.mid )
     pft = np.array(finalcash) - j["cash"]
     ma = np.convolve(pft, np.ones(5)/5, mode='valid')
     plt.figure(figsize=(12,8))
-    plt.subplot(211)
+    plt.subplot(311)
     plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
     plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
-    plt.title('Avg Episodic Rewards')
-    plt.subplot(212)
+    plt.title('Moving Avg Episodic Rewards')
+    plt.subplot(312)
     plt.plot(np.arange(len(ma)), ma)
     plt.ticklabel_format(useOffset=False, style='plain')
     plt.title('Final Profit MA')
+    plt.subplot(313)
+    plt.plot(np.arange(len(pft)), pft)
+    plt.ticklabel_format(useOffset=False, style='plain')
+    plt.title('Final Profit Raw')
 
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
