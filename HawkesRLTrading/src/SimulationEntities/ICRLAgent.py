@@ -1484,7 +1484,7 @@ class PPOAgent(GymTradingAgent):
         if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
             penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         if self.alt_state:
-            if (self.last_state.cpu().numpy()[3] <= 1) and (self.last_state.cpu().numpy()[4] <= 1):
+            if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
                 penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         return deltaPNL + deltaInv - penalty
 
