@@ -1422,9 +1422,9 @@ class PPOAgent(GymTradingAgent):
         def lr_lambda(epoch):
             # Learning rate schedule
             x =1
-            if epoch > 500:
-                x= 1e-1
-            x = x*np.max([1e-1,(.5)**(epoch//5000)])
+            # if epoch > 500:
+            #     x= 1e-1
+            # x = x*np.max([1e-1,(.5)**(epoch//5000)])
             return x
         if self.optim == 'SGD':
             optimizer = optim.SGD(net.parameters(), lr=self.lr)
@@ -1707,6 +1707,7 @@ class PPOAgent(GymTradingAgent):
             cem_states_d, cem_d_actions = self.get_CEM_data(type='d')
             cem_states_u, cem_u_actions = self.get_CEM_data(type='u')
         # PPO training for multiple epochs
+        # idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
         for _ in range(self.epochs):
             idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
             states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u = _states[idxs,:], _d_actions[idxs], _u_actions[idxs], _d_logits_old[idxs,:], _values_d_old[idxs,:], _d_log_probs_old[idxs], _u_logits_old[idxs,:], _values_u_old[idxs,:], _u_log_probs_old[idxs], _advantages_d[idxs], _returns_d[idxs], _advantages_u[idxs], _returns_u[idxs]
