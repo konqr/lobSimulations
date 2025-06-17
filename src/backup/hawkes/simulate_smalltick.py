@@ -415,7 +415,7 @@ def main():
 def run(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None):
     print(id)
     betas = [0., 0.1, 0.25, 0.5, 0.7, 0.9]
-    alphas = [0.01, 0.02, 0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+    alphas = [10, 50, 100, 200, 400]
     i = int(id)
     beta_i = i%len(betas)
     alpha_i = i//len(betas)
@@ -423,7 +423,7 @@ def run(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 5
         alpha_i -=1
     beta = betas[beta_i]
     avgSpread = alphas[alpha_i]
-    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/demo_"+str(avgSpread)+"_"+str(beta), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
+    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/Symmetric_AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/demo_"+str(avgSpread)+"_"+str(beta), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
 
 def run_poisson(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None):
     print(id)
