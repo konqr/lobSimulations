@@ -518,6 +518,7 @@ class Kernel:
         pt = self.current_time - self.entity_registry[self.exchange.id].returnpasteventimes()
         pt[pt==self.current_time+1] = -1
         rtn['past_times']= pt
+        rtn['current_time'] = self.current_time
         return rtn
     
     def getinfo(self, data: Dict={}):
