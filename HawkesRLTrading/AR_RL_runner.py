@@ -313,5 +313,5 @@ for episode in range(60):
 
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
-    # torch.cuda.empty_cache()
-    torch.mps.empty_cache()
+    torch.cuda.empty_cache()
+    # torch.mps.empty_cache()

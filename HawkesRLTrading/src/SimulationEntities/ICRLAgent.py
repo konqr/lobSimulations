@@ -1328,8 +1328,8 @@ class PPOAgent(GymTradingAgent):
                          truncation_enabled=truncation_enabled)
 
         self.resetseed(seed)
-        # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "mps")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "mps")
         #allowed actions:
         if action_space_config == 0:
             self.allowed_actions= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
