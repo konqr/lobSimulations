@@ -96,21 +96,72 @@ def parse_log_file(filename):
 
     return pd.DataFrame(data)
 
+def detect_episodes(df):
+    """
+    Detect episode boundaries based on non-increasing timestamps
+    and split data into episodes
+    """
+    episodes = []
+    current_episode = []
+    episode_num = 0
+
+    for i, row in df.iterrows():
+        if i == 0:
+            current_episode.append(row)
+            continue
+
+        # Check if timestamp decreased (new episode starts)
+        if row['timestamp'] < df.iloc[i-1]['timestamp']:
+            # Save current episode if it has data
+            if current_episode:
+                episode_df = pd.DataFrame(current_episode)
+                episode_df['episode'] = episode_num
+                episodes.append(episode_df)
+                episode_num += 1
+                current_episode = []
+
+        current_episode.append(row)
+
+    # Don't forget the last episode
+    if current_episode:
+        episode_df = pd.DataFrame(current_episode)
+        episode_df['episode'] = episode_num
+        episodes.append(episode_df)
+
+    return episodes
+
 def plot_analysis(df):
     """
     Create plots for mid-price, inventory PDF, and positions PDF
     """
+    # Detect episodes
+    episodes = detect_episodes(df)
+    print(f"Detected {len(episodes)} episodes")
+
     # Set up the plotting style
     plt.style.use('default')
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle('Limit Order Book Analysis', fontsize=16)
 
-    # Plot 1: Mid-price over time
-    axes[0, 0].plot(df['timestamp'], df['mid_price'], linewidth=1.5, alpha=0.8)
-    axes[0, 0].set_title('Mid-Price Over Time')
-    axes[0, 0].set_xlabel('Timestamp')
+    # Plot 1: Mid-price over time with episodes overlaid
+    colors = plt.cm.tab10(np.linspace(0, 1, len(episodes)))
+
+    for episode_idx, episode_df in enumerate(episodes):
+        if len(episode_df) > 1:  # Only plot episodes with more than 1 point
+            # Reset timestamp to start from 0 for each episode
+            episode_timestamps = episode_df['timestamp'].values - episode_df['timestamp'].iloc[0]
+            axes[0, 0].plot(episode_timestamps, episode_df['mid_price'],
+                            color=colors[episode_idx], linewidth=1.5, alpha=0.7,
+                            label=f'Episode {episode_idx + 1}')
+
+    axes[0, 0].set_title('Mid-Price Over Time (Episodes Overlaid)')
+    axes[0, 0].set_xlabel('Time (relative to episode start)')
     axes[0, 0].set_ylabel('Mid-Price')
     axes[0, 0].grid(True, alpha=0.3)
+
+    # Only show legend if there are not too many episodes
+    if len(episodes) <= 10:
+        axes[0, 0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 
     # Plot 2: Inventory PDF
     inventory_values = df['inventory'].dropna()
@@ -166,9 +217,20 @@ def print_summary_stats(df):
     """
     Print summary statistics
     """
+    episodes = detect_episodes(df)
+
     print("=== SUMMARY STATISTICS ===")
     print(f"Total records parsed: {len(df)}")
+    print(f"Number of episodes detected: {len(episodes)}")
     print(f"Time range: {df['timestamp'].min():.2f} - {df['timestamp'].max():.2f}")
+    print()
+
+    # Episode statistics
+    episode_lengths = [len(ep) for ep in episodes]
+    print("Episode Statistics:")
+    print(f"  Average episode length: {np.mean(episode_lengths):.1f} records")
+    print(f"  Min episode length: {np.min(episode_lengths)} records")
+    print(f"  Max episode length: {np.max(episode_lengths)} records")
     print()
 
     print("Mid-Price Statistics:")
@@ -203,7 +265,7 @@ def main():
     Main function to run the analysis
     """
     # Replace with your log file path
-    log_filename = "D:\\PhD\\results - icrl\\symmHP_lowEpochs_standard.o5687496"  # Change this to your file path
+    log_filename = "D:\\PhD\\results - icrl\\standard_rew1e-1.o5671369"  # Change this to your file path
 
     print("Parsing log file...")
     df = parse_log_file(log_filename)
