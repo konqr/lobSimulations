@@ -88,7 +88,7 @@ class tradingEnv(gym.Env):
             for j in kwargs["GymTradingAgent"]:
                 new_agent=None
                 if j["strategy"] == "TWAP":
-                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
+                     new_agent = TWAPGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], start_trading_lag=j["start_trading_lag"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
                 elif j["strategy"]=="Random":
                     new_agent=RandomGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"] , rewardpenalty=j["rewardpenalty"],  wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"])
                 elif j['strategy'] == 'ImpulseControl':
@@ -301,31 +301,33 @@ if __name__=="__main__":
                                 #      "Inventory": {"XYZ":1}, #inventory cant be 0
                                 #      "wake_on_MO": False,
                                 #      "wake_on_Spread": False}],
-                                    [{"cash": 1000000,
-                                    "strategy": "Random",
-                                     'on_trade':False,
-                                    "action_freq": 0.32,
-                                    "rewardpenalty": 0.4,
-                                    "Inventory": {"XYZ": 1000},
-                                    "wake_on_MO": False,
-                                    "wake_on_Spread": False,
-                                    "log_to_file": True,
-                                    "cashlimit": 100000000}],
-                                    # {"cash":10000000,
-                                    # "cashlimit": 1000000000,
-                                    #  "strategy": "TWAP",
-                                    #  "on_trade":False,
-                                    #  "total_order_size":500,
-                                    #  "order_target":"XYZ",
-                                    #  "total_time":100,
-                                    #  "window_size":20, #window size, measured in seconds
-                                    #  "side":"buy", #buy or sell
-                                    #  "action_freq":0.2,
-                                    #  "Inventory": {"XYZ":1}, #inventory cant be 0
-                                    #  "wake_on_MO": False,
-                                    #  "wake_on_Spread": False}],
+                                    [
+                                    # {"cash": 1000000,
+                                    # "strategy": "Random",
+                                    # "action_freq": 1.333333,
+                                    # "rewardpenalty": 0.4,
+                                    # "Inventory": {"XYZ": 1000},
+                                    # "wake_on_MO": False,
+                                    # "wake_on_Spread": False,
+                                    # "log_to_file": True,
+                                    # "cashlimit": 100000000},
+                                    # ],
+                                    {"cash":1000,
+                                    "cashlimit": 1000000000,
+                                     "strategy": "TWAP",
+                                     "on_trade":False,
+                                     "total_order_size":200,
+                                     "order_target":"XYZ",
+                                     "total_time":200,
+                                     "window_size":20, #window size, measured in seconds
+                                     "side":"sell", #buy or sell
+                                     "action_freq":1,
+                                     "Inventory": {"XYZ":200}, #inventory cant be 0
+                                     "start_trading_lag": 100,
+                                     "wake_on_MO": False,
+                                     "wake_on_Spread": False}],
                 #"GymTradingAgent": [{"cash": 1000000,
-                #                    "strategy": "ImpulseControl",
+                #                    "strategy": "ImpulseControl",x
                 #                     'on_trade':True,
                 #                    "action_freq": .2,
                 #                    "rewardpenalty": 0.4,
@@ -369,7 +371,7 @@ if __name__=="__main__":
     # model_manager = ModelManager(model_dir = model_dir, label = label)
 
     # for episode in range(10):
-    env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
+    env=tradingEnv(stop_time=300, wall_time_limit=23400, seed=1, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
 
 
@@ -395,7 +397,8 @@ if __name__=="__main__":
             action = (agent.id, agentAction)
             #print(f"Action: {action}")
             observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
-            print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
+            # print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
+            print(f"Inventory: {observationsDict.get(agent.id).get('Inventory')}")
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
             observationsDict.update({agent.id:observations})
             logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")

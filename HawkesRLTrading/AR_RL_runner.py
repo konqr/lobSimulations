@@ -62,21 +62,21 @@ kwargs={
                          'start_trading_lag': 100,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
-                        #  ,
-                        #  {"cash":10000000,
-                        #   "cashlimit": 1000000000,
-                        #   "strategy": "TWAP",
-                        #   "on_trade":False,
-                        #   "total_order_size":400,
-                        #   "order_target":"INTC",
-                        #   "total_time":400,
-                        #   "window_size":50, #window size, measured in seconds
-                        #   "side":"buy", #buy or sell
-                        #   "action_freq":1,
-                        #   "Inventory": {"INTC":0},
-                        #   'start_trading_lag': 100,
-                        #   "wake_on_MO": False,
-                        #   "wake_on_Spread": False}
+                         ,
+                         {"cash":10000000,
+                          "cashlimit": 1000000000,
+                          "strategy": "TWAP",
+                          "on_trade":False,
+                          "total_order_size":400,
+                          "order_target":"INTC",
+                          "total_time":400,
+                          "window_size":50, #window size, measured in seconds
+                          "side":"sell", #buy or sell
+                          "action_freq":1,
+                          "Inventory": {"INTC":400},
+                          'start_trading_lag': 100,
+                          "wake_on_MO": False,
+                          "wake_on_Spread": False}
                           ],
     "Exchange": {"symbol": "INTC",
                  "ticksize":0.01,

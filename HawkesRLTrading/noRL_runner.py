@@ -8,7 +8,7 @@ model_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/models'
 label = 'PPO_ICRL'
 layer_widths=128
 n_layers=3
-with open("/Users/alirazajafree/Documents/GitHub/lobSimulations/HawkesRLTrading/src/AAPL.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -71,27 +71,27 @@ kwargs={
                             #      "Inventory": {"INTC":1}, #inventory cant be 0
                             #      "wake_on_MO": False,
                             #      "wake_on_Spread": False}],
-                                # [{"cash": 1000000,
-                                # "strategy": "Random",
-                                #     'on_trade':False,
-                                # "action_freq": 0.32,
-                                # "rewardpenalty": 0.4,
-                                # "Inventory": {"XYZ": 1000},
-                                # "wake_on_MO": False,
-                                # "wake_on_Spread": False,
-                                # "log_to_file": True,
-                                # "cashlimit": 100000000}],
-                                [{"cash":10000000,
+                                [{"cash": 1000000,
+                                "strategy": "Random",
+                                    'on_trade':False,
+                                "action_freq": 1.3,
+                                "rewardpenalty": 0.4,
+                                "Inventory": {"INTC": 1000},
+                                "wake_on_MO": False,
+                                "wake_on_Spread": False,
+                                "log_to_file": True,
+                                "cashlimit": 100000000},
+                                {"cash":10000000,
                                 "cashlimit": 1000000000,
                                  "strategy": "TWAP",
                                  "on_trade":False,
-                                 "total_order_size":500,
+                                 "total_order_size":200,
                                  "order_target":"INTC",
-                                 "total_time":500,
+                                 "total_time":200,
                                  "window_size":50, #window size, measured in seconds
                                  "side":"buy", #buy or sell
                                  "action_freq":1,
-                                 "Inventory": {"INTC":1}, #inventory cant be 0
+                                 "Inventory": {"INTC":0}, #inventory cant be 0
                                  "wake_on_MO": False,
                                  "wake_on_Spread": False}],
             #"GymTradingAgent": [{"cash": 1000000,
@@ -139,7 +139,7 @@ avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
 # model_manager = ModelManager(model_dir = model_dir, label = label)
 
 # for episode in range(10):
-env=tradingEnv(stop_time=1000, wall_time_limit=23400, seed=1, **kwargs)
+env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
 print("Initial Observations"+ str(env.getobservations()))
 
 
