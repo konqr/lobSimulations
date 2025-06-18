@@ -1366,7 +1366,7 @@ class StateActionVisitCounter:
 
         if count == 0:
             # First visit - return large bonus or handle as needed
-            return 10 #float('inf')  # or some large value like 1000
+            return 0.2 #float('inf')  # or some large value like 1000
 
         # Use cached sqrt if available, otherwise compute
         if count in self.sqrt_cache:
