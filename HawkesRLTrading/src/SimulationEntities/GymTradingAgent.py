@@ -44,7 +44,7 @@ class RandomGymTradingAgent(GymTradingAgent):
                 return self.get_action(data) # retry
         if (action in [5,6]) and np.isclose( self.exchange.spread, 0.01): #inspread
             return self.get_action(data) # retry
-        return (action, size)
+        return (12, size)
     
     
     def resetseed(self, seed):

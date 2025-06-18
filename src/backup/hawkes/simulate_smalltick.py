@@ -414,16 +414,20 @@ def main():
 
 def run(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None):
     print(id)
-    betas = [0., 0.1, 0.25, 0.5, 0.7, 0.9]
-    alphas = [0.01, 0.02, 0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+    betas = [0.98, 0.94, 0.59,0.35, 0.28, 0.41, 0.36]
+    alphas = [0.0102, 0.0130, 0.1350,0.2750, 1.361, 1.963, 3.741]
+    etas = [0.99,0.98, 0.92, 0.75, 0.19, 0.08, 0.03]
+
     i = int(id)
-    beta_i = i%len(betas)
-    alpha_i = i//len(betas)
-    if alpha_i == len(alphas):
-        alpha_i -=1
-    beta = betas[beta_i]
-    avgSpread = alphas[alpha_i]
-    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/demo_"+str(avgSpread)+"_"+str(beta), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
+    beta = betas[i]
+    avgSpread = alphas[i]
+    Pi_eta = {  'eta_T' : etas[i] ,
+                'eta_IS' : etas[i],
+                'eta_T+1': etas[i]}
+    spread0 = 2*int(10*avgSpread)
+    M_med = np.max([50, 2*spread0])
+
+    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/Symmetric_AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/smalltickhawkes_"+str(avgSpread)+"_"+str(beta)+"_"+str(etas[i]), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
 
 def run_poisson(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None):
     print(id)

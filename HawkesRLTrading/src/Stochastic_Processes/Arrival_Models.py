@@ -71,7 +71,7 @@ class HawkesArrival(ArrivalModel):
         for key, value in params.items():
             setattr(self, key, value)
             
-        
+        self.expApprox = params.get('expApprox', False)
         #Initializing storage variables for thinning simulation    
         self.todmult=None
         self.baselines=None
@@ -318,7 +318,10 @@ class HawkesArrival(ArrivalModel):
                     else:
                         break
                 for point in self.timeseries[self.left:]: #point is of the form(s, k)
-                    kern=powerLawCutoff(time=self.s-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
+                    if self.expApprox:
+                        kern = expApprox(time=self.s-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
+                    else:
+                        kern=powerLawCutoff(time=self.s-point[0], alpha=self.kernelparams[0][0][point[1]]*self.kernelparams[0][1][point[1]], beta=self.kernelparams[0][2][point[1]], gamma=self.kernelparams[0][3][point[1]])
                     kern=kern.reshape((12, 1))
                     decays+=self.todmult*kern
             #print(decays.shape) #should be (12, 1)
@@ -506,3 +509,7 @@ class HawkesArrival(ArrivalModel):
 def powerLawCutoff(time, alpha, beta, gamma):
     # alpha = a*beta*(gamma - 1)
     return alpha/((1 + gamma*time)**beta)
+
+def expApprox(time, alpha, beta, gamma):
+    # alpha = a*beta*(gamma - 1)
+    return alpha*np.exp(-gamma*time*beta)

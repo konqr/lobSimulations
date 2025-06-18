@@ -1329,7 +1329,9 @@ class PPOAgent(GymTradingAgent):
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
         # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "mps")
+
         #allowed actions:
         if action_space_config == 0:
             self.allowed_actions= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -1424,9 +1426,9 @@ class PPOAgent(GymTradingAgent):
         def lr_lambda(epoch):
             # Learning rate schedule
             x =1
-            if epoch > 500:
-                x= 1e-1
-            x = x*np.max([1e-1,(.5)**(epoch//5000)])
+            # if epoch > 500:
+            #     x= 1e-1
+            # x = x*np.max([1e-1,(.5)**(epoch//5000)])
             return x
         if self.optim == 'SGD':
             optimizer = optim.SGD(net.parameters(), lr=self.lr)
@@ -1483,8 +1485,12 @@ class PPOAgent(GymTradingAgent):
             penalty += 100
         if self.last_action != 12:
             penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
-        if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
+
+        if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
             penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+        if self.alt_state:
+            if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
+                penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         return deltaPNL + deltaInv - penalty
 
     def get_action(self, data, epsilon=0.1):
@@ -1706,6 +1712,7 @@ class PPOAgent(GymTradingAgent):
             cem_states_d, cem_d_actions = self.get_CEM_data(type='d')
             cem_states_u, cem_u_actions = self.get_CEM_data(type='u')
         # PPO training for multiple epochs
+        # idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
         for _ in range(self.epochs):
             idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
             states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u = _states[idxs,:], _d_actions[idxs], _u_actions[idxs], _d_logits_old[idxs,:], _values_d_old[idxs,:], _d_log_probs_old[idxs], _u_logits_old[idxs,:], _values_u_old[idxs,:], _u_log_probs_old[idxs], _advantages_d[idxs], _returns_d[idxs], _advantages_u[idxs], _returns_u[idxs]
