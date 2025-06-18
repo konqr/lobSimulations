@@ -1399,7 +1399,7 @@ class PPOAgent(GymTradingAgent):
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
-                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0.1):
+                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1590,7 +1590,7 @@ class PPOAgent(GymTradingAgent):
             if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
                 penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
             if self.exploration_bonus:
-                penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:4], self.last_action)
+                penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:5], self.last_action)
         return deltaPNL + deltaInv - penalty
 
     def get_action(self, data, epsilon=0.1):
@@ -1718,7 +1718,7 @@ class PPOAgent(GymTradingAgent):
         )
         self.trajectory_buffer.append((ep, transition))
         if self.exploration_bonus:
-            self.visit_counter.update_visit_count(self.last_state.cpu().numpy()[0][1:4], self.last_action)
+            self.visit_counter.update_visit_count(self.last_state.cpu().numpy()[0][1:5], self.last_action)
 
     def compute_gae(self, rewards, values_d, values_u, dones):
         """
