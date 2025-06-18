@@ -52,8 +52,8 @@ for i in range(len(spreads)):
     s = spreads[i]
     l = labels[i]
     dict_res[l.split('demo_')[-1]] = (np.var(s)/np.mean(s)**2, np.var(s)/np.mean(s))
-    a += [float(l.split('_')[1])]
-    b += [float(l.split('_')[2])]
+    a += [float(l.split('_')[0])]
+    b += [float(l.split('_')[1])]
     k+= [np.mean(s)]
 
 
