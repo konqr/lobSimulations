@@ -123,7 +123,7 @@ plt.ylim(-0.1, 1)
 
 # Create legends
 legend1 = plt.legend(*(scatter.legend_elements()[0], ['Large Tick', 'Medium Tick', 'Small Tick']),
-                     loc="best", title="Classes")
+                     loc="lower right", title="Classes")
 plt.gca().add_artist(legend1)  # Add the first legend back to the plot
 
 # Add legend for stars
