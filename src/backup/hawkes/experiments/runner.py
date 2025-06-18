@@ -124,7 +124,7 @@ legend1 = plt.legend(*(scatter.legend_elements()[0], ['Large Tick', 'Medium Tick
 plt.gca().add_artist(legend1)  # Add the first legend back to the plot
 
 # Add legend for stars
-plt.legend(handles=[stars], labels=['Stock Data'], loc="upper right")
+plt.legend(handles=[stars], labels=['Calibrated Parameters'], loc="upper right")
 
 plt.title('Phase Diagram: $\\alpha$ and $\\beta$')
 plt.tight_layout()
