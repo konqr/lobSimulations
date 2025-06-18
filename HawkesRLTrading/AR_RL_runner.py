@@ -7,7 +7,7 @@ import torch
 log_dir = '/Users/alirazajafree/researchprojects/logs'
 model_dir = '/Users/alirazajafree/researchprojects/models/icrl ppo model'
 
-label = 'test_RLagent_only'
+label = 'test_SELL_vs_RLagent'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250607_212833_cont_NoActFull_CEM_noEnt_alt_la_exp', 11)
