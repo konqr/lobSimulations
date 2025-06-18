@@ -52,7 +52,7 @@ for i in range(len(spreads)):
     s = spreads[i]
     l = labels[i]
     dict_res[l.split('demo_')[-1]] = (np.var(s)/np.mean(s)**2, np.var(s)/np.mean(s))
-    if float(l.split('_')[0]) > 5:
+    if float(l.split('_')[0]) > 11:
         continue
     a += [float(l.split('_')[0])]
     b += [float(l.split('_')[1])]
@@ -87,11 +87,11 @@ stock_data = {
     'PM': (0.2750, 0.35),
     'AAPL': (0.1350, 0.59),
     'IBM': (0.2350, 0.59),
-    'TSLA': (1.3610, 0.28),
-    'CHTR': (1.4100, 0.21),
+    'TSLA': (1.3610, 0.48),
+    'CHTR': (1.4100, 0.41),
     'AMZN': (1.9630, 0.41),
     'GOOG': (3.2670, 0.50),
-    'BKNG': (3.7410, 0.36)
+    'BKNG': (3.7410, 0.46)
 }
 
 # Create the phase diagram
