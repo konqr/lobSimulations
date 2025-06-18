@@ -95,7 +95,7 @@ stock_data = {
 }
 
 # Create the phase diagram
-#plt.figure(figsize=(16,8))
+plt.figure(figsize=(16,8))
 disp = DecisionBoundaryDisplay.from_estimator(clf, X, response_method="predict", alpha=0.3)
 scatter = disp.ax_.scatter(X[:, 0], X[:, 1], c=y)
 
@@ -105,9 +105,12 @@ stock_betas = [beta for alpha, beta in stock_data.values()]
 stock_names = list(stock_data.keys())
 
 # Plot stars for stock data
-stars = plt.scatter(stock_alphas, stock_betas, marker='*', s=200, c='red',
-                    edgecolors='black', linewidth=1, zorder=5, label='Stocks')
-
+LT_stars = plt.scatter(stock_alphas[:6], stock_betas[:6], marker='*', s=200, c='red',
+                    edgecolors='black', linewidth=1, zorder=5, label='Large Tick Stocks')
+MT_stars = plt.scatter(stock_alphas[6:10], stock_betas[6:10], marker='*', s=200, c='green',
+                       edgecolors='black', linewidth=1, zorder=5, label='Medium Tick Stocks')
+ST_stars = plt.scatter(stock_alphas[10:], stock_betas[10:], marker='*', s=200, c='blue',
+                       edgecolors='black', linewidth=1, zorder=5, label='Medium Tick Stocks')
 # Add labels for each stock
 for i, (name, (alpha, beta)) in enumerate(stock_data.items()):
     plt.annotate(name, (alpha, beta), xytext=(5, 5), textcoords='offset points',
@@ -120,11 +123,11 @@ plt.ylim(-0.1, 1)
 
 # Create legends
 legend1 = plt.legend(*(scatter.legend_elements()[0], ['Large Tick', 'Medium Tick', 'Small Tick']),
-                     loc="lower left", title="Classes")
+                     loc="best", title="Classes")
 plt.gca().add_artist(legend1)  # Add the first legend back to the plot
 
 # Add legend for stars
-plt.legend(handles=[stars], labels=['Calibrated Parameters'], loc="upper right")
+plt.legend(handles=[LT_stars, MT_stars, ST_stars], labels=['Calib\'d Params: Large Tick','Calib\'d Params: Med. Tick','Calib\'d Params: Small Tick'], loc="upper right")
 
 plt.title('Phase Diagram: $\\alpha$ and $\\beta$')
 plt.tight_layout()
