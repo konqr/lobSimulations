@@ -265,7 +265,7 @@ def main():
     Main function to run the analysis
     """
     # Replace with your log file path
-    log_filename = "D:\\PhD\\results - icrl\\standard_rew1e-1.o5671369"  # Change this to your file path
+    log_filename = "D:\\PhD\\results - icrl\\symmHP_lowEpochs_standard.o5687496"  # Change this to your file path
 
     print("Parsing log file...")
     df = parse_log_file(log_filename)

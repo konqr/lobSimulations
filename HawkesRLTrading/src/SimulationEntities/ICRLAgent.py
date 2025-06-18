@@ -1,5 +1,4 @@
 import copy
-
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent
 from HJBQVI.DGMTorch import MLP, ActorCriticMLP, ActorCriticSGMLP, ActorCriticSeparate
 from HJBQVI.utils import MinMaxScaler
@@ -9,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from collections import deque
+from collections import deque, defaultdict
 import random
 import gc
 
@@ -1290,6 +1289,109 @@ class ICRLSG(ICRL2):
         if self.last_action != 12:  # Only step u scheduler if action was taken
             self.scheduler_u.step()
 
+class StateActionVisitCounter:
+    def __init__(self, lambda_exploration=1.0):
+        """
+        Efficient state-action visit counter with fast exploration bonus computation.
+
+        Args:
+            lambda_exploration: Exploration bonus coefficient
+        """
+        self.lambda_exploration = lambda_exploration
+
+        # Use defaultdict for O(1) access and automatic initialization
+        self.visit_counts = defaultdict(int)
+
+        # Cache for sqrt calculations to avoid repeated computation
+        self.sqrt_cache = {}
+
+        # Pre-compute common sqrt values for better performance
+        self._precompute_common_sqrt_values()
+
+    def _precompute_common_sqrt_values(self, max_precompute=1000):
+        """Pre-compute sqrt values for first 1000 visit counts"""
+        for i in range(1, max_precompute + 1):
+            self.sqrt_cache[i] = np.sqrt(i)
+
+    def _state_to_key(self, state):
+        """
+        Convert state tuple to hashable key for dictionary lookup.
+        Handles floating point precision issues by rounding.
+
+        Args:
+            state: (inventory_intc, price_diff, n_a_over_q_a, n_b_over_q_b)
+        """
+        # Round to avoid floating point precision issues
+        return (
+            round(state[0], 0),  # inventory_intc
+            round(state[1], 2),  # p_a - p_b
+            round(state[2], 3),  # n_a/q_a
+            round(state[3], 3)   # n_b/q_b
+        )
+
+    def update_visit_count(self, state, action):
+        """
+        Increment visit count for state-action pair.
+
+        Args:
+            state: (inventory_intc, price_diff, n_a_over_q_a, n_b_over_q_b)
+            action: int from 0 to 12
+        """
+        key = (self._state_to_key(state), action)
+        self.visit_counts[key] += 1
+
+        # Update sqrt cache for this new count if not too large
+        new_count = self.visit_counts[key]
+        if new_count <= 10000 and new_count not in self.sqrt_cache:
+            self.sqrt_cache[new_count] = np.sqrt(new_count)
+
+    def get_visit_count(self, state, action):
+        """Get visit count for state-action pair (O(1) lookup)"""
+        key = (self._state_to_key(state), action)
+        return self.visit_counts[key]
+
+    def get_exploration_bonus(self, state, action):
+        """
+        Get exploration bonus lambda/sqrt(N(s,a)) with fast lookup.
+
+        Args:
+            state: (inventory_intc, price_diff, n_a_over_q_a, n_b_over_q_b)
+            action: int from 0 to 12
+
+        Returns:
+            float: Exploration bonus value
+        """
+        key = (self._state_to_key(state), action)
+        count = self.visit_counts[key]
+
+        if count == 0:
+            # First visit - return large bonus or handle as needed
+            return 10 #float('inf')  # or some large value like 1000
+
+        # Use cached sqrt if available, otherwise compute
+        if count in self.sqrt_cache:
+            sqrt_count = self.sqrt_cache[count]
+        else:
+            sqrt_count = np.sqrt(count)
+            # Cache if reasonable size
+            if count <= 10000:
+                self.sqrt_cache[count] = sqrt_count
+
+        return self.lambda_exploration / sqrt_count
+
+    def get_stats(self):
+        """Get statistics about the visit counter"""
+        total_states = len(set(key[0] for key in self.visit_counts.keys()))
+        total_sa_pairs = len(self.visit_counts)
+        total_visits = sum(self.visit_counts.values())
+
+        return {
+            'unique_states': total_states,
+            'unique_state_action_pairs': total_sa_pairs,
+            'total_visits': total_visits,
+            'cache_size': len(self.sqrt_cache)
+        }
+
 class PPOAgent(GymTradingAgent):
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
@@ -1297,7 +1399,7 @@ class PPOAgent(GymTradingAgent):
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
-                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3):
+                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0.1):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1360,7 +1462,8 @@ class PPOAgent(GymTradingAgent):
         # Trajectory storage
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
-
+        self.exploration_bonus = bool(exploration_bonus)
+        self.visit_counter = StateActionVisitCounter(lambda_exploration=exploration_bonus)
         # State scaler
         self.mmscaler = MinMaxScaler()
 
@@ -1486,6 +1589,8 @@ class PPOAgent(GymTradingAgent):
         if self.alt_state:
             if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
                 penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+            if self.exploration_bonus:
+                penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:4], self.last_action)
         return deltaPNL + deltaInv - penalty
 
     def get_action(self, data, epsilon=0.1):
@@ -1612,6 +1717,8 @@ class PPOAgent(GymTradingAgent):
             int(done)         # Done flag
         )
         self.trajectory_buffer.append((ep, transition))
+        if self.exploration_bonus:
+            self.visit_counter.update_visit_count(self.last_state.cpu().numpy()[0][1:4], self.last_action)
 
     def compute_gae(self, rewards, values_d, values_u, dones):
         """
