@@ -22,6 +22,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
         self.old_volume:int = self.agent_volume
         self.starting_volume:int = self.old_volume
         self.urgent = False
+        # self.num_calls = 0
 
         self._set_slices()
         self._set_windows()
@@ -46,6 +47,8 @@ class TWAPGymTradingAgent(GymTradingAgent):
         
 
     def get_action(self, data) -> Optional[Tuple[int, int]]:
+        # self.num_calls +=1
+        # print(f"Num calls: {self.num_calls}")
         self.agent_volume = data["Inventory"]
         self.traded_so_far = self.agent_volume - self.starting_volume if self.side == "buy" else self.starting_volume - self.agent_volume
         individual_order_size = round((self.total_order_size-self.traded_so_far) / ((self.total_time - self.current_time) / self.action_freq))

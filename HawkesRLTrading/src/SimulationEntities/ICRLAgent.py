@@ -14,6 +14,7 @@ import random
 import gc
 
 def get_queue_priority(data, pos, label):
+    data = data.copy()
     ask_l1s = pos[label]
     n_as = []
     if len(ask_l1s):

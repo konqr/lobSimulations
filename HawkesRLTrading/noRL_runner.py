@@ -92,6 +92,7 @@ kwargs={
                                  "side":"buy", #buy or sell
                                  "action_freq":1,
                                  "Inventory": {"INTC":0}, #inventory cant be 0
+                                 "start_trading_lag":0,
                                  "wake_on_MO": False,
                                  "wake_on_Spread": False}],
             #"GymTradingAgent": [{"cash": 1000000,
@@ -141,7 +142,6 @@ avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
 # for episode in range(10):
 env=tradingEnv(stop_time=200, wall_time_limit=23400, seed=1, **kwargs)
 print("Initial Observations"+ str(env.getobservations()))
-
 
 
 Simstate, observations, termination, truncation =env.step(action=None) 

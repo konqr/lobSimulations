@@ -385,4 +385,4 @@ class CTradingAgent(TradingAgent):
             order=CancelOrder(time_placed=self.current_time, side=side, size=-1, symbol=self.exchange.symbol, agent_id=self.id,  price=price, cancelID=tocancel.order_id, _level=level)
         return order
     
-TradingAgent.action_to_order = CTradingAgent.action_to_order
+# TradingAgent.action_to_order = CTradingAgent.action_to_order lowkey doesnt do anything as it is overwritten in the exchange

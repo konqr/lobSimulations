@@ -7,7 +7,7 @@ import torch
 log_dir = '/Users/alirazajafree/researchprojects/logs'
 model_dir = '/Users/alirazajafree/researchprojects/models/icrl ppo model'
 
-label = 'test_SELL_vs_RLagent'
+label = 'test_RLagent_only'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250607_212833_cont_NoActFull_CEM_noEnt_alt_la_exp', 11)
@@ -102,7 +102,7 @@ RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 1000, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5) #, hidden_activation='sigmoid'
 j['agent_instance'] = RLagentInstance
-kwargs['GymTradingAgent'] = [j]
+kwargs['GymTradingAgent'] = agents
 i_eps=0
 # cash, inventory, t, actions = [], [], [], []
 t = []
@@ -114,10 +114,11 @@ episode_boundaries = [0]
 cashs:Dict[int, List] = {}
 inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
-RLagentID = 0
+RLagentID = 1
 
 for episode in range(60):
     i = 0
+    action_num = 0
     env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination, truncation =env.step(action=None) 
@@ -140,7 +141,6 @@ for episode in range(60):
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-        
         # action:list[Tuple] = []
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
@@ -149,7 +149,7 @@ for episode in range(60):
             if not isinstance(agent, PPOAgent):
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
                 action = (agent.id, agentAction)
-                #print(f"Action: {action}")
+                print(f"Action: {action}")
                 
                 print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
                 print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
@@ -165,7 +165,7 @@ for episode in range(60):
                 RLagentID = agent.id
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id), epsilon = 0.5 if i_eps < 100 else 0.1)
                 action = (agent.id, (agentAction[0],1))
-                observations_prev = observationsDict[agent.id].copy() if i != 0 else observations
+                observations_prev = observationsDict[agent.id].copy() if i != 0 else observations.copy()
                 Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
                 observationsDict.update({agent.id:observations})
                 logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
@@ -242,8 +242,9 @@ for episode in range(60):
                 np.save(log_dir + label + '_profit', np.array([t, finalcash2]))
             
             print(agent.current_time)
-            print(f"ACTION DONE{i}")
-            i+=1
+            print(f"ACTION DONE{action_num}")
+            action_num+=1
+            
             
     if termination:
         print("Termination condition reached.")
