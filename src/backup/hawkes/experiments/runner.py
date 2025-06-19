@@ -21,6 +21,7 @@ labels = []
 ts = []
 mids = []
 shapes = []
+sparses = []
 #fig, ax = plt.subplots()
 for fname in fnames:
     if 'smalltickhawkes_' in fname:
@@ -53,17 +54,34 @@ for fname in fnames:
             volume += [((r['Ask_deep'][0] - r['mid']) + 0.01*i, r['Ask_deep'][1]/r['Ask_m_D']) for i in range(int(r['Ask_m_D']))]
             volumes += [volume]
         dict_shape = {}
+        shape0s = []
         for v in volumes:
+            dict_shape0 = {}
             dists = np.array(v)[:,0]
             vols =  np.array(v)[:,1]
             for d, vol in zip(dists,vols):
                 dict_shape[np.round(d, decimals=2)] = dict_shape.get(np.round(d, decimals=2), 0) + vol
+                dict_shape0[np.round(d, decimals=2)] = dict_shape0.get(np.round(d, decimals=2), 0) + vol
+            dist0 = np.sort(list(dict_shape0.keys()))
+            vol0 = np.array([dict_shape0[d] for d in dist0])
+            vol0 = vol0/vol0.sum()
+            shape0 = (np.array(dist0)[vol0 > 1e-4], vol0[vol0 > 1e-4])
+            shape0s.append(shape0)
         dist = np.sort(list(dict_shape.keys()))
         vol = np.array([dict_shape[d] for d in dist])
         vol = vol/vol.sum()
         shape = (np.array(dist)[vol > 1e-4], vol[vol > 1e-4])
-
-
+        #wass distance
+        wass_distances= []
+        size= int(np.max(shape[0])*100) + 1
+        instt_shape_vols = np.zeros(size)
+        shape_vols = np.zeros(size)
+        shape_vols[[int(100*s) for s in shape[0]]] = shape[1]
+        for shape0 in shape0s:
+            instt_shape_vols[[int(100*s) for s in shape0[0] if int(100*s) < size]] = shape0[1][[i for i,s in zip(np.arange(len(shape0[0])),shape0[0]) if int(100*s) < size]]
+            instt_shape_vols = instt_shape_vols/instt_shape_vols.sum()
+            wass_distances.append(np.abs(shape_vols - instt_shape_vols).sum())
+        sparses.append((np.mean(wass_distances), np.var(wass_distances)))
         count = int((max(t) - min(t))/10)
         ts.append(np.diff(t))
         spreads.append(spread)
@@ -90,10 +108,11 @@ for i in range(len(spreads)):
     D+=[np.var(s)/np.mean(s)]
     shape = shapes[i]
     shapemax+=[shape[0][np.argmax(shape[1])]]
-print(a,b,n,s_bar, eps, eps2, r_mid, D)
+print(a,b,n,s_bar, eps, eps2, r_mid, D, shapemax, sparses)
 plt.plot(eps, r_mid)
 plt.plot(eps, D)
 plt.plot(eps, shapemax)
+plt.plot(eps, [s[0] for s in sparses])
 plt.yscale('log')
 plt.xscale('log')
 plt.show()

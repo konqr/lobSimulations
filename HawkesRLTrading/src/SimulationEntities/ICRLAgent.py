@@ -1399,7 +1399,7 @@ class PPOAgent(GymTradingAgent):
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
-                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0):
+                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, two_sided_reward = True):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1464,6 +1464,7 @@ class PPOAgent(GymTradingAgent):
         self.buffer_capacity = buffer_capacity
         self.exploration_bonus = bool(exploration_bonus)
         self.visit_counter = StateActionVisitCounter(lambda_exploration=exploration_bonus)
+        self.two_sided_reward = two_sided_reward
         # State scaler
         self.mmscaler = MinMaxScaler()
 
@@ -1587,8 +1588,9 @@ class PPOAgent(GymTradingAgent):
         if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
             penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         if self.alt_state:
-            if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
-                penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+            if self.two_sided_reward:
+                if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
+                    penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
             if self.exploration_bonus:
                 penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:5], self.last_action)
         return deltaPNL + deltaInv - penalty
