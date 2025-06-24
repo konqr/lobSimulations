@@ -660,6 +660,9 @@ class Exchange(Entity):
             ts_i = np.sort(ts_i)
             times = np.append(times, ts_i)
         return times
+    
+    def returnMarketVolume(self):
+        return self.marketvolume
 
     @property
     def spread(self):
