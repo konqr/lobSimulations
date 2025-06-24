@@ -87,7 +87,7 @@ agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j[
 
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5) #, hidden_activation='sigmoid'
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
