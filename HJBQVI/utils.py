@@ -274,7 +274,7 @@ class ModelManager:
                     state_dict = torch.load(
                         metadata['models'][model_name],
                         map_location=torch.device(device)
-                        #map_location='mps' for mac
+                        # map_location='mps' #for mac
                     )
 
                     # Handle potential module prefix differences

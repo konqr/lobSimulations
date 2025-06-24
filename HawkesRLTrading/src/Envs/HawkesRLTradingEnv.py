@@ -19,7 +19,7 @@ logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 import sys
 import os
-sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+sys.path.append(os.path.abspath('/cs/student/ug/2024/ajafree/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}

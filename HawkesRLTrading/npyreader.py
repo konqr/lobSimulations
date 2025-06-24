@@ -1,7 +1,7 @@
 import numpy as np
 
 
-data = np.load("/Users/alirazajafree/researchprojects/logs/logstest_and_twap_agents_profit.npy")
+data = np.load("/Users/alirazajafree/researchprojects/logstest_RLAgent_vs_BUY_TWAP_profit.npy")
 
 times = data[0]
 
@@ -28,7 +28,7 @@ print(f"bad sharpe {sharpe}")
 
 
 
-arr = np.load("/Users/alirazajafree/researchprojects/logs/logstest_and_twap_agents_profit.npy")
+arr = data
 episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
 start_idxs = episode_boundaries[:-1] + 1
 end_idxs = episode_boundaries[1:]

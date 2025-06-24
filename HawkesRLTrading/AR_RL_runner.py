@@ -1,18 +1,18 @@
 import sys
 import os
-sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+sys.path.append(os.path.abspath('/cs/student/ug/2024/ajafree/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import torch
 
-log_dir = '/Users/alirazajafree/researchprojects/logs'
-model_dir = '/Users/alirazajafree/researchprojects/models/icrl ppo model'
+log_dir = '/cs/student/ug/2024/ajafree/Users/alirazajafree/researchprojects/logs'
+model_dir = '/cs/student/ug/2024/ajafree/Users/alirazajafree/models/icrl_ppo_model_symmetric'
 
-label = 'test_RLagent_only'
+label = 'test_RLAgent_vs_BUY_TWAP_1000q_1s'
 layer_widths=128
 n_layers=3
-checkpoint_params = ('20250607_212833_cont_NoActFull_CEM_noEnt_alt_la_exp', 11)
+checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
 
-with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("/cs/student/ug/2024/ajafree/Users/alirazajafree/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 
@@ -67,13 +67,13 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":400,
+                          "total_order_size":1100,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
-                          "side":"sell", #buy or sell
+                          "side":"buy", #buy or sell
                           "action_freq":1,
-                          "Inventory": {"INTC":400},
+                          "Inventory": {"INTC":0},
                           'start_trading_lag': 100,
                           "wake_on_MO": False,
                           "wake_on_Spread": False}
@@ -116,7 +116,7 @@ inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 RLagentID = 1
 
-for episode in range(60):
+for episode in range(61):
     i = 0
     action_num = 0
     env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
@@ -147,6 +147,7 @@ for episode in range(60):
             #check if agent is an RL agent or not
             
             if not isinstance(agent, PPOAgent):
+                action_num+=1
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
                 action = (agent.id, agentAction)
                 print(f"Action: {action}")
@@ -162,6 +163,7 @@ for episode in range(60):
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
                 
             else:
+                action_num+=1
                 RLagentID = agent.id
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id), epsilon = 0.5 if i_eps < 100 else 0.1)
                 action = (agent.id, (agentAction[0],1))
@@ -243,7 +245,6 @@ for episode in range(60):
             
             print(agent.current_time)
             print(f"ACTION DONE{action_num}")
-            action_num+=1
             
             
     if termination:
