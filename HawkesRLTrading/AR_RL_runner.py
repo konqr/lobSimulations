@@ -67,7 +67,7 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":1100, #extra 100 for the 100 second lag at the start, ignore
+                          "total_order_size":1200, #extra 100 for the 100 second lag at the start, ignore, so total 1100
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
