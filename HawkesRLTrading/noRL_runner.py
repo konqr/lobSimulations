@@ -84,18 +84,18 @@ kwargs={
                                 # "cashlimit": 100000000},
                                 {"cash":10000000,
                                 "cashlimit": 1000000000,
-                                 "strategy": "TWAP",
-                                 "on_trade":False,
-                                 "total_order_size":200,
-                                 "order_target":"INTC",
-                                 "total_time":200,
-                                 "window_size":50, #window size, measured in seconds
-                                 "side":"buy", #buy or sell
-                                 "action_freq":1,
-                                 "Inventory": {"INTC":0}, #inventory cant be 0
-                                 "start_trading_lag":100,
-                                 "wake_on_MO": False,
-                                 "wake_on_Spread": False}],
+                                "strategy": "TWAP",
+                                "on_trade":False,
+                                "total_order_size":10000,
+                                "order_target":"INTC",
+                                "total_time":400,
+                                "window_size":50, #window size, measured in seconds
+                                "side":"buy", #buy or sell
+                                "action_freq":1,
+                                "Inventory": {"INTC":0},
+                                'start_trading_lag': 100,
+                                "wake_on_MO": False,
+                                "wake_on_Spread": False}],
             #"GymTradingAgent": [{"cash": 1000000,
             #                    "strategy": "ImpulseControl",
             #                     'on_trade':True,
@@ -141,7 +141,7 @@ avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
 # model_manager = ModelManager(model_dir = model_dir, label = label)
 
 # for episode in range(10):
-env=tradingEnv(stop_time=300, wall_time_limit=23400, seed=1, **kwargs)
+env=tradingEnv(stop_time=400, wall_time_limit=23400, seed=1, **kwargs)
 print("Initial Observations"+ str(env.getobservations()))
 
 

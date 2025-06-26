@@ -11,7 +11,8 @@ class TWAPGymTradingAgent(GymTradingAgent):
         assert total_order_size % (total_time/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} and action frequency {action_freq} "
 
         super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread, cashlimit=cashlimit,start_trading_lag=start_trading_lag)
-        self.total_time = total_time
+        self.total_time = total_time-start_trading_lag
+        self.start_trading_lag = start_trading_lag
         self.actions_per_second:int = 1/self.action_freq
         self.total_order_size:int = total_order_size
         self.side:str = side
@@ -21,6 +22,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
         self.agent_volume:int = self.Inventory[self.order_target]
         self.old_volume:int = self.agent_volume
         self.starting_volume:int = self.old_volume
+        self.agent_time = self.current_time
         self.urgent = False
         # self.num_calls = 0
 
@@ -47,11 +49,14 @@ class TWAPGymTradingAgent(GymTradingAgent):
         
 
     def get_action(self, data) -> Optional[Tuple[int, int]]:
+        self.agent_time = self.current_time - self.start_trading_lag
         # self.num_calls +=1
         # print(f"Num calls: {self.num_calls}")
         self.agent_volume = data["Inventory"]
         self.traded_so_far = self.agent_volume - self.starting_volume if self.side == "buy" else self.starting_volume - self.agent_volume
-        individual_order_size = round((self.total_order_size-self.traded_so_far) / ((self.total_time - self.current_time) / self.action_freq))
+        if(self.total_time <= self.agent_time):
+            return(12,0)
+        individual_order_size = round((self.total_order_size-self.traded_so_far) / ((self.total_time - self.agent_time) / self.action_freq))
         
         #update the time elapsed in this window so far
         self.window_time_elapsed += self.action_freq
@@ -75,7 +80,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
         self.old_volume = self.agent_volume
 
         #if we have traded more than or equal to how much we should have traded so far, cancel some of the most viable limit orders
-        if (self.traded_so_far >= self.total_order_size*(self.current_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.total_volume_window):
+        if (self.traded_so_far >= self.total_order_size*(self.agent_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.total_volume_window):
             lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
             if len(data["Positions"][lvl]) > 0:
                  return(8, 0) if self.side == "buy" else (3, 0)
@@ -164,7 +169,7 @@ class POVGymTradingAgent(GymTradingAgent):
         self.old_volume = self.agent_volume
 
         #if we have traded more than or equal to how much we should have traded so far, cancel some of the most viable limit orders
-        if (self.traded_so_far >= self.total_order_size*(self.current_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.window_order_volume):
+        if (self.traded_so_far >= self.total_order_size*(self.agent_time/self.total_time) or self.traded_so_far >= self.total_order_size or self.volume_traded_in_window>=self.window_order_volume):
             lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
             if len(data["Positions"][lvl]) > 0:
                  return(8, 0) if self.side == "buy" else (3, 0)
