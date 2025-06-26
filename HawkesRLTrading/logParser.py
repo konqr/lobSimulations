@@ -296,7 +296,7 @@ def main():
     return df
 
 def calcSharpe():
-    arr = np.load("D:\\PhD\\results - icrl\\logsinv10_symmHP_lowEpochs_standard_profit.npy")
+    arr = np.load("D:\\PhD\\results - icrl\\logstest_standard_profit.npy")
     episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
     start_idxs = episode_boundaries[:-1] + 1
     end_idxs = episode_boundaries[1:]
@@ -304,7 +304,7 @@ def calcSharpe():
     for s, e in zip(start_idxs, end_idxs):
         log_ret2.append(np.log(arr[1][e]/arr[1][s]))
     sharpe=np.mean(log_ret2)/np.std(log_ret2)
-    annualized_sharpe = np.sqrt(6.5*12*252)*sharpe
+    annualized_sharpe = np.sqrt(6.5*1.2*252)*sharpe
     return sharpe, annualized_sharpe
 
 

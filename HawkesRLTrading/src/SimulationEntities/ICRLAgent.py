@@ -1399,7 +1399,7 @@ class PPOAgent(GymTradingAgent):
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
-                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, two_sided_reward = True):
+                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, two_sided_reward = True, ablation_params= {}):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1467,7 +1467,7 @@ class PPOAgent(GymTradingAgent):
         self.two_sided_reward = two_sided_reward
         # State scaler
         self.mmscaler = MinMaxScaler()
-
+        self.ablation_params = ablation_params
         # Enable anomaly detection for debugging
         torch.autograd.set_detect_anomaly(True)
 
@@ -1497,7 +1497,16 @@ class PPOAgent(GymTradingAgent):
         if self.include_time:
             state = torch.tensor([[time, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         elif self.alt_state:
-            state = torch.tensor([[time, self.Inventory['INTC'], p_a - p_b, n_a/q_a, n_b/q_b] + list(lambdas.flatten()/np.sum(lambdas.flatten())) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+            state = [[time, self.Inventory['INTC']] ]
+            if self.ablation_params.get('spread', True):
+                state[0] = state[0] + [p_a - p_b]
+            if self.ablation_params.get('n_a', True):
+                state[0] = state[0] + [n_a/q_a, n_b/q_b]
+            if self.ablation_params.get('lambda', True):
+                state[0] = state[0] + list(lambdas.flatten()/np.sum(lambdas.flatten()))
+            if self.ablation_params.get('hist', True):
+                state[0] = state[0] + list(past_times.flatten())
+            state = torch.tensor(state, dtype=torch.float32).to(self.device)
         else:
             state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         return state
