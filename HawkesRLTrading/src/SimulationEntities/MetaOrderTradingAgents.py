@@ -8,7 +8,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
     def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, total_time:int, window_size:int, side:str, order_target:str,  start_trading_lag:int=0, wake_on_MO:bool=False, wake_on_Spread:bool=False):
         if side=="sell": assert Inventory[order_target] >= total_order_size, "Not enough volume in inventory to execute sell order"
         assert total_order_size%window_size == 0, f"Order size {total_order_size} cannot be executed with window size {window_size}"
-        assert total_order_size % (total_time/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} and action frequency {action_freq} "
+        assert total_order_size % ((total_time-start_trading_lag)/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} with start trading lag {start_trading_lag} and action frequency {action_freq} "
 
         super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread, cashlimit=cashlimit,start_trading_lag=start_trading_lag)
         self.total_time = total_time-start_trading_lag
