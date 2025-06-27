@@ -72,7 +72,7 @@ kwargs={
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
                           "side":"buy", #buy or sell
-                          "action_freq":0.5,
+                          "action_freq":1,
                           "Inventory": {"INTC":0},
                           'start_trading_lag': 100,
                           "wake_on_MO": False,
