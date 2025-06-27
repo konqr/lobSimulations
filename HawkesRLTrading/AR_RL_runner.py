@@ -7,7 +7,7 @@ import torch
 log_dir = '/home/ajafree/researchprojects/logs'
 model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_RLAgent_vs_BUY_TWAP_1200q_0.5s'
+label = 'test_RLAgent_vs_BUY_TWAP_1200q_1s'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
