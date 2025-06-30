@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 from collections import defaultdict
 import seaborn as sns
+import pickle
+import numpy as np
+from typing import Dict, Any, Tuple, List
 
 def parse_log_file(filename):
     """
@@ -265,7 +268,7 @@ def main():
     Main function to run the analysis
     """
     # Replace with your log file path
-    log_filename = "D:\\PhD\\results - icrl\\inv10_symmHP_lowEpochs_standard.o5693269"  # Change this to your file path
+    log_filename = "D:\\PhD\\results - icrl\\test_standard.o5707312"  # Change this to your file path
 
     print("Parsing log file...")
     df = parse_log_file(log_filename)
@@ -282,15 +285,222 @@ def main():
     # Create plots
     print("\nGenerating plots...")
     fig = plot_analysis(df)
-    plt.show()
 
+    plt.savefig(log_filename.split('.o')[0]+'.png')
+    plt.show()
     # Save the processed data
-    output_filename = "processed_lob_data.csv"
-    df.to_csv(output_filename, index=False)
-    print(f"\nProcessed data saved to: {output_filename}")
+    # output_filename = "processed_lob_data.csv"
+    # df.to_csv(output_filename, index=False)
+    # print(f"\nProcessed data saved to: {output_filename}")
 
     return df
+
+def calcSharpe():
+    arr = np.load("D:\\PhD\\results - icrl\\logstest_standard_profit.npy")
+    episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
+    start_idxs = episode_boundaries[:-1] + 1
+    end_idxs = episode_boundaries[1:]
+    log_ret2 = []
+    for s, e in zip(start_idxs, end_idxs):
+        log_ret2.append(np.log(arr[1][e]/arr[1][s]))
+    sharpe=np.mean(log_ret2)/np.std(log_ret2)
+    annualized_sharpe = np.sqrt(6.5*1.2*252)*sharpe
+    return sharpe, annualized_sharpe
+
+
+def check_bid_ask_symmetry(params: Dict[str, Any], tolerance: float = 1e-10) -> Dict[str, Any]:
+    """
+    Check if a parameters dictionary is symmetric between Bid and Ask values.
+
+    Args:
+        params: Dictionary containing bid/ask parameters
+        tolerance: Numerical tolerance for floating point comparisons
+
+    Returns:
+        Dictionary with symmetry analysis results
+    """
+    results = {
+        'is_symmetric': True,
+        'symmetric_pairs': [],
+        'asymmetric_pairs': [],
+        'bid_only_keys': [],
+        'ask_only_keys': [],
+        'details': []
+    }
+
+    # Find all bid and ask keys
+    bid_keys = [k for k in params.keys() if 'Bid' in k]
+    ask_keys = [k for k in params.keys() if 'Ask' in k]
+
+    # Check symmetry: compare transitions where bid/ask sides are swapped
+    # For example: lo_deep_Ask->co_top_Bid should equal lo_deep_Bid->co_top_Ask
+    processed_pairs = set()
+
+    for key in params.keys():
+        if '->' in key and ('Bid' in key or 'Ask' in key):
+            # Parse the transition: from_state->to_state
+            from_state, to_state = key.split('->')
+
+            # Create the symmetric counterpart by swapping Bid/Ask in both states
+            symmetric_from = swap_bid_ask(from_state)
+            symmetric_to = swap_bid_ask(to_state)
+            symmetric_key = f"{symmetric_from}->{symmetric_to}"
+
+            # Create a pair identifier to avoid duplicate checking
+            pair_id = tuple(sorted([key, symmetric_key]))
+            if pair_id in processed_pairs:
+                continue
+            processed_pairs.add(pair_id)
+
+            if symmetric_key not in params:
+                results['details'].append(f"Missing symmetric counterpart: {key} (expected: {symmetric_key})")
+                results['is_symmetric'] = False
+                continue
+
+            # Compare values
+            val1 = params[key]
+            val2 = params[symmetric_key]
+
+            is_pair_symmetric = compare_values(val1, val2, tolerance)
+
+            if is_pair_symmetric:
+                results['symmetric_pairs'].append((key, symmetric_key))
+                results['details'].append(f"✓ Symmetric: {key} ≈ {symmetric_key}")
+            else:
+                results['asymmetric_pairs'].append((key, symmetric_key))
+                results['is_symmetric'] = False
+                results['details'].append(f"✗ Asymmetric: {key} ≠ {symmetric_key}")
+                results['details'].append(f"  Value 1: {val1}")
+                results['details'].append(f"  Value 2: {val2}")
+
+    # Also check non-transition parameters (simple Bid/Ask pairs)
+    for bid_key in bid_keys:
+        if '->' not in bid_key:  # Skip transition keys, already handled above
+            ask_key = bid_key.replace('Bid', 'Ask')
+
+            if ask_key not in params:
+                results['bid_only_keys'].append(bid_key)
+                results['is_symmetric'] = False
+                results['details'].append(f"No corresponding Ask key for: {bid_key}")
+                continue
+
+            # Compare values
+            bid_val = params[bid_key]
+            ask_val = params[ask_key]
+
+            is_pair_symmetric = compare_values(bid_val, ask_val, tolerance)
+
+            if is_pair_symmetric:
+                results['symmetric_pairs'].append((bid_key, ask_key))
+                results['details'].append(f"✓ Symmetric: {bid_key} ≈ {ask_key}")
+            else:
+                results['asymmetric_pairs'].append((bid_key, ask_key))
+                results['is_symmetric'] = False
+                results['details'].append(f"✗ Asymmetric: {bid_key} ≠ {ask_key}")
+                results['details'].append(f"  Bid value: {bid_val}")
+                results['details'].append(f"  Ask value: {ask_val}")
+
+    # Check for ask keys without corresponding bid keys (for non-transition keys)
+    for ask_key in ask_keys:
+        if '->' not in ask_key:  # Skip transition keys, already handled above
+            bid_key = ask_key.replace('Ask', 'Bid')
+            if bid_key not in params:
+                results['ask_only_keys'].append(ask_key)
+                results['is_symmetric'] = False
+                results['details'].append(f"No corresponding Bid key for: {ask_key}")
+
+    return results
+
+def swap_bid_ask(state: str) -> str:
+    """
+    Swap Bid and Ask in a state name.
+
+    Args:
+        state: State name that may contain 'Bid' or 'Ask'
+
+    Returns:
+        State name with Bid/Ask swapped
+    """
+    if 'Bid' in state:
+        return state.replace('Bid', 'Ask')
+    elif 'Ask' in state:
+        return state.replace('Ask', 'Bid')
+    else:
+        return state
+
+def compare_values(val1: Any, val2: Any, tolerance: float = 1e-10) -> bool:
+    """
+    Compare two values for equality, handling different data types.
+
+    Args:
+        val1, val2: Values to compare
+        tolerance: Numerical tolerance for floating point comparisons
+
+    Returns:
+        True if values are considered equal
+    """
+    # Handle numpy scalars
+    if hasattr(val1, 'dtype') and np.isscalar(val1):
+        val1 = val1.item()
+    if hasattr(val2, 'dtype') and np.isscalar(val2):
+        val2 = val2.item()
+
+    # Handle tuples (like your transition matrix entries)
+    if isinstance(val1, tuple) and isinstance(val2, tuple):
+        if len(val1) != len(val2):
+            return False
+        return all(compare_values(v1, v2, tolerance) for v1, v2 in zip(val1, val2))
+
+    # Handle numpy arrays
+    if isinstance(val1, np.ndarray) and isinstance(val2, np.ndarray):
+        if val1.shape != val2.shape:
+            return False
+        return np.allclose(val1, val2, rtol=tolerance, atol=tolerance)
+
+    # Handle numeric values
+    if isinstance(val1, (int, float, np.number)) and isinstance(val2, (int, float, np.number)):
+        return abs(val1 - val2) <= tolerance
+
+    # Handle other types with direct comparison
+    return val1 == val2
+
+def print_symmetry_report(results: Dict[str, Any]) -> None:
+    """Print a formatted report of the symmetry analysis."""
+    print("=" * 60)
+    print("BID-ASK SYMMETRY ANALYSIS")
+    print("=" * 60)
+
+    if results['is_symmetric']:
+        print("✓ RESULT: Parameters are SYMMETRIC")
+    else:
+        print("✗ RESULT: Parameters are NOT SYMMETRIC")
+
+    print(f"\nSummary:")
+    print(f"  Symmetric pairs: {len(results['symmetric_pairs'])}")
+    print(f"  Asymmetric pairs: {len(results['asymmetric_pairs'])}")
+    print(f"  Bid-only keys: {len(results['bid_only_keys'])}")
+    print(f"  Ask-only keys: {len(results['ask_only_keys'])}")
+
+    if results['details']:
+        print(f"\nDetails:")
+        for detail in results['details']:
+            print(f"  {detail}")
+
+
+# if __name__ == "__main__":
+#     # Your example params
+#     params = pickle.load(open("D:\\PhD\\calibrated params\\Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb'))
+#
+#     # Check symmetry
+#     results = check_bid_ask_symmetry(params)
+#
+#     # Print report
+#     print_symmetry_report(results)
+#
+#     # Also return the boolean result for programmatic use
+#     print(f"\nIs symmetric: {results['is_symmetric']}")
 
 if __name__ == "__main__":
     # Run the analysis
     df = main()
+    print(calcSharpe())

@@ -421,13 +421,13 @@ def run(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 5
     i = int(id) - 1
     beta = betas[i]
     avgSpread = alphas[i]
-    Pi_eta = {  'eta_T' : etas[i] ,
-                'eta_IS' : etas[i],
-                'eta_T+1': etas[i]}
+    Pi_eta = {  'eta_T' : 0.5 ,
+                'eta_IS' : 0.5,
+                'eta_T+1': 0.5}
     spread0 = 2*int(100*avgSpread)
     M_med = np.max([50, 2*spread0])
 
-    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/Symmetric_AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/smalltickhawkes_"+str(avgSpread)+"_"+str(beta)+"_"+str(etas[i]), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
+    simulate_smallTick(23400, "/SAN/fca/Konark_PhD_Experiments/extracted/Symmetric_AMZN.OQ_ParamsInferredWCutoffEyeMu_Symm_2019-01-02_2019-12-31_CLSLogLin_10","/SAN/fca/Konark_PhD_Experiments/extracted/INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt" , beta = beta, avgSpread = avgSpread, spread0 = spread0, price0 = price0, M_med = M_med, filePathName = "/SAN/fca/Konark_PhD_Experiments/simulated/smallTick/is/smalltickhawkes_"+str(avgSpread)+"_"+str(beta)+"_"+str(0.5), Pis = Pis, Pi_Q0 = Pi_Q0, Pi_M0 = Pi_M0, Pi_eta = Pi_eta)
 
 def run_poisson(id, beta = 0.6, avgSpread = .95, spread0 = 110, price0 = 1700, M_med = 50, Pis = None, Pi_Q0 = None, Pi_M0 = None, Pi_eta = None):
     print(id)

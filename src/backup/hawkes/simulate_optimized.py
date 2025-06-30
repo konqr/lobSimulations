@@ -601,8 +601,27 @@ def createLOB(dictTimestamps, sizes, Pi_Q0, priceMid0 = 260, spread0 = 4, ticksi
             lob_l3.append(lob_l3New.copy())
     return T, lob, lob_l3
 
-
-
+# Pis={'lo_top_Bid': [0.,
+#                 [(1, 1.)]],
+#      'lo_inspread_Bid': [0.,
+#                       [(1, 1.)]],
+#      'lo_deep_Bid': [0.,
+#                 [(1, 1.)]],
+#      'mo_Bid': [0.,
+#                 [(1, 1.)]]}
+# Pis["mo_Ask"] = Pis["mo_Bid"]
+# Pis["lo_top_Ask"] = Pis["lo_top_Bid"]
+# Pis["lo_inspread_Ask"] = Pis["lo_inspread_Bid"]
+# Pis["lo_deep_Ask"] = Pis["lo_deep_Bid"]
+# Pi_Q0= {'Ask_touch': [0.,
+#                    [(10, 1.)]],
+#         'Ask_deep': [0.,
+#                    [(10, 1.)]],
+#         'Bid_touch': [0.,
+#                    [(10, 1.)]],
+#         'Bid_deep': [0.,
+#                    [(10, 1.)]]}
+# simulate_optimized(4000 , "D:\\PhD\\calibrated params\\Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10" , "D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", verbose = True, s0 = None, filePathName = None, Pis = Pis, Pi_Q0 = Pi_Q0, beta = 0.941, avgSpread = 0.0101, spread0 = 3, price0 = 260)
 
 
 
