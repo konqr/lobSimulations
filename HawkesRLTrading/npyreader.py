@@ -1,30 +1,30 @@
 import numpy as np
 
 
-data = np.load("/Users/alirazajafree/researchprojects/logstest_RLAgent_vs_BUY_TWAP_profit.npy")
+data = np.load("/Users/alirazajafree/30JuneCopy/researchprojects/logstest_RLAgent_vs_BUY_TWAP_10000q_1s_profit.npy")
 
-times = data[0]
+# times = data[0]
 
-portfolios = data[1]
+# portfolios = data[1]
 
-boundaryIndices = [0]
+# boundaryIndices = [0]
 
-for i in range(1, len(times)):
-    if(times[i] < times[i-1]):
-        boundaryIndices.append(i)
-print(boundaryIndices)
-logReturns = []
+# for i in range(1, len(times)):
+#     if(times[i] < times[i-1]):
+#         boundaryIndices.append(i)
+# print(boundaryIndices)
+# logReturns = []
 
-for i in range(len(boundaryIndices)-1):
-    episodicValues = [portfolios[boundaryIndices[i]], portfolios[boundaryIndices[i+1]]]
-    logReturns.extend(np.diff(np.log(episodicValues)))
+# for i in range(len(boundaryIndices)-1):
+#     episodicValues = [portfolios[boundaryIndices[i]], portfolios[boundaryIndices[i+1]]]
+#     logReturns.extend(np.diff(np.log(episodicValues)))
 
-logReturns = np.array(logReturns)
-std = np.std(logReturns)
-mean = np.mean(logReturns)
+# logReturns = np.array(logReturns)
+# std = np.std(logReturns)
+# mean = np.mean(logReturns)
 
-sharpe = mean/std
-print(f"bad sharpe {sharpe}")
+# sharpe = mean/std
+# print(f"bad sharpe {sharpe}")
 
 
 
