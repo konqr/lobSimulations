@@ -145,7 +145,7 @@ class ProbabilisticAgent(GymTradingAgent):
                     if len(origData['Positions']['Bid_L2']) != 0: actions.append((11,size))
                     actions.append((9,size))
         if len(actions) == 0:
-            if len(np.concat(list(origData['Positions'].values()))) == 0:
+            if len(np.concatenate(list(origData['Positions'].values()))) == 0:
                 return ((2,size), (9,size))
             else:
                 return ((12,size),(12,size))
