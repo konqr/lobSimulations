@@ -20,7 +20,7 @@ class ProbabilisticAgent(GymTradingAgent):
 
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
-        self.inv_threshold = 3
+        self.inv_threshold = 10
         self.avgPrices = (0,0)
         self.init_cash = self.cash
         self.cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -101,7 +101,7 @@ class ProbabilisticAgent(GymTradingAgent):
         actions = []
         if np.argmax(lambdas_norm) == 4: # mo ask
             if inv < -self.inv_threshold:
-                if lambdas[7] + 1000 < lambdas[4]:
+                # if lambdas[7] + 1000 < lambdas[4]:
                     return ((12,size),(7,size)) # mo_bid
             elif (inv > self.inv_threshold) or ( (inv > 0)and(pa > (self.cash-self.init_cash)/inv) ): # goodfill
                 if data[0][-3]/data[0][4] > 1:
@@ -116,7 +116,7 @@ class ProbabilisticAgent(GymTradingAgent):
                     actions.append((2,size))
         elif np.argmax(lambdas_norm) == 7: # mo bid
             if inv > self.inv_threshold:
-                if lambdas[4] + 1000 < lambdas[7]:
+                # if lambdas[4] + 1000 < lambdas[7]:
                     return ((12,size),(4,size)) # mo_ask
             elif (inv < -self.inv_threshold) or ( (inv < 0)and(pb < (self.cash-self.init_cash)/inv) ): # goodfill
                 if data[0][-3]/data[0][4] < 1:
