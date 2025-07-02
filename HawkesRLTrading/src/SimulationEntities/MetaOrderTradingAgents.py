@@ -106,7 +106,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
 
 
 class POVGymTradingAgent(GymTradingAgent):
-    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, side:str, order_target:str, participation_rate:int, window_size:int, start_trading_lag:int=100, wake_on_MO:bool=False, wake_on_Spread:bool=False, total_time:int = 23400):
+    def __init__(self, seed, log_events:bool, log_to_file:bool, strategy:str, Inventory:Optional[Dict[str, Any]], cash:int, cashlimit:int, action_freq:float, total_order_size:int, side:str, order_target:str, participation_rate:int, window_size:int, start_trading_lag:int=0, wake_on_MO:bool=False, wake_on_Spread:bool=False, total_time:int = 23400):
         super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
         self.side:str = side
         if side=="sell": assert Inventory[order_target] >= total_order_size, "Not enough volume in inventory to execute sell order"
@@ -117,7 +117,8 @@ class POVGymTradingAgent(GymTradingAgent):
         self.window_size:int = window_size
         self.traded_so_far:int = 0
         self.old_volume:int = self.agent_volume
-        self.total_time:int = total_time
+        self.total_time:int = total_time-start_trading_lag
+        self.start_trading_lag = start_trading_lag
         self.urgent = False
         self._set_windows()
 
@@ -128,26 +129,29 @@ class POVGymTradingAgent(GymTradingAgent):
         self.market_order_size:int = 0
         self.volume_traded_in_window:int = 0
         self.window_time_elapsed:float = 0.0
+        self.window_individual_order_size = 0
 
         self.calc_new_window_volume:bool = True
 
 
     def get_action(self, data):
         self.agent_volume:int = data["Inventory"]
+        self.agent_time = self.current_time - self.start_trading_lag
         self.traded_so_far:int = abs(self.agent_volume - self.starting_volume)
         if(self.traded_so_far>=self.total_order_size):
             return(12, 0)
         
-        marketvolume:int = data["market_volume"]
+        if self.calc_new_window_volume:
+            marketvolume:int = data["market_volume"]
+            print(f"market volume: {marketvolume}")
+            if not marketvolume <1:  
+                self.window_individual_order_size:int = self.partipation_rate*marketvolume
+                self.calc_new_window_volume = False
         #update the time elapsed in this window so far
         self.window_time_elapsed += self.action_freq
 
         time_ratio = self.window_time_elapsed/self.window_size
 
-        #recaulcate the new volume of the window when needed
-        if self.calc_new_window_volume:
-            self.window_order_volume = self.partipation_rate*marketvolume*(self.window_size//self.action_freq)
-            self.calc_new_window_volume = self.window_order_volume == 0
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
         #reset all window-dependent variables
@@ -155,12 +159,14 @@ class POVGymTradingAgent(GymTradingAgent):
             self.window_time_elapsed = 0
             self.urgent = False
             self.volume_traded_in_window = 0
+            self.calc_new_window_volume = True
 
-        individual_order_size = (self.window_order_volume-self.volume_traded_in_window)//(self.window_size//self.action_freq)
+        individual_order_size = self.window_individual_order_size
 
-        #if we have nothing left to trade, then skip
+        #if the market volume is nothing, then skip
         if individual_order_size <= 0:
             return (12, 0)
+        
         #at every step, calculate the volume that has been executed so far in this window
         if self.side == "buy":
             self.volume_traded_in_window += (self.agent_volume - self.old_volume)
@@ -181,7 +187,7 @@ class POVGymTradingAgent(GymTradingAgent):
         
         if not self.urgent:
             return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
-        #otherwise, place market orders
+        #otherwise, behave in a twap urgent manner
         else:
             lvl = self.actionsToLevels[self.actions[9]] if self.side=="buy" else self.actionsToLevels[self.actions[2]]
             time_left:int = self.window_size - self.window_time_elapsed
@@ -190,4 +196,5 @@ class POVGymTradingAgent(GymTradingAgent):
             self.market_order_size = round((self.window_order_volume - self.volume_traded_in_window)/num_actions_left_this_window)
             return(7, self.market_order_size) if self.side == "buy" else (4, self.market_order_size)
         
+
 

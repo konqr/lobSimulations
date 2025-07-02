@@ -1,17 +1,21 @@
 import sys
 import os
 sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
+# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import torch
 
 log_dir = '/home/ajafree/researchprojects/logs'
 model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
+# log_dir = '/Users/alirazajafree/researchprojects/logs'
+# model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_RLAgent_vs_BUY_TWAP_1200q_0.5s'
+label = 'test_RLAgent_vs_BUY_TWAP_10200q_0.5s'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
 
+# with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
@@ -67,7 +71,7 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":1200,
+                          "total_order_size":10200,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
@@ -262,7 +266,7 @@ for episode in range(61):
             train_logger.plot_losses(show=False, save=True)
 
         model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
-    for idx, agent in enumerate(agents):
+    for agent in agents:
         if isinstance(agent, PPOAgent):
             agent.current_time = 0
             agent.istruncated = False
@@ -314,7 +318,6 @@ for episode in range(61):
     plt.plot(np.arange(len(pft)), pft)
     plt.ticklabel_format(useOffset=False, style='plain')
     plt.title('Final Profit Raw')
-
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
     torch.cuda.empty_cache()

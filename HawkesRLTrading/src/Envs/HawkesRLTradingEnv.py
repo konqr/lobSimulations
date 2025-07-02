@@ -17,9 +17,6 @@ import pickle
 logging.basicConfig()
 logging.getLogger(__name__).setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-import sys
-import os
-sys.path.append(os.path.abspath('/cs/student/ug/2024/ajafree/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 
 class tradingEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array", "text"], "render_fps": 4}
@@ -97,7 +94,7 @@ class tradingEnv(gym.Env):
                 elif j['strategy'] == 'ICRL':
                     new_agent = j['agent_instance']
                 elif j['strategy'] == 'POV':
-                    new_agent = POVGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], participation_rate=j["participation_rate"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
+                    new_agent = POVGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], start_trading_lag=j["start_trading_lag"], participation_rate=j["participation_rate"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
                 
                 else:
                     raise Exception("Program only supports RandomGymTrading Agents for now")

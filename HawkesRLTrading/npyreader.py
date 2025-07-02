@@ -1,7 +1,7 @@
 import numpy as np
 
 
-data = np.load("/Users/alirazajafree/30JuneCopy/researchprojects/logstest_RLAgent_vs_BUY_TWAP_10000q_1s_profit.npy")
+data = np.load("/Users/alirazajafree/30JuneCopy/logstest_RLAgent_vs_BUY_TWAP_10200q_1s_profit.npy")
 
 # times = data[0]
 
