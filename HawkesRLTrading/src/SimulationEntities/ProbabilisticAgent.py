@@ -86,6 +86,9 @@ class ProbabilisticAgent(GymTradingAgent):
         Returns:
             action, size, logits_d, logits_u
         """
+        if self.breach:
+            mo = 4 if self.countInventory() > 0 else 7
+            return ((mo, 1),(12,1))
         size = 1
         origData = data.copy()
         data = self.readData(data)

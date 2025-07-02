@@ -1612,6 +1612,9 @@ class PPOAgent(GymTradingAgent):
         :param epsilon: Exploration probability
         :return: Chosen action and its log probabilities
         """
+        if self.breach:
+            mo = 4 if self.countInventory() > 0 else 7
+            return mo, (None, None), 0, 0, 0, 0
         origData = data.copy()
         state = self.readData(data)
         self.last_state = state
@@ -1717,7 +1720,7 @@ class PPOAgent(GymTradingAgent):
         """
         # Unpack action components
         d, u = action
-
+        if d is None: return
         # Store additional trajectory information
         transition = (
             state,       # Current state

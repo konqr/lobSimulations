@@ -83,7 +83,7 @@ class TradingAgent(Entity):
         # Simulation attributes
         self.exchange=None
         self.istruncated=False
-        
+        self.breach = False
         #What time does the agent think it is?
         self.current_time: int = 0
         
@@ -274,6 +274,10 @@ class TradingAgent(Entity):
             raise TypeError(f"Unexpected message type: {type(message).__name__}")
         if self.truncation_enabled and (self.cash<0 or self.countInventory()<-1*self.inventorylimit or self.cash>self.cashlimit or self.countInventory()>self.inventorylimit):
             self.istruncated=True
+        if np.abs(self.countInventory()) >= self.inventorylimit:
+            self.breach = True
+        else:
+            self.breach = False
         
     def wakeup(self, current_time: int, delay=0) -> None:
         """
