@@ -71,7 +71,7 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":300,
+                          "total_order_size":1200,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
