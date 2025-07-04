@@ -10,7 +10,7 @@ model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_RLAgent_vs_SELL_TWAP_10200q_1s'
+label = 'test_RLAgent_vs_SELL_TWAP_10200q_0.5s'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
@@ -76,7 +76,7 @@ kwargs={
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
                           "side":"sell", #buy or sell
-                          "action_freq":1,
+                          "action_freq":0.5,
                           "Inventory": {"INTC":20500},
                           'start_trading_lag': 100,
                           "wake_on_MO": False,
