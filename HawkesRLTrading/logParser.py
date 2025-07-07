@@ -296,7 +296,7 @@ def main():
     return df
 
 def calcSharpe():
-    arr = np.load("D:\\PhD\\results - icrl\\logstest_pl_standard_profit.npy")
+    arr = np.load("D:\\PhD\\results - icrl\\logsbreach5_test_baseline_probAgent_profit.npy")
     episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
     start_idxs = episode_boundaries[:-1] + 1
     end_idxs = episode_boundaries[1:]
