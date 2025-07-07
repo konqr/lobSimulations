@@ -1498,7 +1498,7 @@ class PPOAgent(GymTradingAgent):
         lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
         past_times = data['past_times']
         if self.Inventory['INTC'] ==0: self.init_cash = self.cash
-        skew = (data[0][-3] - data[0][-2])/(0.5*(data[0][4] + data[0][5]))
+        skew = (n_a - n_b)/(0.5*(q_a + q_b))
         avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
         bool_mo_bid = np.argmax(lambdas_norm) == 4
         bool_mo_ask = np.argmax(lambdas_norm) == 7
