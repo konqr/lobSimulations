@@ -268,7 +268,7 @@ def main():
     Main function to run the analysis
     """
     # Replace with your log file path
-    log_filename = "D:\\PhD\\results - icrl\\test_baseline_probab.o5722169"  # Change this to your file path
+    log_filename = "D:\\PhD\\results - icrl\\test_fullstate_pl.o5742934"  # Change this to your file path
 
     print("Parsing log file...")
     df = parse_log_file(log_filename)
@@ -296,7 +296,7 @@ def main():
     return df
 
 def calcSharpe():
-    arr = np.load("D:\\PhD\\results - icrl\\logsbreach5_test_baseline_probAgent_profit.npy")
+    arr = np.load("D:\\PhD\\results - icrl\\logstest_fullstate_pl_profit.npy")
     episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
     start_idxs = episode_boundaries[:-1] + 1
     end_idxs = episode_boundaries[1:]
@@ -502,5 +502,5 @@ def print_symmetry_report(results: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     # Run the analysis
-    # df = main()
+    df = main()
     print(calcSharpe())

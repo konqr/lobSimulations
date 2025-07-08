@@ -1504,9 +1504,7 @@ class PPOAgent(GymTradingAgent):
             avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
         bool_mo_bid = np.argmax(lambdas_norm) == 4
         bool_mo_ask = np.argmax(lambdas_norm) == 7
-        if self.include_time:
-            state = torch.tensor([[time, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
-        elif self.alt_state:
+        if self.alt_state:
             state = [[time, self.Inventory['INTC']] ]
             if self.ablation_params.get('spread', True):
                 state[0] = state[0] + [p_a - p_b]
@@ -1521,6 +1519,8 @@ class PPOAgent(GymTradingAgent):
             state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
         if self.enhance_state:
             state = torch.cat([state, torch.tensor([[skew, p_a < avgFillPrice, p_b > avgFillPrice,  bool_mo_bid, bool_mo_ask]], dtype=torch.float32).to(self.device)], 1)
+        if self.include_time:
+            state = torch.cat([state,torch.tensor([[time]], dtype=torch.float32).to(self.device)], 1)
         return state
 
     def getState(self, state):
