@@ -67,7 +67,7 @@ kwargs={
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
                          ,
-                         {"cash":10000000,
+                         {"cash":100,
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
