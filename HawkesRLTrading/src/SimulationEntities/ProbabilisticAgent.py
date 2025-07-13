@@ -6,25 +6,27 @@ import numpy as np
 class ProbabilisticAgent(GymTradingAgent):
     def __init__(self, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
-                 wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,
-                 rewardpenalty = 0.1):
+                 wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000,inventorylimit=100,
+                 rewardpenalty = 0.1, transaction_cost=0, start_trading_lag=0):
         """
         Deals w probabilities of next MO
         """
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
-                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
+                         wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag,
+                         truncation_enabled=False)
 
         self.resetseed(seed)
 
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
-        self.inv_threshold = 3
+        self.inv_threshold = 10
         self.avgPrices = (0,0)
         self.init_cash = self.cash
         self.cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                     "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
         self.trajectory_buffer = []
+        self.transaction_cost = transaction_cost
 
     def readData(self, data):
         """
@@ -84,6 +86,9 @@ class ProbabilisticAgent(GymTradingAgent):
         Returns:
             action, size, logits_d, logits_u
         """
+        if self.breach:
+            mo = 4 if self.countInventory() > 0 else 7
+            return ((mo, 1),(12,1))
         size = 1
         origData = data.copy()
         data = self.readData(data)
@@ -97,9 +102,9 @@ class ProbabilisticAgent(GymTradingAgent):
         inv = data[0][1]
         pa, pb = data[0][2], data[0][3]
         actions = []
-        if lambdas_norm[4] > 0.5: # mo ask
+        if np.argmax(lambdas_norm) == 4: # mo ask
             if inv < -self.inv_threshold:
-                if lambdas[7] + 1000 < lambdas[4]:
+                # if lambdas[7] + 1000 < lambdas[4]:
                     return ((12,size),(7,size)) # mo_bid
             elif (inv > self.inv_threshold) or ( (inv > 0)and(pa > (self.cash-self.init_cash)/inv) ): # goodfill
                 if data[0][-3]/data[0][4] > 1:
@@ -112,9 +117,9 @@ class ProbabilisticAgent(GymTradingAgent):
                     actions.append((9,size)) # lo bid top
                 if data[0][-2]/data[0][5]<1:
                     actions.append((2,size))
-        elif lambdas_norm[7] > 0.5: # mo bid
+        elif np.argmax(lambdas_norm) == 7: # mo bid
             if inv > self.inv_threshold:
-                if lambdas[4] + 1000 < lambdas[7]:
+                # if lambdas[4] + 1000 < lambdas[7]:
                     return ((12,size),(4,size)) # mo_ask
             elif (inv < -self.inv_threshold) or ( (inv < 0)and(pb < (self.cash-self.init_cash)/inv) ): # goodfill
                 if data[0][-3]/data[0][4] < 1:
@@ -143,7 +148,7 @@ class ProbabilisticAgent(GymTradingAgent):
                     if len(origData['Positions']['Bid_L2']) != 0: actions.append((11,size))
                     actions.append((9,size))
         if len(actions) == 0:
-            if len(np.concat(list(origData['Positions'].values()))) == 0:
+            if len(np.concatenate(list(origData['Positions'].values()))) == 0:
                 return ((2,size), (9,size))
             else:
                 return ((12,size),(12,size))
@@ -156,11 +161,5 @@ class ProbabilisticAgent(GymTradingAgent):
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
-        if self.istruncated or termination:
-            deltaPNL += self.countInventory() * self.mid
-        # reward shaping
-        # if self.last_action != 12:
-        #     penalty -= 10 # custom reward for incentivising actions rather than inaction for learning
-        # if (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
-        #     penalty -= 20 # custom reward for double sided quoting
-        return deltaPNL - penalty
+        deltaInv = self.statelog[-1][3]['INTC']*self.statelog[-1][-1]*(1- self.transaction_cost*np.sign(self.statelog[-1][3]['INTC'])) - self.statelog[-2][3]['INTC']*self.statelog[-2][-1]*(1-self.transaction_cost*np.sign(self.statelog[-1][3]['INTC']))
+        return deltaPNL + deltaInv - penalty
