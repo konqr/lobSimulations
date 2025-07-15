@@ -1400,7 +1400,7 @@ class PPOAgent(GymTradingAgent):
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
                  value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False,
+                 transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False, enhance_state=False,
                  policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, two_sided_reward = True, ablation_params= {}):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
@@ -1445,6 +1445,7 @@ class PPOAgent(GymTradingAgent):
             self.convert_dict = {0:2, 1:3, 2:8, 3:9}
         self.include_time = include_time
         self.alt_state = alt_state
+        self.enhance_state = enhance_state
         # PPO Hyperparameters
         self.epochs = epochs
         self.batch_size = batch_size
@@ -1454,6 +1455,7 @@ class PPOAgent(GymTradingAgent):
         self.max_grad_norm = max_grad_norm
         self.gae_lambda = gae_lambda
         self.policy_loss_coef = policy_loss_coef
+        self.init_cash = self.cash
         # Training parameters
         self.layer_widths = layer_widths
         self.n_layers = n_layers
@@ -1498,22 +1500,32 @@ class PPOAgent(GymTradingAgent):
         n_bs = np.append(n_bs, [q_b+qD_b])
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
+        lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
         past_times = data['past_times']
-        if self.include_time:
-            state = torch.tensor([[time, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
-        elif self.alt_state:
+        if self.Inventory['INTC'] ==0: self.init_cash = self.cash
+        skew = (n_a - n_b)/(0.5*(q_a + q_b))
+        avgFillPrice = 0
+        if self.Inventory['INTC'] != 0 :
+            avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
+        bool_mo_bid = np.argmax(lambdas_norm) == 4
+        bool_mo_ask = np.argmax(lambdas_norm) == 7
+        if self.alt_state:
             state = [[time, self.Inventory['INTC']] ]
             if self.ablation_params.get('spread', True):
                 state[0] = state[0] + [p_a - p_b]
             if self.ablation_params.get('n_a', True):
                 state[0] = state[0] + [n_a/q_a, n_b/q_b]
             if self.ablation_params.get('lambda', True):
-                state[0] = state[0] + list(lambdas.flatten()/np.sum(lambdas.flatten()))
+                state[0] = state[0] + list(lambdas_norm)
             if self.ablation_params.get('hist', True):
                 state[0] = state[0] + list(past_times.flatten())
             state = torch.tensor(state, dtype=torch.float32).to(self.device)
         else:
             state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        if self.enhance_state:
+            state = torch.cat([state, torch.tensor([[skew, p_a < avgFillPrice, p_b > avgFillPrice,  bool_mo_bid, bool_mo_ask]], dtype=torch.float32).to(self.device)], 1)
+        if self.include_time:
+            state = torch.cat([state,torch.tensor([[time]], dtype=torch.float32).to(self.device)], 1)
         return state
 
     def getState(self, state):
@@ -1618,6 +1630,9 @@ class PPOAgent(GymTradingAgent):
         :param epsilon: Exploration probability
         :return: Chosen action and its log probabilities
         """
+        if self.breach:
+            mo = 4 if self.countInventory() > 0 else 7
+            return mo, (None, None), 0, 0, 0, 0
         origData = data.copy()
         state = self.readData(data)
         self.last_state = state
@@ -1723,7 +1738,7 @@ class PPOAgent(GymTradingAgent):
         """
         # Unpack action components
         d, u = action
-
+        if d is None: return
         # Store additional trajectory information
         transition = (
             state,       # Current state
