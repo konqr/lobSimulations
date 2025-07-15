@@ -47,11 +47,11 @@ kwargs={
                                 "total_order_size":1200,
                                 "order_target":"INTC",
                                 # "participation_rate":0.1,
-                                "total_time":1300,
-                                "window_size":120, #window size, measured in seconds
-                                "side":"sell", #buy or sell
+                                "total_time":400,
+                                "window_size":50, #window size, measured in seconds
+                                "side":"buy", #buy or sell
                                 "action_freq":1,
-                                "Inventory": {"INTC":2000},
+                                "Inventory": {"INTC":0},
                                 'start_trading_lag': 100,
                                 "wake_on_MO": False,
                                 "wake_on_Spread": False}],
@@ -78,8 +78,13 @@ cashs:Dict[int, List] = {}
 inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 
+starting_midprice:int = 0
+execution_history:List[Tuple] = []
+
+differences = 0
+
 for episode in range(1):
-    env=tradingEnv(stop_time=1300, wall_time_limit=23400, seed=1, **kwargs)
+    env=tradingEnv(stop_time=400, wall_time_limit=23400, seed=1, **kwargs)
     Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
@@ -92,22 +97,36 @@ for episode in range(1):
         action:list[Tuple] = []
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-
             agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
             action = (agent.id, agentAction)
-            #print(f"Action: {action}")
             observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
             print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
             print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
-            
+
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
+            if(i==0):
+                starting_midprice = float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2
             observationsDict.update({agent.id:observations})
             logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-            # cash += [observations['Cash']]
+
             cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
-            # inventory += [observations['Inventory']]
+
+            prev_inventory = inventories.get(agent.id, [0])[-1]
+
             inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
-            # actions += [action[1][0]]
+
+            diff = abs(observationsDict.get(agent.id, {}).get('Inventory', '') - prev_inventory)
+
+            if(diff != 0):
+                #inventory has changed, order has gone through
+                if kwargs['GymTradingAgent'][agent.id-1]["side"] == 'sell':
+                    execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1'), diff))  
+                    differences += observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0]
+                else:
+                    execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1'), diff)) 
+                    differences += observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0]
+
+
             actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
             print(f"ACTION DONE{i}")
             t += [Simstate['TimeCode']]
@@ -121,6 +140,9 @@ for episode in range(1):
 agent_ids = set()
 for ep in inventoryhistories:
     agent_ids.update(inventoryhistories[ep].keys())
+
+final_diff = abs(kwargs["GymTradingAgent"][0]["cash"] - cashs[1][-1])
+print(f"Expected diff: {differences}. Actual difference: {final_diff}")
 
 for agent_id in agent_ids:
     plt.figure()
