@@ -47,7 +47,7 @@ kwargs={
                                 "total_order_size":1200,
                                 "order_target":"INTC",
                                 # "participation_rate":0.1,
-                                "total_time":400,
+                                "total_time":1300,
                                 "window_size":50, #window size, measured in seconds
                                 "side":"buy", #buy or sell
                                 "action_freq":1,
@@ -79,12 +79,17 @@ inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 
 starting_midprice:int = 0
+price_paths = []
 execution_history:List[Tuple] = []
+price_paths_non_agent = []
+times = []
 
-differences = 0
+cash_differences = 0
 
 for episode in range(1):
-    env=tradingEnv(stop_time=400, wall_time_limit=23400, seed=1, **kwargs)
+    env=tradingEnv(stop_time=2600, wall_time_limit=23400, seed=1, **kwargs)
+    prev_inventory = 0
+
     Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
@@ -95,6 +100,9 @@ for episode in range(1):
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
         action:list[Tuple] = []
+        price_paths_non_agent.append(float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2)
+        times.append(Simstate["TimeCode"])
+        
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
             agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
@@ -104,29 +112,32 @@ for episode in range(1):
             print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
 
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
+
+            price_paths.append(float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2)
+
             if(i==0):
                 starting_midprice = float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2
+
             observationsDict.update({agent.id:observations})
             logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
 
             cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
 
-            prev_inventory = inventories.get(agent.id, [0])[-1]
 
             inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
 
-            diff = abs(observationsDict.get(agent.id, {}).get('Inventory', '') - prev_inventory)
+            diff = abs(inventories[agent.id][-1] - prev_inventory)
 
             if(diff != 0):
                 #inventory has changed, order has gone through
                 if kwargs['GymTradingAgent'][agent.id-1]["side"] == 'sell':
                     execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1'), diff))  
-                    differences += observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0]
+                    cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0])*diff
                 else:
                     execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1'), diff)) 
-                    differences += observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0]
+                    cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0])*diff
 
-
+            prev_inventory = observations['Inventory']
             actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
             print(f"ACTION DONE{i}")
             t += [Simstate['TimeCode']]
@@ -141,21 +152,39 @@ agent_ids = set()
 for ep in inventoryhistories:
     agent_ids.update(inventoryhistories[ep].keys())
 
-final_diff = abs(kwargs["GymTradingAgent"][0]["cash"] - cashs[1][-1])
-print(f"Expected diff: {differences}. Actual difference: {final_diff}")
+# final_cash_diff = abs(kwargs["GymTradingAgent"][0]["cash"] - cashs[1][-1])
+# print(f"Calculated diff: {cash_differences}. Actual difference: {final_cash_diff}")
+price_paths = [p - price_paths[0] for p in price_paths]
 
-for agent_id in agent_ids:
-    plt.figure()
-    for ep in inventoryhistories:
-        if agent_id in inventoryhistories[ep]:
-            history = inventoryhistories[ep][agent_id]
-            times, invs = zip(*history)
-            plt.plot(times, invs, alpha=0.5, label=f"Ep {ep+1}")
-    plt.xlabel("Time")
-    plt.ylabel("Inventory")
-    plt.title(f"Inventory Trajectories Across All Episodes for agent {agent_id}")
-    plt.legend(fontsize='small', ncol=2)
-    plt.show()
+# plt.plot(inventories[1], price_paths, alpha=0.5)
+# plt.xlabel("Cumulative executed volume")
+# plt.ylabel("priceq - pricestart")
+# plt.title("Checking SQL for impact of TWAP agent")
+# plt.legend(fontsize='small')
+# plt.show()
+
+plt.figure()
+plt.plot(times, price_paths_non_agent, alpha=0.5)
+plt.xlabel("Time step")
+plt.ylabel("Midprice")
+plt.title("Price Path Tracking")
+plt.savefig("price_path_tracking.png", dpi=300, bbox_inches='tight')
+plt.close()
+
+
+
+# for agent_id in agent_ids:
+#     plt.figure()
+#     for ep in inventoryhistories:
+#         if agent_id in inventoryhistories[ep]:
+#             history = inventoryhistories[ep][agent_id]
+#             times, invs = zip(*history)
+#             plt.plot(times, invs, alpha=0.5, label=f"Ep {ep+1}")
+#     plt.xlabel("Time")
+#     plt.ylabel("Inventory")
+#     plt.title(f"Inventory Trajectories Across All Episodes for agent {agent_id}")
+#     plt.legend(fontsize='small', ncol=2)
+#     plt.show()
 
             
        
