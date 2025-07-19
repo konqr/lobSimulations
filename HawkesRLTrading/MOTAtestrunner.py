@@ -165,12 +165,14 @@ price_paths = [p - price_paths[0] for p in price_paths]
 # plt.legend(fontsize='small')
 # plt.show()
 
+percentage_change_price = [(p - price_paths[0])/p for p in price_paths_non_agent]
+
 plt.figure()
-plt.plot(times, price_paths_non_agent, alpha=0.5)
+plt.plot(times, percentage_change_price, alpha=0.5)
 plt.xlabel("Time step")
 plt.ylabel("Midprice")
 plt.title("Price Path Tracking")
-plt.savefig("price_path_tracking.png", dpi=300, bbox_inches='tight')
+plt.savefig("p_change_price_path_tracking.png", dpi=300, bbox_inches='tight')
 plt.close()
 
 
