@@ -172,10 +172,10 @@ plt.plot(times, percentage_change_price, alpha=0.5)
 plt.xlabel("Time step")
 plt.ylabel("Midprice")
 plt.title("Price Path Tracking")
-plt.savefig("p_change_price_path_tracking_3.png", dpi=300, bbox_inches='tight')
+plt.savefig("p_change_price_path_tracking_4.png", dpi=300, bbox_inches='tight')
 plt.close()
 
-np.save("p_change_price_path_tracking_3.npy", np.array(percentage_change_price))
+np.save("p_change_price_path_tracking_4.npy", np.array(percentage_change_price))
 
 
 # for agent_id in agent_ids:
