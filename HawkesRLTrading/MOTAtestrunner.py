@@ -165,7 +165,7 @@ price_paths = [p - price_paths[0] for p in price_paths]
 # plt.legend(fontsize='small')
 # plt.show()
 
-percentage_change_price = [(p - price_paths[0])/p for p in price_paths_non_agent]
+percentage_change_price = [(p - price_paths_non_agent[0])/price_paths_non_agent[0] for p in price_paths_non_agent]
 
 plt.figure()
 plt.plot(times, percentage_change_price, alpha=0.5)
