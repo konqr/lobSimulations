@@ -1,12 +1,12 @@
 import sys
 import os
-sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
-# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+# sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import matplotlib.pyplot as plt
 
-# with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+# with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -172,10 +172,16 @@ plt.plot(times, percentage_change_price, alpha=0.5)
 plt.xlabel("Time step")
 plt.ylabel("Midprice")
 plt.title("Price Path Tracking")
-plt.savefig("p_change_price_path_tracking_10.png", dpi=300, bbox_inches='tight')
-plt.close()
+plt.show()
 
-np.save("p_change_price_path_tracking_10.npy", np.array(percentage_change_price))
+plt.figure()
+plt.plot(percentage_change_price, alpha=0.5)
+plt.xlabel("Time step")
+plt.ylabel("Midprice")
+plt.title("Price Path Tracking")
+plt.show()
+
+np.save("times.npy", np.array(times))
 
 
 # for agent_id in agent_ids:
