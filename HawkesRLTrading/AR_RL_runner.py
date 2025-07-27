@@ -1,22 +1,23 @@
 import sys
 import os
-sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
-# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
+# sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
+sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
+
 import torch
 
-log_dir = '/home/ajafree/researchprojects/logs'
-model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
-# log_dir = '/Users/alirazajafree/researchprojects/logs'
-# model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+# log_dir = '/home/ajafree/researchprojects/logs'
+# model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
+log_dir = '/Users/alirazajafree/researchprojects/logs'
+model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
 label = 'test_RLAgent_vs_SELL_TWAP_1200q_0.5s'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
 
-# with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+# with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 
@@ -66,6 +67,17 @@ kwargs={
                          'start_trading_lag': 100,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
+                        # {"cash": 2500,
+                        #  "strategy": "Probabilistic",
+                        #  "action_freq": 0.213,
+                        #  "rewardpenalty": 0.5,
+                        #  "Inventory": {"INTC": 0},
+                        #  "log_to_file": True,
+                        #  "cashlimit": 5000000,
+                        #  "inventorylimit": 25,
+                        #  'start_trading_lag': 100,
+                        #  "wake_on_MO": True,
+                        #  "wake_on_Spread": True}
                          ,
                          {"cash":100,
                           "cashlimit": 1000000000,
@@ -75,9 +87,9 @@ kwargs={
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
-                          "side":"sell", #buy or sell
+                          "side":"buy", #buy or sell
                           "action_freq":0.5,
-                          "Inventory": {"INTC":20500},
+                          "Inventory": {"INTC":0},
                           'start_trading_lag': 100,
                           "wake_on_MO": False,
                           "wake_on_Spread": False}
@@ -103,14 +115,17 @@ j = agents[0]
 tc = 0.0001
 RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 1000, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 61, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5) #, hidden_activation='sigmoid'
-j['agent_instance'] = RLagentInstance
+# RLagentInstance = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+#                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
+#                           rewardpenalty = 1e-4, transaction_cost=tc, start_trading_lag = j['start_trading_lag'])
+j['prob_agent_instance'] = RLagentInstance
 kwargs['GymTradingAgent'] = agents
 i_eps=0
 # cash, inventory, t, actions = [], [], [], []
 t = []
-avgEpisodicRewards, stdEpisodicRewards , finalcash, finalcash2= [], [],[],[]
+avgEpisodicRewards, stdEpisodicRewards, finalcash, finalcash2 = [], [], [], []
 train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
 model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0

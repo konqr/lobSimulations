@@ -8,6 +8,7 @@ from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAge
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent, POVGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
 from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent
+from HawkesRLTrading.src.SimulationEntities.ProbabilisticAgent import ProbabilisticAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival
 from HawkesRLTrading.src.SimulationEntities.Exchange import Exchange
 from HawkesRLTrading.src.Kernel import Kernel
@@ -75,7 +76,7 @@ class tradingEnv(gym.Env):
 
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Render mode must be None, human or rgb_array or text"
         self.seed=seed
-
+        tc = 0.0001
         #Construct agents: Right now only compatible with 1 trading agent
         # assert len(kwargs["GymTradingAgent"])==1 and len(kwargs["TradingAgent"])==0, "Kernel simulation can only take a total of 1 agent currently, and it should be a GYM agent"
         self.agents=[]
@@ -95,9 +96,12 @@ class tradingEnv(gym.Env):
                     new_agent = j['agent_instance']
                 elif j['strategy'] == 'POV':
                     new_agent = POVGymTradingAgent(seed=self.seed, log_events=True, log_to_file=log_to_file, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], cashlimit=j["cashlimit"], action_freq=j["action_freq"], total_order_size = j["total_order_size"], total_time = j["total_time"], window_size = j["window_size"], side = j["side"], order_target = j["order_target"], start_trading_lag=j["start_trading_lag"], participation_rate=j["participation_rate"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"])
-                
+                elif j['strategy'] == 'Probabilistic':
+                    new_agent = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+                          wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
+                          rewardpenalty = 1e-4, transaction_cost=tc, start_trading_lag = j['start_trading_lag'])
                 else:
-                    raise Exception("Program only supports RandomGymTrading Agents for now")
+                    raise Exception("Requested agent not recognised")
                 self.agents.append(new_agent)
         print("Agent IDs: " + str([agent.id for agent in self.agents]))
         #Construct Exchange:

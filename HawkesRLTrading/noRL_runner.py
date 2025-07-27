@@ -41,6 +41,9 @@ Pi_Q0= {'Ask_L1': [0.,
                     [(10, 1.)]],
         'Bid_L2': [0.,
                     [(10, 1.)]]}
+
+tc = 0.0001
+
 kwargs={
 
             "TradingAgent": [],
@@ -57,20 +60,6 @@ kwargs={
             #                     "wake_on_Spread": False}],
 
             "GymTradingAgent":
-                            #    [{"cash":10000000,
-                            #     "cashlimit": 1000000000,
-                            #      "strategy": "POV",
-                            #      "on_trade":False,
-                            #      "total_order_size":100,
-                            #      "order_target":"INTC",
-                            #      "total_time":500, 
-                            #      "window_size":20, #window size, measured in seconds
-                            #      "participation_rate":0.1,
-                            #      "side":"buy", #buy or sell
-                            #      "action_freq":2,
-                            #      "Inventory": {"INTC":1}, #inventory cant be 0
-                            #      "wake_on_MO": False,
-                            #      "wake_on_Spread": False}],
                                 [
                                 #     {"cash": 1000000,
                                 # "strategy": "Random",
@@ -96,7 +85,20 @@ kwargs={
                                 "Inventory": {"INTC":11000},
                                 'start_trading_lag': 100,
                                 "wake_on_MO": False,
-                                "wake_on_Spread": False}],
+                                "wake_on_Spread": False},
+                                {"cash": 2500,
+                                "strategy": "Probabilistic",
+                                "action_freq": 0.213,
+                                "rewardpenalty": 0.5,
+                                "Inventory": {"INTC": 0},
+                                "log_to_file": True,
+                                "cashlimit": 5000000,
+                                "inventorylimit": 25,
+                                'start_trading_lag': 100,
+                                "wake_on_MO": True,
+                                "wake_on_Spread": True}
+                                
+                                ],
             #"GymTradingAgent": [{"cash": 1000000,
             #                    "strategy": "ImpulseControl",
             #                     'on_trade':True,
@@ -137,7 +139,7 @@ cashs:Dict[int, List] = {}
 inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 
-avgEpisodicRewards, stdEpisodicRewards, finalcash =[],[],[]
+avgEpisodicRewards, stdEpisodicRewards, finalcash, finalcash2 =[],[],[], []
 # train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
 # model_manager = ModelManager(model_dir = model_dir, label = label)
 
@@ -154,18 +156,26 @@ observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Pos
 # agent.setupNNs(observations)
 logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
 
+
+
+
 while Simstate["Done"]==False and termination!=True:
     logger.debug(f"ENV TERMINATION: {termination}")
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
     print(f"Agents with IDs {AgentsIDs} have an action available")
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-    action:list[Tuple] = []
+
     for agent in agents:
         assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-
+        
         agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
-        action = (agent.id, agentAction)
-        #print(f"Action: {action}")
+        if agent.strategy == "Probabilistic":
+            action = (agent.id, agentAction[0])
+            t+=[Simstate['TimeCode']]
+        else:
+            action = (agent.id, agentAction)
+        print(f"Action: {action}")
+        
         observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
         print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
         print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
@@ -179,10 +189,17 @@ while Simstate["Done"]==False and termination!=True:
         inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
         # actions += [action[1][0]]
         actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
+
+
+        if agent.strategy == "Probabilistic":
+            current_pnl = cashs[agent.id][-1] + inventories[agent.id][-1] * agent.mid * (1 - tc*np.sign(inventories[agent.id][-1]))
+            finalcash2.append(current_pnl)
+            
         print(f"ACTION DONE{i}")
-        t += [Simstate['TimeCode']]
         i+=1
         print(f"Final inventory: {agent.Inventory}")
+
+np.save("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1", np.array([t, finalcash2]))
 
 if termination:
     print("Termination condition reached.")
@@ -190,3 +207,17 @@ elif truncation:
     print("Truncation condition reached.")
 else:
     pass
+
+plt.figure(figsize=(12,8))
+plt.subplot(221)
+plt.plot(np.arange(len(cashs[2])), cashs[2])
+plt.title('Cash')
+plt.subplot(222)
+plt.plot(np.arange(len(cashs[2])), inventories[2])
+plt.title('Inventory')
+plt.subplot(223)
+plt.scatter(np.arange(len(cashs[2])), actionss[2])
+plt.yticks(np.arange(0,13), agent.actions)
+plt.title('Actions')
+plt.show()
+plt.savefig("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1")
