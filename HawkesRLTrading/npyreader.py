@@ -448,8 +448,7 @@ def price_quantity_graph_predecay_mortised():
     # Plot individual runs with markers since we have fewer points
     for i, data in enumerate(filtered_data_list):
         sample_times = times[sampled_indices[:len(data)]]
-        plt.plot(sample_times, data, color='lightblue', alpha=0.5, marker='o', markersize=3, 
-                label=f'Run {i+1}' if i < 3 else "")
+        plt.plot(sample_times, data, color='lightblue', alpha=0.5, marker='o', markersize=3)
     
     # Plot mean with larger markers
     plt.plot(mean_times, mean_path, color='orange', linewidth=3, marker='o', markersize=6,
