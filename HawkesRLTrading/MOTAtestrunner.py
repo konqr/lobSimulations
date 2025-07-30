@@ -4,6 +4,9 @@ import os
 sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import matplotlib.pyplot as plt
+            
+from scipy.optimize import curve_fit
+import numpy as np
 
 with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 # with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
@@ -46,11 +49,11 @@ kwargs={
                                 "cashlimit": 1000000000,
                                 "strategy": "TWAP",
                                 "on_trade":False,
-                                "total_order_size":1200,
+                                "total_order_size":120,
                                 "order_target":"INTC",
-                                # "participation_rate":0.1,
-                                "total_time":1300,
-                                "window_size":50, #window size, measured in seconds
+                                # "participation_rate":0.05,
+                                "total_time":220,
+                                "window_size":20, #window size, measured in seconds
                                 "side":"buy", #buy or sell
                                 "action_freq":1,
                                 "Inventory": {"INTC":0},
@@ -88,8 +91,9 @@ times = []
 
 cash_differences = 0
 
+
 for episode in range(1):
-    env=tradingEnv(stop_time=5000, wall_time_limit=23400, seed=1, **kwargs)
+    env=tradingEnv(stop_time=220, wall_time_limit=23400, seed=1, **kwargs)
     prev_inventory = 0
 
     Simstate, observations, termination, truncation =env.step(action=None) 
@@ -106,6 +110,7 @@ for episode in range(1):
         times.append(Simstate["TimeCode"])
         
         for agent in agents:
+            
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
             agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
             action = (agent.id, agentAction)
@@ -115,7 +120,9 @@ for episode in range(1):
 
             Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
 
-            price_paths.append(float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2)
+            midprice = float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])
+
+            price_paths.append(midprice)
 
             if(i==0):
                 starting_midprice = float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2
@@ -125,19 +132,18 @@ for episode in range(1):
 
             cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
 
-
             inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
 
             diff = abs(inventories[agent.id][-1] - prev_inventory)
 
-            if(diff != 0):
-                #inventory has changed, order has gone through
-                if kwargs['GymTradingAgent'][agent.id-1]["side"] == 'sell':
-                    execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1'), diff))  
-                    cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0])*diff
-                else:
-                    execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1'), diff)) 
-                    cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0])*diff
+            # if(diff != 0):
+            #     #inventory has changed, order has gone through
+            #     if kwargs['GymTradingAgent'][0]["side"] == 'sell':
+            #         execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1'), diff))  
+            #         cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0])*diff
+            #     else:
+            #         execution_history.append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1'), diff)) 
+            #         cash_differences += (observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0])*diff
 
             prev_inventory = observations['Inventory']
             actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
@@ -156,33 +162,26 @@ for ep in inventoryhistories:
 
 # final_cash_diff = abs(kwargs["GymTradingAgent"][0]["cash"] - cashs[1][-1])
 # print(f"Calculated diff: {cash_differences}. Actual difference: {final_cash_diff}")
-price_paths = [p - price_paths[0] for p in price_paths]
+# price_paths = [p - price_paths[0] for p in price_paths]
 
-# plt.plot(inventories[1], price_paths, alpha=0.5)
-# plt.xlabel("Cumulative executed volume")
-# plt.ylabel("priceq - pricestart")
-# plt.title("Checking SQL for impact of TWAP agent")
-# plt.legend(fontsize='small')
+agent_percentage_change_price = [(p - price_paths[0])/price_paths[0] for p in price_paths]
+
+for episode in range(len(inventoryhistories)):
+    plt.plot(inventories[1], agent_percentage_change_price, alpha=0.5)
+    plt.xlabel("Cumulative executed volume")
+    plt.ylabel("Percentage change price")
+    plt.title("Checking SQL for impact of TWAP agent")
+    plt.legend(fontsize='small')
+    plt.show()
+
+# percentage_change_price = [(p - price_paths_non_agent[0])/price_paths_non_agent[0] for p in price_paths_non_agent]
+
+# plt.figure()
+# plt.plot(times, percentage_change_price, alpha=0.5)
+# plt.xlabel("Time step")
+# plt.ylabel("Midprice")
+# plt.title("Price Path Tracking")
 # plt.show()
-
-percentage_change_price = [(p - price_paths_non_agent[0])/price_paths_non_agent[0] for p in price_paths_non_agent]
-
-plt.figure()
-plt.plot(times, percentage_change_price, alpha=0.5)
-plt.xlabel("Time step")
-plt.ylabel("Midprice")
-plt.title("Price Path Tracking")
-plt.show()
-
-plt.figure()
-plt.plot(percentage_change_price, alpha=0.5)
-plt.xlabel("Time step")
-plt.ylabel("Midprice")
-plt.title("Price Path Tracking")
-plt.show()
-
-np.save("times.npy", np.array(times))
-
 
 # for agent_id in agent_ids:
 #     plt.figure()
@@ -199,9 +198,106 @@ np.save("times.npy", np.array(times))
 
             
        
-for agent in agents:
-    goal = kwargs["GymTradingAgent"][agent.id-1]["total_order_size"]
-    final_inventory = inventories[agent.id]
+# for agent in agents:
+#     goal = kwargs["GymTradingAgent"][agent.id-1]["total_order_size"]
+#     final_inventory = inventories[agent.id]
         
 
-            
+# Add this after your existing plotting code
+def fit_sqrt_market_impact():
+    """
+    Fit square root function to TWAP market impact: Price_Impact = a * sqrt(Volume) + b
+    """
+    # Get the data
+    volumes = inventories[1]  # Cumulative executed volume
+    price_impacts = agent_percentage_change_price  # Percentage price change
+    
+    # Remove any zero volumes to avoid sqrt(0) issues
+    non_zero_mask = np.array(volumes) > 0
+    volumes_clean = np.array(volumes)[non_zero_mask]
+    impacts_clean = np.array(price_impacts)[non_zero_mask]
+    
+    # Define square root function: Impact = a * sqrt(Volume) + b
+    def sqrt_function(volume, a, b):
+        return a * np.sqrt(volume) + b
+    
+    try:
+        # Fit the curve
+        params, covariance = curve_fit(sqrt_function, volumes_clean, impacts_clean)
+        a, b = params
+        
+        # Generate fitted curve
+        volume_range = np.linspace(min(volumes_clean), max(volumes_clean), 100)
+        fitted_curve = sqrt_function(volume_range, a, b)
+        
+        # Calculate R-squared
+        fitted_values = sqrt_function(volumes_clean, a, b)
+        ss_res = np.sum((impacts_clean - fitted_values) ** 2)
+        ss_tot = np.sum((impacts_clean - np.mean(impacts_clean)) ** 2)
+        r_squared = 1 - (ss_res / ss_tot)
+        
+        # Create the plot
+        plt.figure(figsize=(12, 8))
+        
+        # Plot original data
+        plt.scatter(volumes, price_impacts, alpha=0.6, color='blue', s=20, label='Actual Impact')
+        
+        # Plot fitted curve
+        plt.plot(volume_range, fitted_curve, color='red', linewidth=2, 
+                label=f'√ Fit: {a:.6f}*√Volume + {b:.6f}')
+        
+        # Add statistics to plot
+        plt.text(0.02, 0.98, f'R² = {r_squared:.4f}\na = {a:.6f}\nb = {b:.6f}', 
+                transform=plt.gca().transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        
+        plt.xlabel("Cumulative Executed Volume")
+        plt.ylabel("Percentage Price Change (%)")
+        plt.title("TWAP Market Impact - Square Root Law Fit")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig("TWAP_sqrt_market_impact_fit.png", dpi=300, bbox_inches='tight')
+        plt.show()
+        
+        # Print results
+        print(f"Square Root Law Fit Results:")
+        print(f"Price Impact = {a:.6f} * √(Volume) + {b:.6f}")
+        print(f"R-squared: {r_squared:.4f}")
+        print(f"Standard errors: a={np.sqrt(covariance[0,0]):.6f}, b={np.sqrt(covariance[1,1]):.6f}")
+        
+        return params, r_squared
+        
+    except Exception as e:
+        print(f"Square root fitting failed: {e}")
+        return None, None
+
+# Call the function after your existing code
+sqrt_params, r_squared = fit_sqrt_market_impact()
+
+# Alternative: Replace your existing plot with the fitted version
+plt.figure(figsize=(12, 8))
+
+# Plot original data points
+plt.scatter(inventories[1], agent_percentage_change_price, alpha=0.6, color='blue', s=20, label='Actual Impact')
+
+# If fit was successful, add the fitted curve
+if sqrt_params is not None:
+    volumes_for_fit = np.array(inventories[1])
+    non_zero_mask = volumes_for_fit > 0
+    volumes_clean = volumes_for_fit[non_zero_mask]
+    
+    volume_range = np.linspace(min(volumes_clean), max(volumes_clean), 100)
+    fitted_curve = sqrt_params[0] * np.sqrt(volume_range) + sqrt_params[1]
+    
+    plt.plot(volume_range, fitted_curve, color='red', linewidth=2, 
+            label=f'√ Law: {sqrt_params[0]:.6f}*√V + {sqrt_params[1]:.6f}')
+
+plt.xlabel("Cumulative Executed Volume")
+plt.ylabel("Percentage Change Price (%)")
+plt.title("TWAP Market Impact with Square Root Law Fit")
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig("TWAP_market_impact_sqrt_fitted.png", dpi=300, bbox_inches='tight')
+plt.show()

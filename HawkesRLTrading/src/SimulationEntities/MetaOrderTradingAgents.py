@@ -65,7 +65,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
         #reset all window-dependent variables
-        if time_ratio>=1:
+        if time_ratio>1:
             self.window_time_elapsed = 0
             self.urgent = False
             self.volume_traded_in_window = 0
@@ -135,6 +135,7 @@ class POVGymTradingAgent(GymTradingAgent):
 
 
     def get_action(self, data):
+        # breakpoint()
         self.agent_volume:int = data["Inventory"]
         self.agent_time = self.current_time - self.start_trading_lag
         self.traded_so_far:int = abs(self.agent_volume - self.starting_volume)
@@ -145,8 +146,11 @@ class POVGymTradingAgent(GymTradingAgent):
             marketvolume:int = data["market_volume"]
             print(f"market volume: {marketvolume}")
             if not marketvolume <1:  
-                self.window_individual_order_size:int = self.partipation_rate*marketvolume
+                self.window_individual_order_size:int = round(self.partipation_rate*marketvolume)
+                self.window_order_volume = self.window_individual_order_size * (1/self.action_freq)*self.window_size #individual order * the amount of actions in a window
                 self.calc_new_window_volume = False
+                if self.window_order_volume > (self.total_order_size - self.traded_so_far):
+                    self.window_order_volume = self.total_order_size - self.traded_so_far #making sure it doesnt overflow
         #update the time elapsed in this window so far
         self.window_time_elapsed += self.action_freq
 
@@ -155,7 +159,7 @@ class POVGymTradingAgent(GymTradingAgent):
 
         #when the agent reaches the end of a trade window, i.e. we have no more time left, then 
         #reset all window-dependent variables
-        if time_ratio>=1:
+        if time_ratio>1:
             self.window_time_elapsed = 0
             self.urgent = False
             self.volume_traded_in_window = 0

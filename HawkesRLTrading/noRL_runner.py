@@ -73,11 +73,11 @@ kwargs={
                                 # "cashlimit": 100000000},
                                 {"cash":10000000,
                                 "cashlimit": 1000000000,
-                                "strategy": "TWAP",
+                                "strategy": "POV",
                                 "on_trade":False,
                                 "total_order_size":10200,
                                 "order_target":"INTC",
-                                # "participation_rate":0.1,
+                                "participation_rate":0.1,
                                 "total_time":400,
                                 "window_size":50, #window size, measured in seconds
                                 "side":"sell", #buy or sell
@@ -86,17 +86,17 @@ kwargs={
                                 'start_trading_lag': 100,
                                 "wake_on_MO": False,
                                 "wake_on_Spread": False},
-                                {"cash": 2500,
-                                "strategy": "Probabilistic",
-                                "action_freq": 0.213,
-                                "rewardpenalty": 0.5,
-                                "Inventory": {"INTC": 0},
-                                "log_to_file": True,
-                                "cashlimit": 5000000,
-                                "inventorylimit": 25,
-                                'start_trading_lag': 100,
-                                "wake_on_MO": True,
-                                "wake_on_Spread": True}
+                                # {"cash": 2500,
+                                # "strategy": "Probabilistic",
+                                # "action_freq": 0.213,
+                                # "rewardpenalty": 0.5,
+                                # "Inventory": {"INTC": 0},
+                                # "log_to_file": True,
+                                # "cashlimit": 5000000,
+                                # "inventorylimit": 25,
+                                # 'start_trading_lag': 100,
+                                # "wake_on_MO": True,
+                                # "wake_on_Spread": True}
                                 
                                 ],
             #"GymTradingAgent": [{"cash": 1000000,
@@ -167,11 +167,12 @@ while Simstate["Done"]==False and termination!=True:
 
     for agent in agents:
         assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
+        t+=[Simstate['TimeCode']]
         
         agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
         if agent.strategy == "Probabilistic":
             action = (agent.id, agentAction[0])
-            t+=[Simstate['TimeCode']]
+            # t+=[Simstate['TimeCode']]
         else:
             action = (agent.id, agentAction)
         print(f"Action: {action}")
@@ -199,7 +200,7 @@ while Simstate["Done"]==False and termination!=True:
         i+=1
         print(f"Final inventory: {agent.Inventory}")
 
-np.save("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1", np.array([t, finalcash2]))
+# np.save("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1", np.array([t, finalcash2]))
 
 if termination:
     print("Termination condition reached.")
@@ -208,16 +209,16 @@ elif truncation:
 else:
     pass
 
-plt.figure(figsize=(12,8))
-plt.subplot(221)
-plt.plot(np.arange(len(cashs[2])), cashs[2])
-plt.title('Cash')
-plt.subplot(222)
-plt.plot(np.arange(len(cashs[2])), inventories[2])
-plt.title('Inventory')
-plt.subplot(223)
-plt.scatter(np.arange(len(cashs[2])), actionss[2])
-plt.yticks(np.arange(0,13), agent.actions)
-plt.title('Actions')
-plt.show()
-plt.savefig("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1")
+# plt.figure(figsize=(12,8))
+# plt.subplot(221)
+# plt.plot(np.arange(len(cashs[2])), cashs[2])
+# plt.title('Cash')
+# plt.subplot(222)
+# plt.plot(np.arange(len(cashs[2])), inventories[2])
+# plt.title('Inventory')
+# plt.subplot(223)
+# plt.scatter(np.arange(len(cashs[2])), actionss[2])
+# plt.yticks(np.arange(0,13), agent.actions)
+# plt.title('Actions')
+# plt.show()
+# plt.savefig("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1")
