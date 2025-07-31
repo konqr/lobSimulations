@@ -1759,6 +1759,13 @@ class PPOAgent(GymTradingAgent):
 
                 action = u_to_action[u]
                 self.last_action = action
+                if int(u) in [1, 2]:  # cancels
+                    a = self.actions[u_to_action[u][0][0]]
+                    lo = u_to_action[u][1]
+                    lvl = self.actionsToLevels[a]
+                    if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                        self.last_action = 12
+                        return ((12,1),lo), (d, 0), d_log_prob.item(), 0, d_value.item(), 0
                 return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
             # Exploitation
