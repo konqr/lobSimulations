@@ -1728,7 +1728,7 @@ class PPOAgent(GymTradingAgent):
         else:
             if self.breach:
                 mo = 4 if self.countInventory() > 0 else 7
-            return ((mo,1),(12,1)), (None, None), 0, 0, 0, 0
+                return ((mo,1),(12,1)), (None, None), 0, 0, 0, 0
 
             origData = data.copy()
             state = self.readData(data)
