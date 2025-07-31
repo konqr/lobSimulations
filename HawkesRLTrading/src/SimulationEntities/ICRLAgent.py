@@ -1759,7 +1759,7 @@ class PPOAgent(GymTradingAgent):
 
                 action = u_to_action[u]
                 self.last_action = action
-
+                return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
             # Exploitation
             with torch.no_grad():
