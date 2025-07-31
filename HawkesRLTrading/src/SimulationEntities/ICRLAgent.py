@@ -1438,6 +1438,8 @@ class PPOAgent(GymTradingAgent):
         elif action_space_config == 1:
             self.allowed_actions= ["lo_top_Ask","co_top_Ask","co_top_Bid", "lo_top_Bid" ]
             self.convert_dict = {0:2, 1:3, 2:8, 3:9}
+        elif action_space_config == 2:
+            self.allowed_actions = ['lo-lo', 'bid-co-lo', 'ask-co-lo']
         self.include_time = include_time
         self.alt_state = alt_state
         self.enhance_state = enhance_state
@@ -1624,101 +1626,159 @@ class PPOAgent(GymTradingAgent):
         :param epsilon: Exploration probability
         :return: Chosen action and its log probabilities
         """
-        if self.breach:
-            mo = 4 if self.countInventory() > 0 else 7
-            return mo, (None, None), 0, 0, 0, 0
-        origData = data.copy()
-        state = self.readData(data)
-        self.last_state = state
-        # Exploration
-        if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
-            # Random decision
-            d = random.randint(0, 1)
-            u = random.randint(0, len(self.allowed_actions) - 1)
-            _u = copy.deepcopy(u)
-            u = self.convert_dict.get(u, u)
-            # Compute dummy logits for logging
-            d_logits, d_value = self.Actor_Critic_d(state)
-            u_logits, u_value = self.Actor_Critic_u(state)
+        if self.action_space_config <2:
+            if self.breach:
+                mo = 4 if self.countInventory() > 0 else 7
+                return mo, (None, None), 0, 0, 0, 0
+            origData = data.copy()
+            state = self.readData(data)
+            self.last_state = state
+            # Exploration
+            if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
+                # Random decision
+                d = random.randint(0, 1)
+                u = random.randint(0, len(self.allowed_actions) - 1)
+                _u = copy.deepcopy(u)
+                u = self.convert_dict.get(u, u)
+                # Compute dummy logits for logging
+                d_logits, d_value = self.Actor_Critic_d(state)
+                u_logits, u_value = self.Actor_Critic_u(state)
 
-            # Get log probabilities
-            d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
-            u_log_prob = torch.log_softmax(u_logits, dim=1)[0, _u]
+                # Get log probabilities
+                d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
+                u_log_prob = torch.log_softmax(u_logits, dim=1)[0, _u]
 
-            # Validation checks (similar to original implementation)
-            if int(u) in [1, 3, 8, 10]:  # cancels
-                a = self.actions[int(u)]
-                lvl = self.actionsToLevels[a]
-                if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                # Validation checks (similar to original implementation)
+                if int(u) in [1, 3, 8, 10]:  # cancels
+                    a = self.actions[int(u)]
+                    lvl = self.actionsToLevels[a]
+                    if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                        self.last_action = 12
+                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+                if int(u) in [5, 6]:
+                    p_a, q_a = origData['LOB0']['Ask_L1']
+                    p_b, q_b = origData['LOB0']['Bid_L1']
+                    if p_a - p_b < 0.015:  # reject if inspread not possible
+                        self.last_action = 12
+                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+                if (int(u) == 4) and (self.countInventory() < 1):  # ask mo -> since it hits the bid
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if int(u) in [5, 6]:
-                p_a, q_a = origData['LOB0']['Ask_L1']
-                p_b, q_b = origData['LOB0']['Bid_L1']
-                if p_a - p_b < 0.015:  # reject if inspread not possible
+                self.last_action = u
+                return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+            # Exploitation
+            with torch.no_grad():
+                # Decision network
+                d_logits, d_value = self.Actor_Critic_d(state)
+                d_probs = torch.softmax(d_logits, dim=1).squeeze()
+                d = torch.multinomial(d_probs, 1).item()
+                d_log_prob = torch.log(d_probs[d])
+
+                # If no decision to act (d=0)
+                if d == 0:
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if (int(u) == 4) and (self.countInventory() < 1):  # ask mo -> since it hits the bid
-                self.last_action = 12
-                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                # Utility network
+                u_logits, u_value = self.Actor_Critic_u(state)
+                u_probs = torch.softmax(u_logits, dim=1).squeeze()
+                u = torch.multinomial(u_probs, 1).item()
+                _u = copy.deepcopy(u)
+                u = self.convert_dict.get(u, u)
 
-            self.last_action = u
-            return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+                # Validation checks
+                if np.abs(self.countInventory()) >= self.inventorylimit -1: # cancel top orders if at inventory limit
+                    if self.countInventory() < 0:
+                        u = 3
+                    elif self.countInventory() > 0:
+                        u = 8
+                u_log_prob = torch.log(u_probs[_u])
 
-        # Exploitation
-        with torch.no_grad():
-            # Decision network
-            d_logits, d_value = self.Actor_Critic_d(state)
-            d_probs = torch.softmax(d_logits, dim=1).squeeze()
-            d = torch.multinomial(d_probs, 1).item()
-            d_log_prob = torch.log(d_probs[d])
+                if int(u) in [1, 3, 8, 10]:  # cancels
+                    a = self.actions[int(u)]
+                    lvl = self.actionsToLevels[a]
+                    if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                        self.last_action = 12
+                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            # If no decision to act (d=0)
-            if d == 0:
-                self.last_action = 12
-                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                if int(u) in [5, 6]:
+                    p_a, q_a = origData['LOB0']['Ask_L1']
+                    p_b, q_b = origData['LOB0']['Bid_L1']
+                    if p_a - p_b < 0.015:  # reject if inspread not possible
+                        self.last_action = 12
+                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            # Utility network
-            u_logits, u_value = self.Actor_Critic_u(state)
-            u_probs = torch.softmax(u_logits, dim=1).squeeze()
-            u = torch.multinomial(u_probs, 1).item()
-            _u = copy.deepcopy(u)
-            u = self.convert_dict.get(u, u)
-
-            # Validation checks
-            if np.abs(self.countInventory()) >= self.inventorylimit -1: # cancel top orders if at inventory limit
-                if self.countInventory() < 0:
-                    u = 3
-                elif self.countInventory() > 0:
-                    u = 8
-            u_log_prob = torch.log(u_probs[_u])
-
-            if int(u) in [1, 3, 8, 10]:  # cancels
-                a = self.actions[int(u)]
-                lvl = self.actionsToLevels[a]
-                if len(origData['Positions'][lvl]) == 0:  # no position to cancel
+                if (int(u) == 4) and ((self.countInventory() < 1) or (self.countInventory() >= self.inventorylimit - 2)):  # ask mo -> hits the bid
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if int(u) in [5, 6]:
-                p_a, q_a = origData['LOB0']['Ask_L1']
-                p_b, q_b = origData['LOB0']['Bid_L1']
-                if p_a - p_b < 0.015:  # reject if inspread not possible
+                if (int(u)==7) and (self.countInventory() <= 2 - self.inventorylimit): # bid mo
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-            if (int(u) == 4) and ((self.countInventory() < 1) or (self.countInventory() >= self.inventorylimit - 2)):  # ask mo -> hits the bid
-                self.last_action = 12
-                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                self.last_action = u
+                return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-            if (int(u)==7) and (self.countInventory() <= 2 - self.inventorylimit): # bid mo
-                self.last_action = 12
-                return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+        else:
+            if self.breach:
+                mo = 4 if self.countInventory() > 0 else 7
+            return ((mo,1),(12,1)), (None, None), 0, 0, 0, 0
 
-            self.last_action = u
-            return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+            origData = data.copy()
+            state = self.readData(data)
+            self.last_state = state
+
+            # Mapping from u to composite action
+            u_to_action = {
+                0: ((2, 1), (9, 1)),  # lo top bid and ask
+                1: ((3, 1), (2, 1)),  # co bid and lo top bid
+                2: ((8, 1), (9, 1))   # co ask and lo top ask
+            }
+
+            # Exploration
+            if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
+                d = random.randint(0, 1)
+                u = random.randint(0, 2)  # because u in {0, 1, 2}
+
+                # Dummy logits for logging
+                d_logits, d_value = self.Actor_Critic_d(state)
+                u_logits, u_value = self.Actor_Critic_u(state)
+
+                d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
+                u_log_prob = torch.log_softmax(u_logits, dim=1)[0, u]
+
+                if d == 0:
+                    self.last_action = 12
+                    return ((12, 1), (12, 1)), (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+                action = u_to_action[u]
+                self.last_action = action
+                return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+            # Exploitation
+            with torch.no_grad():
+                d_logits, d_value = self.Actor_Critic_d(state)
+                d_probs = torch.softmax(d_logits, dim=1).squeeze()
+                d = torch.multinomial(d_probs, 1).item()
+                d_log_prob = torch.log(d_probs[d])
+
+                if d == 0:
+                    self.last_action = 12
+                    return ((12, 1), (12, 1)), (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+
+                u_logits, u_value = self.Actor_Critic_u(state)
+                u_probs = torch.softmax(u_logits, dim=1).squeeze()
+                u = torch.multinomial(u_probs, 1).item()
+                u_log_prob = torch.log(u_probs[u])
+
+                action = u_to_action[u]
+
+                self.last_action = action
+                return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
     def store_transition(self, ep, state, action, reward, next_state, done):
         """
