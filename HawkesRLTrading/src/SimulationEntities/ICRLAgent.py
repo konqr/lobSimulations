@@ -1431,6 +1431,8 @@ class PPOAgent(GymTradingAgent):
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         #allowed actions:
+
+        self.action_space_config = action_space_config
         if action_space_config == 0:
             self.allowed_actions= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
                                "lo_inspread_Bid" , "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid","lo_deep_Bid" ]
