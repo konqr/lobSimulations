@@ -13,6 +13,7 @@ import random
 import gc
 
 def get_queue_priority(data, pos, label):
+    data = data.copy()
     ask_l1s = pos[label]
     n_as = []
     if len(ask_l1s):
@@ -981,7 +982,8 @@ class ICRL2(ICRLAgent):
         # Process each network (decision and/or action)
         states = self.getState(states)
         next_states = self.getState(next_states)
-        networks_to_process = networks if 'networks' in locals() else [(network, target_network, optimizer)]
+        # networks_to_process = networks if 'networks' in locals() else [(network, target_network, optimizer)]
+        networks_to_process = []
 
         for current_network, current_target, current_optimizer, actions in networks_to_process:
             # =================== SAC LEARNING ALGORITHM ===================
@@ -1430,6 +1432,9 @@ class PPOAgent(GymTradingAgent):
 
         self.resetseed(seed)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "mps")
+
         #allowed actions:
         if action_space_config == 0:
             self.allowed_actions= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -1606,6 +1611,7 @@ class PPOAgent(GymTradingAgent):
             penalty += 100
         if self.last_action != 12:
             penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
+
         if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
             penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
         if self.alt_state:
