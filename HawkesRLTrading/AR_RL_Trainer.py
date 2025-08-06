@@ -11,6 +11,8 @@ import torch
 log_dir = '/Users/alirazajafree/researchprojects/logs'
 model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
+start_trading_lag = 100
+
 label = 'test_RLAgent_vs_SELL_TWAP_1200q_0.5s'
 layer_widths=128
 n_layers=3
@@ -64,7 +66,7 @@ kwargs={
                          "log_to_file": True,
                          "cashlimit": 5000000,
                          "inventorylimit": 25,
-                         'start_trading_lag': 100,
+                         'start_trading_lag': start_trading_lag,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
                         # {"cash": 2500,
@@ -90,7 +92,7 @@ kwargs={
                           "side":"buy", #buy or sell
                           "action_freq":0.5,
                           "Inventory": {"INTC":0},
-                          'start_trading_lag': 100,
+                          'start_trading_lag': start_trading_lag,
                           "wake_on_MO": False,
                           "wake_on_Spread": False}
                           ],
@@ -113,7 +115,6 @@ kwargs={
 agents = kwargs['GymTradingAgent']
 j = agents[0]
 tc = 0.0001
-#this is for training:
 RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
@@ -137,6 +138,9 @@ actionss:Dict[int, List] = {}
 RLagentID = 1
 
 for episode in range(61):
+    #the time that the TWAP agent will kick in:
+    twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
+    kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
     i = 0
     action_num = 0
     env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
