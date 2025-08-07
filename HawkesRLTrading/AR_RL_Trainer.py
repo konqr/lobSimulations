@@ -1,22 +1,22 @@
 import sys
 import os
-# sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
-sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
+sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
+# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 
-# log_dir = '/home/ajafree/researchprojects/logs'
-# model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
-log_dir = '/Users/alirazajafree/researchprojects/logs'
-model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+log_dir = '/home/ajafree/TRAINING/logs'
+model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
+# log_dir = '/Users/alirazajafree/researchprojects/logs'
+# model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
 label = 'train_RLAgent_vs_SELL_TWAP_300q_1s'
 layer_widths=128
 n_layers=3
-checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
+checkpoint_params = None # ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
 
 with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 # with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
@@ -137,7 +137,7 @@ inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 RLagentID = 1
 
-for episode in range(61):
+for episode in range(50):
     #the time that the TWAP agent will kick in:
     twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
     RLagentInstance.TWAPPresent = False
