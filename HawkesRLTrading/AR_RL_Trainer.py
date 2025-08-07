@@ -13,7 +13,7 @@ model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetr
 
 start_trading_lag = 100
 
-label = 'test_RLAgent_vs_SELL_TWAP_1200q_0.5s'
+label = 'train_RLAgent_vs_SELL_TWAP_300q_1s'
 layer_widths=128
 n_layers=3
 checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
@@ -85,13 +85,13 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":1200,
+                          "total_order_size":300,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
                           "side":"buy", #buy or sell
-                          "action_freq":0.5,
-                          "Inventory": {"INTC":0},
+                          "action_freq":1,
+                          "Inventory": {"INTC":500},
                           'start_trading_lag': start_trading_lag,
                           "wake_on_MO": False,
                           "wake_on_Spread": False}
@@ -118,7 +118,7 @@ tc = 0.0001
 RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0) #, hidden_activation='sigmoid'
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=False, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, TWAPPresent=0) #, hidden_activation='sigmoid'
 # RLagentInstance = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
 #                           rewardpenalty = 1e-4, transaction_cost=tc, start_trading_lag = j['start_trading_lag'])
@@ -140,10 +140,15 @@ RLagentID = 1
 for episode in range(61):
     #the time that the TWAP agent will kick in:
     twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
+    RLagentInstance.TWAPPresent = False
+    twap_side = np.random.choice(["buy", "sell"])
     kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
+    #randomise buy or sell
+    kwargs["GymTradingAgent"][1]["side"] = twap_side
     i = 0
     action_num = 0
     env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
+    print(f"Start of episode {episode}. TWAP Time is {twap_time} and side is {twap_side}")
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
@@ -166,6 +171,9 @@ for episode in range(61):
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
         # action:list[Tuple] = []
+        if(Simstate['TimeCode'] > twap_time) and not RLagentInstance.TWAPPresent:
+            RLagentInstance.TWAPPresent = -1 if twap_side == 'sell' else 1
+
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
             #check if agent is an RL agent or not

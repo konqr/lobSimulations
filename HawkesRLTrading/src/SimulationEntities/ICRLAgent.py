@@ -2064,8 +2064,8 @@ class PPOAgent(GymTradingAgent):
 
         return states, actions
     
-class PPOAgent_vs_TWAP(PPOAgent):
-    def __init__(self, *args, TWAPPresent=False, **kwargs):
+class PPOAgent(PPOAgent):
+    def __init__(self, *args, TWAPPresent=0, **kwargs):
         super().__init__(*args, **kwargs)
         self.TWAPPresent = TWAPPresent
     
@@ -2113,10 +2113,9 @@ class PPOAgent_vs_TWAP(PPOAgent):
             state = torch.tensor(state, dtype=torch.float32).to(self.device)
         else:
             state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        state = torch.cat([state, torch.tensor([[self.TWAPPresent]], dtype=torch.float32).to(self.device)], 1)
         if self.enhance_state:
             state = torch.cat([state, torch.tensor([[skew, p_a < avgFillPrice, p_b > avgFillPrice,  bool_mo_bid, bool_mo_ask]], dtype=torch.float32).to(self.device)], 1)
         if self.include_time:
             state = torch.cat([state,torch.tensor([[time]], dtype=torch.float32).to(self.device)], 1)
-        if self.TWAPPresent:
-            state = torch.cat([state, torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)], 1)
         return state

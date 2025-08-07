@@ -59,33 +59,34 @@ kwargs={
             #                     "wake_on_MO": False,
             #                     "wake_on_Spread": False}],
 
-            "GymTradingAgent":
-                                [
-                                #     {"cash": 1000000,
-                                # "strategy": "Random",
-                                #     'on_trade':False,
-                                # "action_freq": 1.3,
-                                # "rewardpenalty": 0.4,
-                                # "Inventory": {"INTC": 1000},
-                                # "wake_on_MO": False,
-                                # "wake_on_Spread": False,
-                                # "log_to_file": True,
-                                # "cashlimit": 100000000},
-                                {"cash":10000000,
+            "GymTradingAgent":[{"cash": 1000000,
+                                "strategy": "Random",
+                                'on_trade':False,
+                                "action_freq": 1.3,
+                                "rewardpenalty": 0.4,
+                                "Inventory": {"INTC": 1000},
+                                "wake_on_MO": False,
+                                "wake_on_Spread": False,
+                                "log_to_file": True,
+                                "cashlimit": 100000000,
+                                'start_trading_lag': 0}, 
+                                {"cash":100,
                                 "cashlimit": 1000000000,
-                                "strategy": "POV",
+                                "strategy": "TWAP",
                                 "on_trade":False,
-                                "total_order_size":10200,
+                                "total_order_size":1200,
                                 "order_target":"INTC",
-                                "participation_rate":0.1,
                                 "total_time":400,
                                 "window_size":50, #window size, measured in seconds
-                                "side":"sell", #buy or sell
+                                "side":"buy", #buy or sell
                                 "action_freq":1,
-                                "Inventory": {"INTC":11000},
+                                "Inventory": {"INTC":400},
                                 'start_trading_lag': 100,
                                 "wake_on_MO": False,
-                                "wake_on_Spread": False},
+                                "wake_on_Spread": False}],
+                                
+
+                                
                                 # {"cash": 2500,
                                 # "strategy": "Probabilistic",
                                 # "action_freq": 0.213,
@@ -98,7 +99,6 @@ kwargs={
                                 # "wake_on_MO": True,
                                 # "wake_on_Spread": True}
                                 
-                                ],
             #"GymTradingAgent": [{"cash": 1000000,
             #                    "strategy": "ImpulseControl",
             #                     'on_trade':True,
@@ -144,6 +144,13 @@ avgEpisodicRewards, stdEpisodicRewards, finalcash, finalcash2 =[],[],[], []
 # model_manager = ModelManager(model_dir = model_dir, label = label)
 
 # for episode in range(10):
+twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + 100
+kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
+#randomise buy or sell
+side = np.random.choice(["buy", "sell"])
+kwargs["GymTradingAgent"][1]["side"] = side
+
+print(f"Twap time: {twap_time} and side: {side}")
 env=tradingEnv(stop_time=400, wall_time_limit=23400, seed=1, **kwargs)
 print("Initial Observations"+ str(env.getobservations()))
 
@@ -165,7 +172,7 @@ while Simstate["Done"]==False and termination!=True:
     print(f"Agents with IDs {AgentsIDs} have an action available")
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
 
-    for agent in agents:
+    for agent in agents: 
         assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
         t+=[Simstate['TimeCode']]
         
