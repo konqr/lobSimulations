@@ -11,7 +11,7 @@ class TWAPGymTradingAgent(GymTradingAgent):
         # assert total_order_size % ((total_time-start_trading_lag)/action_freq) == 0, f"Order size {total_order_size} cannot be executed evenly with time {total_time} with start trading lag {start_trading_lag} and action frequency {action_freq} "
 
         super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread, cashlimit=cashlimit,start_trading_lag=start_trading_lag)
-        self.total_time = total_time-start_trading_lag
+        self.total_time = 300 #hard coded to 300 for now
         self.start_trading_lag = start_trading_lag
         self.actions_per_second:int = 1/self.action_freq
         self.total_order_size:int = total_order_size

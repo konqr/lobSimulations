@@ -59,7 +59,8 @@ kwargs={
             #                     "wake_on_MO": False,
             #                     "wake_on_Spread": False}],
 
-            "GymTradingAgent":[{"cash": 1000000,
+            "GymTradingAgent":[
+                                {"cash": 1000000,
                                 "strategy": "Random",
                                 'on_trade':False,
                                 "action_freq": 1.3,
@@ -74,19 +75,17 @@ kwargs={
                                 "cashlimit": 1000000000,
                                 "strategy": "TWAP",
                                 "on_trade":False,
-                                "total_order_size":1200,
+                                "total_order_size":300,
                                 "order_target":"INTC",
                                 "total_time":400,
                                 "window_size":50, #window size, measured in seconds
                                 "side":"buy", #buy or sell
                                 "action_freq":1,
-                                "Inventory": {"INTC":400},
+                                "Inventory": {"INTC":500},
                                 'start_trading_lag': 100,
                                 "wake_on_MO": False,
-                                "wake_on_Spread": False}],
-                                
-
-                                
+                                "wake_on_Spread": False}
+                                ],
                                 # {"cash": 2500,
                                 # "strategy": "Probabilistic",
                                 # "action_freq": 0.213,
@@ -215,17 +214,9 @@ elif truncation:
     print("Truncation condition reached.")
 else:
     pass
+print(twap_time)
+plt.figure(figsize=(12,8))
 
-# plt.figure(figsize=(12,8))
-# plt.subplot(221)
-# plt.plot(np.arange(len(cashs[2])), cashs[2])
-# plt.title('Cash')
-# plt.subplot(222)
-# plt.plot(np.arange(len(cashs[2])), inventories[2])
-# plt.title('Inventory')
-# plt.subplot(223)
-# plt.scatter(np.arange(len(cashs[2])), actionss[2])
-# plt.yticks(np.arange(0,13), agent.actions)
-# plt.title('Actions')
-# plt.show()
-# plt.savefig("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1")
+plt.plot(np.arange(len(cashs[2])), inventories[2])
+plt.title('Inventory')
+plt.show()
