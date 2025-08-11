@@ -81,15 +81,14 @@ kwargs={
                         #  "wake_on_MO": True,
                         #  "wake_on_Spread": True}
                          ,
-                         {"cash":100,
-                          "cashlimit": 1000000000,
+                         {"cash":1000000,
+                          "cashlimit": 100000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
                           "total_order_size":300,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
-                          "side":"buy", #buy or sell
                           "action_freq":1,
                           "Inventory": {"INTC":500},
                           'start_trading_lag': start_trading_lag,
@@ -138,6 +137,8 @@ actionss:Dict[int, List] = {}
 RLagentID = 1
 
 for episode in range(50):
+    kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
+    kwargs["GymTradingAgent"][1]["cash"] = 1000000
     #the time that the TWAP agent will kick in:
     twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
     RLagentInstance.TWAPPresent = False
