@@ -13,7 +13,7 @@ model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
-label = 'train_RLAgent_vs_SELL_TWAP_300q_1s'
+label = 'train_RLAgent_vs_SELL_TWAP_300q_1s_02'
 layer_widths=128
 n_layers=3
 checkpoint_params = None # ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
@@ -35,25 +35,25 @@ tod=np.zeros(shape=(len(cols), 13))
 for i in range(len(cols)):
     tod[i]=[faketod[cols[i]][k] for k in range(13)]
 Pis={'Bid_L2': [0.,
-                [(1, 1.)]],
+                [(40, 1.)]],
      'Bid_inspread': [0.,
-                      [(1, 1.)]],
+                      [(40, 1.)]],
      'Bid_L1': [0.,
-                [(1, 1.)]],
+                [(40, 1.)]],
      'Bid_MO': [0.,
-                [(1, 1.)]]}
+                [(40, 1.)]]}
 Pis["Ask_MO"] = Pis["Bid_MO"]
 Pis["Ask_L1"] = Pis["Bid_L1"]
 Pis["Ask_inspread"] = Pis["Bid_inspread"]
 Pis["Ask_L2"] = Pis["Bid_L2"]
 Pi_Q0= {'Ask_L1': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Ask_L2': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Bid_L1': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Bid_L2': [0.,
-                   [(10, 1.)]]}
+                   [(200, 1.)]]}
 
 kwargs={
     "TradingAgent": [],
@@ -61,7 +61,7 @@ kwargs={
                         {"cash": 2500,
                          "strategy": "ICRL",
                          "action_freq": 0.213,
-                         "rewardpenalty": 0.5,
+                         "rewardpenalty": 1,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
@@ -116,7 +116,7 @@ j = agents[0]
 tc = 0.0001
 RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = j["rewardpenalty"], epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=False, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, TWAPPresent=0) #, hidden_activation='sigmoid'
 # RLagentInstance = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
