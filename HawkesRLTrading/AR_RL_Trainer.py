@@ -13,7 +13,7 @@ model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
-label = 'train_RLAgent_vs_SELL_TWAP_300q_1s_02'
+label = 'train_RLAgent_vs_SELL_TWAP_300q_1s_repeated'
 layer_widths=128
 n_layers=3
 checkpoint_params = None # ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
