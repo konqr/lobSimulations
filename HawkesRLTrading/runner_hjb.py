@@ -209,15 +209,15 @@ for episode in range(500):
         print("Truncation condition reached.")
     else:
         pass
-    plt.close('all')
-    if ((episode) % 1 == 0):
+
+    if ((episode) % 2 == 0):
         if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
             for epoch in range(1):
-                metrics = agent.train(logger=train_logger) #, use_CEM = bool((episode+1) % 4))
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger) #, use_CEM = bool((episode+1) % 4))
                 train_logger.save_logs()
             train_logger.plot_losses(show=False, save=True)
 
-        model_manager.save_models(epoch = episode, policy = agent.policy, world= agent.world)
+        model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
     # ER = agent.experience_replay
     agent.current_time = 0
     agent.istruncated = False
@@ -239,7 +239,6 @@ for episode in range(500):
     plt.yticks(np.arange(0,13), agent.actions)
     plt.title('Actions')
     plt.savefig(log_dir + label+'_policy.png')
-    # plt.show()
     episodic_rewards = []
     r=0
     tmp = agent.trajectory_buffer[0][0]
@@ -271,5 +270,4 @@ for episode in range(500):
 
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
-    # plt.show()
     torch.cuda.empty_cache()
