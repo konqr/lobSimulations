@@ -52,12 +52,12 @@ kwargs={
                                 "total_order_size":2300,
                                 "order_target":"INTC",
                                 "participation_rate":0.05,
-                                "total_time":2400,
+                                "total_time":2600,
                                 "window_size":60, #window size, measured in seconds
                                 "side":"buy", #buy or sell
                                 "action_freq":1,
                                 "Inventory": {"INTC":0},
-                                'start_trading_lag': 100,
+                                'start_trading_lag': 300,
                                 "wake_on_MO": False,
                                 "wake_on_Spread": False}],
             "Exchange": {"symbol": "INTC",
@@ -94,7 +94,7 @@ cash_differences = 0
 
 new_mv = True
 
-env=tradingEnv(stop_time=220, wall_time_limit=23400, seed=1, **kwargs)
+env=tradingEnv(stop_time=2600, wall_time_limit=23400, seed=1, **kwargs)
 prev_inventory = 0
 
 Simstate, observations, termination, truncation =env.step(action=None) 
@@ -141,7 +141,7 @@ while Simstate["Done"]==False and termination!=True:
             new_mv = True
 
         if new_mv:
-             if observations["market_volume"] != 0:
+             if observations["market_volume"] > 1:
                 if(observations["market_volume"]*60 + observations["Inventory"] > 120):
                     market_volumes.append(observations["market_volume"]*60)
                 else:
