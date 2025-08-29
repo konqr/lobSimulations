@@ -3,10 +3,10 @@ import os
 sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
 # sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
             
-from scipy.optimize import curve_fit
-import numpy as np
+# from scipy.optimize import curve_fit
+# import numpy as np
 
 # with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
@@ -228,75 +228,75 @@ while Simstate["Done"]==False and termination!=True:
         
 
 # Add this after your existing plotting code
-def fit_sqrt_market_impact():
-    """
-    Fit square root function to TWAP market impact: Price_Impact = a * sqrt(Volume) + b
-    """
-    # Get the data
-    volumes = inventories[1]  # Cumulative executed volume
-    # Since we don't have price data, we'll simulate market impact based on volume
-    # This is a placeholder - in practice you'd use actual price changes
-    price_impacts = [0.001 * v**0.5 for v in volumes]  # Simulated square root impact
+# def fit_sqrt_market_impact():
+#     """
+#     Fit square root function to TWAP market impact: Price_Impact = a * sqrt(Volume) + b
+#     """
+#     # Get the data
+#     volumes = inventories[1]  # Cumulative executed volume
+#     # Since we don't have price data, we'll simulate market impact based on volume
+#     # This is a placeholder - in practice you'd use actual price changes
+#     price_impacts = [0.001 * v**0.5 for v in volumes]  # Simulated square root impact
     
-    # Remove any zero volumes to avoid sqrt(0) issues
-    non_zero_mask = np.array(volumes) > 0
-    volumes_clean = np.array(volumes)[non_zero_mask]
-    impacts_clean = np.array(price_impacts)[non_zero_mask]
+#     # Remove any zero volumes to avoid sqrt(0) issues
+#     non_zero_mask = np.array(volumes) > 0
+#     volumes_clean = np.array(volumes)[non_zero_mask]
+#     impacts_clean = np.array(price_impacts)[non_zero_mask]
     
-    # Define square root function: Impact = a * sqrt(Volume) + b
-    def sqrt_function(volume, a, b):
-        return a * np.sqrt(volume) + b
+#     # Define square root function: Impact = a * sqrt(Volume) + b
+#     def sqrt_function(volume, a, b):
+#         return a * np.sqrt(volume) + b
     
-    try:
-        # Fit the curve
-        params, covariance = curve_fit(sqrt_function, volumes_clean, impacts_clean)
-        a, b = params
+#     try:
+#         # Fit the curve
+#         params, covariance = curve_fit(sqrt_function, volumes_clean, impacts_clean)
+#         a, b = params
         
-        # Generate fitted curve
-        volume_range = np.linspace(min(volumes_clean), max(volumes_clean), 100)
-        fitted_curve = sqrt_function(volume_range, a, b)
+#         # Generate fitted curve
+#         volume_range = np.linspace(min(volumes_clean), max(volumes_clean), 100)
+#         fitted_curve = sqrt_function(volume_range, a, b)
         
-        # Calculate R-squared
-        fitted_values = sqrt_function(volumes_clean, a, b)
-        ss_res = np.sum((impacts_clean - fitted_values) ** 2)
-        ss_tot = np.sum((impacts_clean - np.mean(impacts_clean)) ** 2)
-        r_squared = 1 - (ss_res / ss_tot)
+#         # Calculate R-squared
+#         fitted_values = sqrt_function(volumes_clean, a, b)
+#         ss_res = np.sum((impacts_clean - fitted_values) ** 2)
+#         ss_tot = np.sum((impacts_clean - np.mean(impacts_clean)) ** 2)
+#         r_squared = 1 - (ss_res / ss_tot)
         
-        # Create the plot
-        plt.figure(figsize=(12, 8))
+#         # Create the plot
+#         plt.figure(figsize=(12, 8))
         
-        # Plot original data
-        plt.scatter(volumes, price_impacts, alpha=0.6, color='blue', s=20, label='Actual Impact')
+#         # Plot original data
+#         plt.scatter(volumes, price_impacts, alpha=0.6, color='blue', s=20, label='Actual Impact')
         
-        # Plot fitted curve
-        plt.plot(volume_range, fitted_curve, color='red', linewidth=2, 
-                label=f'√ Fit: {a:.6f}*√Volume + {b:.6f}')
+#         # Plot fitted curve
+#         plt.plot(volume_range, fitted_curve, color='red', linewidth=2, 
+#                 label=f'√ Fit: {a:.6f}*√Volume + {b:.6f}')
         
-        # Add statistics to plot
-        plt.text(0.02, 0.98, f'R² = {r_squared:.4f}\na = {a:.6f}\nb = {b:.6f}', 
-                transform=plt.gca().transAxes, verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+#         # Add statistics to plot
+#         plt.text(0.02, 0.98, f'R² = {r_squared:.4f}\na = {a:.6f}\nb = {b:.6f}', 
+#                 transform=plt.gca().transAxes, verticalalignment='top',
+#                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
         
-        plt.xlabel("Cumulative Executed Volume")
-        plt.ylabel("Percentage Price Change (%)")
-        plt.title("TWAP Market Impact - Square Root Law Fit")
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.savefig("TWAP_sqrt_market_impact_fit.png", dpi=300, bbox_inches='tight')
-        plt.show()
+#         plt.xlabel("Cumulative Executed Volume")
+#         plt.ylabel("Percentage Price Change (%)")
+#         plt.title("TWAP Market Impact - Square Root Law Fit")
+#         plt.legend()
+#         plt.grid(True, alpha=0.3)
+#         plt.tight_layout()
+#         plt.savefig("TWAP_sqrt_market_impact_fit.png", dpi=300, bbox_inches='tight')
+#         plt.show()
         
-        # Print results
-        print(f"Square Root Law Fit Results:")
-        print(f"Price Impact = {a:.6f} * √(Volume) + {b:.6f}")
-        print(f"R-squared: {r_squared:.4f}")
-        print(f"Standard errors: a={np.sqrt(covariance[0,0]):.6f}, b={np.sqrt(covariance[1,1]):.6f}")
+#         # Print results
+#         print(f"Square Root Law Fit Results:")
+#         print(f"Price Impact = {a:.6f} * √(Volume) + {b:.6f}")
+#         print(f"R-squared: {r_squared:.4f}")
+#         print(f"Standard errors: a={np.sqrt(covariance[0,0]):.6f}, b={np.sqrt(covariance[1,1]):.6f}")
         
-        return params, r_squared
+#         return params, r_squared
         
-    except Exception as e:
-        print(f"Square root fitting failed: {e}")
-        return None, None
+#     except Exception as e:
+#         print(f"Square root fitting failed: {e}")
+#         return None, None
 
 # # Call the function after your existing code
 # sqrt_params, r_squared = fit_sqrt_market_impact()
