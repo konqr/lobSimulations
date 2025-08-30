@@ -143,6 +143,10 @@ twap_agent_executions_by_episode:Dict[int, List] = {}
 RLagentID = 1
 
 for episode in range(61):
+    kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
+    kwargs["GymTradingAgent"][1]["cash"] = 1000000
+    twap_side = np.random.choice(["buy", "sell"])
+    kwargs["GymTradingAgent"][1]["side"] = twap_side
     twap_agent_executions_by_episode[episode] = []
     i = 0
     action_num = 0
@@ -170,8 +174,7 @@ for episode in range(61):
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-        twap_side = np.random.choice(["buy", "sell"])
-        kwargs["GymTradingAgent"][1]["side"] = twap_side
+        
         # action:list[Tuple] = []
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
@@ -197,10 +200,10 @@ for episode in range(61):
 
                 if(diff != 0):
                     #inventory has changed, order has gone through
-                    if kwargs['GymTradingAgent'][0]["side"] == 'sell':
+                    if twap_side == 'sell':
                         twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0]), diff, twap_side)
                     else:
-                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Aid_L1')[0]), diff, twap_side)
+                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0]), diff, twap_side)
 
 
                 prev_inventory = observations['Inventory']
@@ -365,7 +368,7 @@ for episode in range(61):
 start_midprices_array = np.array(start_midprices)
 
 executions_data = {}
-for episode, executions in twap_agent_executions_by_episode:
+for episode, executions in twap_agent_executions_by_episode.items():
     if executions:
         executions_data[episode] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
 
