@@ -6,18 +6,19 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 
-# log_dir = '/home/ajafree/researchprojects/logs'
-# model_dir = '/home/ajafree/researchprojects/models/icrl_ppo_model_symmetric'
-log_dir = '/Users/alirazajafree/researchprojects/logs'
-model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+log_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/logs'
+model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
+# log_dir = '/Users/alirazajafree/researchprojects/logs'
+# model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_RLAgent_vs_SELL_TWAP_1200q_0.5s'
-layer_widths=128
-n_layers=3
-checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
+label = 'test_ADVERSARIAL_RL,TWAP'
+layer_widths=512
+n_layers=1
+# checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
+checkpoint_params = ('model_metadata_epoch_48_20250825_142323_train_RLAgent_vs_SELL_TWAP_300q_1s_repeated', 48)
 
-with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-# with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+# with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 
@@ -83,13 +84,12 @@ kwargs={
                           "cashlimit": 1000000000,
                           "strategy": "TWAP",
                           "on_trade":False,
-                          "total_order_size":1200,
+                          "total_order_size":300,
                           "order_target":"INTC",
                           "total_time":400,
                           "window_size":50, #window size, measured in seconds
-                          "side":"buy", #buy or sell
-                          "action_freq":0.5,
-                          "Inventory": {"INTC":0},
+                          "action_freq":1,
+                          "Inventory": {"INTC":500},
                           'start_trading_lag': 100,
                           "wake_on_MO": False,
                           "wake_on_Spread": False}
@@ -114,10 +114,14 @@ agents = kwargs['GymTradingAgent']
 j = agents[0]
 tc = 0.0001
 #this is for training:
+# RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+#                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
+#                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
+#                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0) #, hidden_activation='sigmoid'
 RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0) #, hidden_activation='sigmoid'
+                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = j["rewardpenalty"], epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=False, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, TWAPPresent=0 , hidden_activation='sigmoid')
 # RLagentInstance = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
 #                           rewardpenalty = 1e-4, transaction_cost=tc, start_trading_lag = j['start_trading_lag'])
@@ -134,9 +138,12 @@ episode_boundaries = [0]
 cashs:Dict[int, List] = {}
 inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
+start_midprices = []
+twap_agent_executions_by_episode:Dict[int, List] = {}
 RLagentID = 1
 
 for episode in range(61):
+    twap_agent_executions_by_episode[episode] = []
     i = 0
     action_num = 0
     env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
@@ -145,6 +152,7 @@ for episode in range(61):
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
     observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Positions": []} for agent, agentid in zip(agents, AgentsIDs)}
+    start_midprices.append(float((observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2))
     if episode == 0:
         for agent in agents:
             if isinstance(agent, PPOAgent):
@@ -155,12 +163,15 @@ for episode in range(61):
         agent.Actor_Critic_d = loaded_models['d']
         agent.Actor_Critic_u = loaded_models['u']
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+    prev_inventory = 0
     while Simstate["Done"]==False and termination!=True:
         counter_profit +=1
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
+        twap_side = np.random.choice(["buy", "sell"])
+        kwargs["GymTradingAgent"][1]["side"] = twap_side
         # action:list[Tuple] = []
         for agent in agents:
             assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
@@ -181,6 +192,18 @@ for episode in range(61):
                 cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
                 inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
+
+                diff = abs(inventories[agent.id][-1] - prev_inventory)
+
+                if(diff != 0):
+                    #inventory has changed, order has gone through
+                    if kwargs['GymTradingAgent'][0]["side"] == 'sell':
+                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0]), diff, twap_side)
+                    else:
+                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Aid_L1')[0]), diff, twap_side)
+
+
+                prev_inventory = observations['Inventory']
                 
             else:
                 action_num+=1
@@ -338,3 +361,13 @@ for episode in range(61):
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
     torch.cuda.empty_cache()
     # torch.mps.empty_cache()
+
+start_midprices_array = np.array(start_midprices)
+
+executions_data = {}
+for episode, executions in twap_agent_executions_by_episode:
+    if executions:
+        executions_data[episode] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
+
+np.save(log_dir + label + '_start_midprices.npy', start_midprices_array)
+np.savez(log_dir + label + '_twap_executions.npz', **executions_data)

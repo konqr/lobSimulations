@@ -121,7 +121,7 @@ while Simstate["Done"]==False and termination!=True:
 
         Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
 
-        # midprice = float(observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])
+        # midprice = float((observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2)
 
         # price_paths.append(midprice)
 
