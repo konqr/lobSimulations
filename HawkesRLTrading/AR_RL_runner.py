@@ -202,9 +202,9 @@ for episode in range(61):
                 if(diff != 0):
                     #inventory has changed, order has gone through
                     if twap_side == 'sell':
-                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0]), diff, twap_side)
+                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0], diff, twap_side))
                     else:
-                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0]), diff, twap_side)
+                        twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0], diff, twap_side))
 
 
                 prev_inventory = observations['Inventory']
