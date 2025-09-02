@@ -2065,7 +2065,7 @@ class PPOAgent(GymTradingAgent):
         return states, actions
     
 class PPOAgent(PPOAgent):
-    def __init__(self, *args, TWAPPresent=0, **kwargs):
+    def __init__(self, *args, TWAPPresent, **kwargs):
         super().__init__(*args, **kwargs)
         self.TWAPPresent = TWAPPresent
     
