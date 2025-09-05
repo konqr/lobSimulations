@@ -1,10 +1,11 @@
 import sys
 import os
-sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
+sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
+# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
-log_dir = '/Users/alirazajafree/researchprojects/logs'
-model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+log_dir = '/home/ajafree/twap_testing_final/vs_noRL/logs'
+model_dir = '/home/ajafree/twap_testing_final/vs_noRL/model'
 
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
@@ -108,18 +109,19 @@ kwargs={
             #                     'model_dir' : 'D:\\PhD\\calibrated params\\'}],
 
             "Exchange": {"symbol": "INTC",
-            "ticksize":0.01,
-            "LOBlevels": 2,
-            "numOrdersPerLevel": 10,
-            "PriceMid0": 100,
-            "spread0": 0.03},
+                 "ticksize":0.01,
+                 "LOBlevels": 2,
+                 "numOrdersPerLevel": 10,
+                 "PriceMid0": 100,
+                 "spread0": 0.03},
             "Arrival_model": {"name": "Hawkes",
-                                "parameters": {"kernelparams": kernelparams,
-                                        "tod": tod,
-                                        "Pis": Pis,
-                                        "beta": 0.941,
-                                        "avgSpread": 0.0101,
-                                        "Pi_Q0": Pi_Q0}}
+                      "parameters": {"kernelparams": kernelparams,
+                                     "tod": tod,
+                                     "Pis": Pis,
+                                     "beta": 0.941,
+                                     "avgSpread": 0.0101,
+                                     "Pi_Q0": Pi_Q0,
+                                     'expapprox' : True}}
 
         }
 agents = kwargs['GymTradingAgent']
