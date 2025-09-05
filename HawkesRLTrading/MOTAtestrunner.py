@@ -97,6 +97,9 @@ new_mv = True
 env=tradingEnv(stop_time=2600, wall_time_limit=23400, seed=1, **kwargs)
 prev_inventory = 0
 
+start_midprices = []
+twap_agent_executions_by_episode:Dict[int, List] = {}
+
 Simstate, observations, termination, truncation =env.step(action=None) 
 AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
 agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
@@ -137,16 +140,17 @@ while Simstate["Done"]==False and termination!=True:
 
         diff = abs(inventories[agent.id][-1] - prev_inventory)
 
-        if((observations["current_time"]-100)%60 == 0):
-            new_mv = True
 
-        if new_mv:
-             if observations["market_volume"] > 1:
-                if(observations["market_volume"]*60 + observations["Inventory"] > 120):
-                    market_volumes.append(observations["market_volume"]*60)
-                else:
-                    market_volumes.append(120-observations["Inventory"])
-                new_mv = False
+        # if((observations["current_time"]-100)%60 == 0):
+        #     new_mv = True
+
+        # if new_mv:
+        #      if observations["market_volume"] > 1:
+        #         if(observations["market_volume"]*60 + observations["Inventory"] > 120):
+        #             market_volumes.append(observations["market_volume"]*60)
+        #         else:
+        #             market_volumes.append(120-observations["Inventory"])
+        #         new_mv = False
 
         # if(diff != 0):
         #     #inventory has changed, order has gone through

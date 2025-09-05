@@ -6,16 +6,16 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 
-# log_dir = '/home/ajafree/twap_testing_final/vs_untrainedRL/logs'
-# model_dir = '/home/ajafree/twap_testing_final/vs_untrainedRL/model'
-log_dir = '/Users/alirazajafree/researchprojects/logs'
-model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+log_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/logs'
+model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
+# log_dir = '/Users/alirazajafree/researchprojects/logs'
+# model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
 label = 'test_ADVERSARIAL_RL,TWAP'
-layer_widths=128
-n_layers=3
-# layer_widths=512
-# n_layers=1
+# layer_widths=128
+# n_layers=3
+layer_widths=512
+n_layers=1
 # checkpoint_params = ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
 checkpoint_params = ('20250825_142323_train_RLAgent_vs_SELL_TWAP_300q_1s_repeated', 48)
 

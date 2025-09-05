@@ -3,12 +3,10 @@ import os
 sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations/'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
-log_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/logs'
-model_dir = '/SAN/fca/Konark_PhD_Experiments/icrl/models'
-label = 'PPO_ICRL'
-layer_widths=128
-n_layers=3
-with open("/Users/alirazajafree/researchprojects/otherdata/INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+log_dir = '/Users/alirazajafree/researchprojects/logs'
+model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
+
+with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 cols= ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask","co_top_Ask", "mo_Ask", "lo_inspread_Ask" ,
@@ -60,17 +58,17 @@ kwargs={
             #                     "wake_on_Spread": False}],
 
             "GymTradingAgent":[
-                                {"cash": 1000000,
-                                "strategy": "Random",
-                                'on_trade':False,
-                                "action_freq": 1.3,
-                                "rewardpenalty": 0.4,
-                                "Inventory": {"INTC": 1000},
-                                "wake_on_MO": False,
-                                "wake_on_Spread": False,
-                                "log_to_file": True,
-                                "cashlimit": 100000000,
-                                'start_trading_lag': 0}, 
+                                # {"cash": 1000000,
+                                # "strategy": "Random",
+                                # 'on_trade':False,
+                                # "action_freq": 1.3,
+                                # "rewardpenalty": 0.4,
+                                # "Inventory": {"INTC": 1000},
+                                # "wake_on_MO": False,
+                                # "wake_on_Spread": False,
+                                # "log_to_file": True,
+                                # "cashlimit": 100000000,
+                                # 'start_trading_lag': 0}, 
                                 {"cash":100,
                                 "cashlimit": 1000000000,
                                 "strategy": "TWAP",
@@ -79,7 +77,6 @@ kwargs={
                                 "order_target":"INTC",
                                 "total_time":400,
                                 "window_size":50, #window size, measured in seconds
-                                "side":"buy", #buy or sell
                                 "action_freq":1,
                                 "Inventory": {"INTC":500},
                                 'start_trading_lag': 100,
@@ -161,62 +158,85 @@ observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Pos
 # agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
 # agent.setupNNs(observations)
 logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+start_midprices = []
+twap_agent_executions_by_episode:Dict[int, List] = {}
 
-
-
-
-while Simstate["Done"]==False and termination!=True:
-    logger.debug(f"ENV TERMINATION: {termination}")
+for episode in range(61):
+    kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
+    kwargs["GymTradingAgent"][1]["cash"] = 1000000
+    twap_side = np.random.choice(["buy", "sell"])
+    kwargs["GymTradingAgent"][1]["side"] = twap_side
+    twap_agent_executions_by_episode[episode] = []
+    i = 0
+    action_num = 0
+    env=tradingEnv(stop_time=400, wall_time_limit=23400, **kwargs)
+    print("Initial Observations"+ str(env.getobservations()))
+    Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-    print(f"Agents with IDs {AgentsIDs} have an action available")
     agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-
-    for agent in agents: 
-        assert isinstance(agent, GymTradingAgent), "Agent with action should be a GymTradingAgent"
-        t+=[Simstate['TimeCode']]
+    observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Positions": []} for agent, agentid in zip(agents, AgentsIDs)}
+    start_midprices.append(float((observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2))
+    if episode == 0:
+        for agent in agents:
+            if isinstance(agent, PPOAgent):
+                agent.setupNNs(observations)
         
-        agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
-        if agent.strategy == "Probabilistic":
-            action = (agent.id, agentAction[0])
-            # t+=[Simstate['TimeCode']]
-        else:
+    logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
+    prev_inventory = 0
+    while Simstate["Done"]==False and termination!=True:
+        counter_profit +=1
+        logger.debug(f"ENV TERMINATION: {termination}")
+        AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
+        print(f"Agents with IDs {AgentsIDs} have an action available")
+        agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
+
+        for agent in agents: 
+            action_num+=1
+            agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
             action = (agent.id, agentAction)
-        print(f"Action: {action}")
-        
-        observations_prev = copy.deepcopy(observationsDict.get(agent.id, {}))
-        print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
-        print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
-        
-        Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
-        observationsDict.update({agent.id:observations})
-        logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-        # cash += [observations['Cash']]
-        cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
-        # inventory += [observations['Inventory']]
-        inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
-        # actions += [action[1][0]]
-        actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
-
-
-        if agent.strategy == "Probabilistic":
-            current_pnl = cashs[agent.id][-1] + inventories[agent.id][-1] * agent.mid * (1 - tc*np.sign(inventories[agent.id][-1]))
-            finalcash2.append(current_pnl)
+            print(f"Action: {action}")
             
-        print(f"ACTION DONE{i}")
-        i+=1
-        print(f"Final inventory: {agent.Inventory}")
+            print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
+            print(f"Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
+            
+            Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
+            observationsDict.update({agent.id:observations})
+            logger.debug(f"\n Agent: {agent.id}\n Simstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
+            cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
+            inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
+            actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
 
-# np.save("/Users/alirazajafree/researchprojects/probabilistictests/probabilistic1", np.array([t, finalcash2]))
+            diff = abs(inventories[agent.id][-1] - prev_inventory)
 
-if termination:
-    print("Termination condition reached.")
-elif truncation:
-    print("Truncation condition reached.")
-else:
-    pass
+            if(diff != 0):
+                #inventory has changed, order has gone through
+                if twap_side == 'sell':
+                    twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Bid_L1')[0], diff, twap_side))
+                else:
+                    twap_agent_executions_by_episode[episode].append((observationsDict.get(agent.id, {}).get('LOB0', '').get('Ask_L1')[0], diff, twap_side))
+
+
+                prev_inventory = observations['Inventory']
+
+    if termination:
+        print("Termination condition reached.")
+    elif truncation:
+        print("Truncation condition reached.")
+    else:
+        pass
 print(twap_time)
 plt.figure(figsize=(12,8))
 
 plt.plot(np.arange(len(cashs[2])), inventories[2])
 plt.title('Inventory')
 plt.show()
+
+start_midprices_array = np.array(start_midprices)
+
+executions_data = {}
+for episode, executions in twap_agent_executions_by_episode.items():
+    if executions:
+        executions_data[f"episode_{episode}"] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
+
+np.save(log_dir + label + '_start_midprices.npy', start_midprices_array)
+np.savez(log_dir + label + '_twap_executions.npz', **executions_data)
