@@ -166,7 +166,7 @@ for episode in range(61):
         agent.Actor_Critic_d = loaded_models['d']
         agent.Actor_Critic_u = loaded_models['u']
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
-    prev_inventory = 0
+    prev_inventory = 500
     while Simstate["Done"]==False and termination!=True:
         counter_profit +=1
         logger.debug(f"ENV TERMINATION: {termination}")

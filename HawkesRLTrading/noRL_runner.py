@@ -7,6 +7,9 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 log_dir = '/home/ajafree/twap_testing_final/vs_noRL/logs'
 model_dir = '/home/ajafree/twap_testing_final/vs_noRL/model'
 
+label = 'test_no_RL,TWAP'
+
+
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
@@ -184,7 +187,7 @@ for episode in range(61):
                 agent.setupNNs(observations)
         
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
-    prev_inventory = 0
+    prev_inventory = 500
     while Simstate["Done"]==False and termination!=True:
         counter_profit +=1
         logger.debug(f"ENV TERMINATION: {termination}")
@@ -226,12 +229,6 @@ for episode in range(61):
         print("Truncation condition reached.")
     else:
         pass
-print(twap_time)
-plt.figure(figsize=(12,8))
-
-plt.plot(np.arange(len(cashs[2])), inventories[2])
-plt.title('Inventory')
-plt.show()
 
 start_midprices_array = np.array(start_midprices)
 
