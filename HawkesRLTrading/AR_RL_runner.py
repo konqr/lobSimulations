@@ -371,7 +371,7 @@ start_midprices_array = np.array(start_midprices)
 executions_data = {}
 for episode, executions in twap_agent_executions_by_episode.items():
     if executions:
-        executions_data[episode] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
+        executions_data[f"episode_{episode}"] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
 
 np.save(log_dir + label + '_start_midprices.npy', start_midprices_array)
 np.savez(log_dir + label + '_twap_executions.npz', **executions_data)
