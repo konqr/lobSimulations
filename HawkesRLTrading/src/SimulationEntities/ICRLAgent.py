@@ -2064,58 +2064,58 @@ class PPOAgent(GymTradingAgent):
 
         return states, actions
     
-class PPOAgent(PPOAgent):
-    def __init__(self, *args, TWAPPresent, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.TWAPPresent = TWAPPresent
+# class PPOAgent(PPOAgent):
+#     def __init__(self, *args, TWAPPresent, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.TWAPPresent = TWAPPresent
     
-    def readData(self, data):
-        """
-        Read and preprocess trading data
+#     def readData(self, data):
+#         """
+#         Read and preprocess trading data
 
-        :param data: Input trading data
-        :return: Processed state tensor
-        """
-        time = data['current_time']
-        p_a, q_a = data['LOB0']['Ask_L1']
-        p_b, q_b = data['LOB0']['Bid_L1']
-        self.mid = 0.5*(p_a + p_b)
-        _, qD_a = data['LOB0']['Ask_L2']
-        _, qD_b = data['LOB0']['Bid_L2']
-        pos = data['Positions']
-        n_as = get_queue_priority(data, pos, 'Ask_L1')
-        n_as = np.append(n_as, get_queue_priority(data, pos, 'Ask_L2'))
-        n_as = np.append(n_as, [q_a+qD_a])
-        n_bs = get_queue_priority(data, pos, 'Bid_L1')
-        n_bs = np.append(n_bs, get_queue_priority(data, pos, 'Bid_L2'))
-        n_bs = np.append(n_bs, [q_b+qD_b])
-        n_a, n_b = np.min(n_as), np.min(n_bs)
-        lambdas = data['current_intensity']
-        lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
-        past_times = data['past_times']
-        if self.Inventory['INTC'] ==0: self.init_cash = self.cash
-        skew = (n_a - n_b)/(0.5*(q_a + q_b))
-        avgFillPrice = 0
-        if self.Inventory['INTC'] != 0 :
-            avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
-        bool_mo_bid = np.argmax(lambdas_norm) == 4
-        bool_mo_ask = np.argmax(lambdas_norm) == 7
-        if self.alt_state:
-            state = [[time, self.Inventory['INTC']] ]
-            if self.ablation_params.get('spread', True):
-                state[0] = state[0] + [p_a - p_b]
-            if self.ablation_params.get('n_a', True):
-                state[0] = state[0] + [n_a/q_a, n_b/q_b]
-            if self.ablation_params.get('lambda', True):
-                state[0] = state[0] + list(lambdas_norm)
-            if self.ablation_params.get('hist', True):
-                state[0] = state[0] + list(past_times.flatten())
-            state = torch.tensor(state, dtype=torch.float32).to(self.device)
-        else:
-            state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
-        state = torch.cat([state, torch.tensor([[self.TWAPPresent]], dtype=torch.float32).to(self.device)], 1)
-        if self.enhance_state:
-            state = torch.cat([state, torch.tensor([[skew, p_a < avgFillPrice, p_b > avgFillPrice,  bool_mo_bid, bool_mo_ask]], dtype=torch.float32).to(self.device)], 1)
-        if self.include_time:
-            state = torch.cat([state,torch.tensor([[time]], dtype=torch.float32).to(self.device)], 1)
-        return state
+#         :param data: Input trading data
+#         :return: Processed state tensor
+#         """
+#         time = data['current_time']
+#         p_a, q_a = data['LOB0']['Ask_L1']
+#         p_b, q_b = data['LOB0']['Bid_L1']
+#         self.mid = 0.5*(p_a + p_b)
+#         _, qD_a = data['LOB0']['Ask_L2']
+#         _, qD_b = data['LOB0']['Bid_L2']
+#         pos = data['Positions']
+#         n_as = get_queue_priority(data, pos, 'Ask_L1')
+#         n_as = np.append(n_as, get_queue_priority(data, pos, 'Ask_L2'))
+#         n_as = np.append(n_as, [q_a+qD_a])
+#         n_bs = get_queue_priority(data, pos, 'Bid_L1')
+#         n_bs = np.append(n_bs, get_queue_priority(data, pos, 'Bid_L2'))
+#         n_bs = np.append(n_bs, [q_b+qD_b])
+#         n_a, n_b = np.min(n_as), np.min(n_bs)
+#         lambdas = data['current_intensity']
+#         lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
+#         past_times = data['past_times']
+#         if self.Inventory['INTC'] ==0: self.init_cash = self.cash
+#         skew = (n_a - n_b)/(0.5*(q_a + q_b))
+#         avgFillPrice = 0
+#         if self.Inventory['INTC'] != 0 :
+#             avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
+#         bool_mo_bid = np.argmax(lambdas_norm) == 4
+#         bool_mo_ask = np.argmax(lambdas_norm) == 7
+#         if self.alt_state:
+#             state = [[time, self.Inventory['INTC']] ]
+#             if self.ablation_params.get('spread', True):
+#                 state[0] = state[0] + [p_a - p_b]
+#             if self.ablation_params.get('n_a', True):
+#                 state[0] = state[0] + [n_a/q_a, n_b/q_b]
+#             if self.ablation_params.get('lambda', True):
+#                 state[0] = state[0] + list(lambdas_norm)
+#             if self.ablation_params.get('hist', True):
+#                 state[0] = state[0] + list(past_times.flatten())
+#             state = torch.tensor(state, dtype=torch.float32).to(self.device)
+#         else:
+#             state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+#         state = torch.cat([state, torch.tensor([[self.TWAPPresent]], dtype=torch.float32).to(self.device)], 1)
+#         if self.enhance_state:
+#             state = torch.cat([state, torch.tensor([[skew, p_a < avgFillPrice, p_b > avgFillPrice,  bool_mo_bid, bool_mo_ask]], dtype=torch.float32).to(self.device)], 1)
+#         if self.include_time:
+#             state = torch.cat([state,torch.tensor([[time]], dtype=torch.float32).to(self.device)], 1)
+#         return state
