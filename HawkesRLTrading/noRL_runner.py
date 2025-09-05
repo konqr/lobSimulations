@@ -5,7 +5,6 @@ sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 log_dir = '/home/ajafree/twap_testing_final/vs_noRL/logs'
-model_dir = '/home/ajafree/twap_testing_final/vs_noRL/model'
 
 label = 'test_no_RL,TWAP'
 
