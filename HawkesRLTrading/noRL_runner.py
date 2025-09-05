@@ -189,7 +189,6 @@ for episode in range(61):
     logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
     prev_inventory = 500
     while Simstate["Done"]==False and termination!=True:
-        counter_profit +=1
         logger.debug(f"ENV TERMINATION: {termination}")
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
