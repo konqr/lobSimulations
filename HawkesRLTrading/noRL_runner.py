@@ -166,10 +166,10 @@ start_midprices = []
 twap_agent_executions_by_episode:Dict[int, List] = {}
 
 for episode in range(61):
-    kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
-    kwargs["GymTradingAgent"][1]["cash"] = 1000000
+    kwargs["GymTradingAgent"][0]["Inventory"] = {"INTC": 500}
+    kwargs["GymTradingAgent"][0]["cash"] = 1000000
     twap_side = np.random.choice(["buy", "sell"])
-    kwargs["GymTradingAgent"][1]["side"] = twap_side
+    kwargs["GymTradingAgent"][0]["side"] = twap_side
     twap_agent_executions_by_episode[episode] = []
     i = 0
     action_num = 0
