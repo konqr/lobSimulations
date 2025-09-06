@@ -141,7 +141,6 @@ actionss:Dict[int, List] = {}
 
 avgEpisodicRewards, stdEpisodicRewards, finalcash, finalcash2 =[],[],[], []
 
-logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
 start_midprices = []
 twap_agent_executions_by_episode:Dict[int, List] = {}
 
