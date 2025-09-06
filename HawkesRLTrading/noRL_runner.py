@@ -140,27 +140,7 @@ inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 
 avgEpisodicRewards, stdEpisodicRewards, finalcash, finalcash2 =[],[],[], []
-# train_logger = TrainingLogger(layer_widths=layer_widths, n_layers=n_layers, log_dir=log_dir, label = label)
-# model_manager = ModelManager(model_dir = model_dir, label = label)
 
-# for episode in range(10):
-twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + 100
-kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
-#randomise buy or sell
-side = np.random.choice(["buy", "sell"])
-kwargs["GymTradingAgent"][1]["side"] = side
-
-print(f"Twap time: {twap_time} and side: {side}")
-env=tradingEnv(stop_time=400, wall_time_limit=23400, seed=1, **kwargs)
-print("Initial Observations"+ str(env.getobservations()))
-
-
-Simstate, observations, termination, truncation =env.step(action=None) 
-AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
-agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
-observationsDict:Dict[int, Dict] = {agentid: {"Inventory": agent.Inventory, "Positions": []} for agent, agentid in zip(agents, AgentsIDs)}
-# agent: GymTradingAgent=env.getAgent(ID=AgentsIDs[0])
-# agent.setupNNs(observations)
 logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}")
 start_midprices = []
 twap_agent_executions_by_episode:Dict[int, List] = {}
