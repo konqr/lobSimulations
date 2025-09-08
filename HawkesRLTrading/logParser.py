@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from collections import defaultdict
-import seaborn as sns
+# import seaborn as sns
 import pickle
 import numpy as np
 from typing import Dict, Any, Tuple, List
@@ -295,8 +295,8 @@ def main():
 
     return df
 
-def calcSharpe():
-    arr = np.load("D:\\PhD\\results - icrl\\logstest_fullstate_pl_profit.npy")
+def calcSharpe(file):
+    arr = np.load(file)
     episode_boundaries = np.where(np.diff(arr[0]) <0)[0]
     start_idxs = episode_boundaries[:-1] + 1
     end_idxs = episode_boundaries[1:]
@@ -486,6 +486,34 @@ def print_symmetry_report(results: Dict[str, Any]) -> None:
         for detail in results['details']:
             print(f"  {detail}")
 
+def calcSlippage(start_midprices_file, twap_executions_file):
+    start_midprices = np.load(start_midprices_file)
+    twap_executions = np.load(twap_executions_file)
+    slippage_total = 0
+    differences = 0
+    for episode in range(61):
+        episode_executions = twap_executions[f"episode_{episode}"]
+        episode_total_execution_value = 0
+        episode_side = episode_executions[0]["side"]
+        total_executed = 0
+        for execution in episode_executions:
+            total_executed += execution["quantity"]
+            episode_total_execution_value += execution["price"]*execution["quantity"]
+        arrival = start_midprices[episode] * total_executed
+
+        if episode_side == "sell":
+            differences += (arrival - episode_total_execution_value)
+            slippage = (arrival - episode_total_execution_value) / arrival
+            
+        else:
+            differences += (episode_total_execution_value - arrival)
+            slippage = (episode_total_execution_value - arrival) / arrival
+        slippage_total += slippage
+
+    print((slippage_total/61)*100*100)
+
+
+
 
 # if __name__ == "__main__":
 #     # Your example params
@@ -502,5 +530,25 @@ def print_symmetry_report(results: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     # Run the analysis
-    df = main()
-    print(calcSharpe())
+    # df = main()
+    # print(calcSharpe())
+    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsNoAgent/"
+    midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
+    executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
+    print("No RL")
+    calcSlippage(midprices_file, executions_file)
+
+    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
+    midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
+    executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
+    print("Untrained")
+    calcSlippage(midprices_file, executions_file)
+
+    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/"
+    midprices_file = log_label+ "logstest_ADVERSARIAL_RL,TWAP_start_midprices.npy"
+    executions_file = log_label+"logstest_ADVERSARIAL_RL,TWAP_twap_executions.npz"
+    print("Trained")
+    calcSlippage(midprices_file, executions_file)
+
+    print("Sharpe for trained")
+    print(calcSharpe("/Users/alirazajafree/researchprojects/Training Results/outputfile/logstrain_RLAgent_vs_SELL_TWAP_300q_1s_repeated_profit.npy"))

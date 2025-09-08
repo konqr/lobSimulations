@@ -35,26 +35,47 @@ for k in cols:
 tod=np.zeros(shape=(len(cols), 13))
 for i in range(len(cols)):
     tod[i]=[faketod[cols[i]][k] for k in range(13)]
+# Pis={'Bid_L2': [0.,
+#                 [(1, 1.)]],
+#      'Bid_inspread': [0.,
+#                       [(1, 1.)]],
+#      'Bid_L1': [0.,
+#                 [(1, 1.)]],
+#      'Bid_MO': [0.,
+#                 [(1, 1.)]]}
+# Pis["Ask_MO"] = Pis["Bid_MO"]
+# Pis["Ask_L1"] = Pis["Bid_L1"]
+# Pis["Ask_inspread"] = Pis["Bid_inspread"]
+# Pis["Ask_L2"] = Pis["Bid_L2"]
+# Pi_Q0= {'Ask_L1': [0.,
+#                    [(10, 1.)]],
+#         'Ask_L2': [0.,
+#                    [(10, 1.)]],
+#         'Bid_L1': [0.,
+#                    [(10, 1.)]],
+#         'Bid_L2': [0.,
+#                    [(10, 1.)]]}
+
 Pis={'Bid_L2': [0.,
-                [(1, 1.)]],
+                [(40, 1.)]],
      'Bid_inspread': [0.,
-                      [(1, 1.)]],
+                      [(40, 1.)]],
      'Bid_L1': [0.,
-                [(1, 1.)]],
+                [(40, 1.)]],
      'Bid_MO': [0.,
-                [(1, 1.)]]}
+                [(40, 1.)]]}
 Pis["Ask_MO"] = Pis["Bid_MO"]
 Pis["Ask_L1"] = Pis["Bid_L1"]
 Pis["Ask_inspread"] = Pis["Bid_inspread"]
 Pis["Ask_L2"] = Pis["Bid_L2"]
 Pi_Q0= {'Ask_L1': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Ask_L2': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Bid_L1': [0.,
-                   [(10, 1.)]],
+                   [(200, 1.)]],
         'Bid_L2': [0.,
-                   [(10, 1.)]]}
+                   [(200, 1.)]]}
 
 kwargs={
     "TradingAgent": [],
@@ -62,7 +83,8 @@ kwargs={
                         {"cash": 2500,
                          "strategy": "ICRL",
                          "action_freq": 0.213,
-                         "rewardpenalty": 0.5,
+                        #  "rewardpenalty": 0.5,
+                        "rewardpenalty": 1,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
@@ -70,17 +92,6 @@ kwargs={
                          'start_trading_lag': 100,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
-                        # {"cash": 2500,
-                        #  "strategy": "Probabilistic",
-                        #  "action_freq": 0.213,
-                        #  "rewardpenalty": 0.5,
-                        #  "Inventory": {"INTC": 0},
-                        #  "log_to_file": True,
-                        #  "cashlimit": 5000000,
-                        #  "inventorylimit": 25,
-                        #  'start_trading_lag': 100,
-                        #  "wake_on_MO": True,
-                        #  "wake_on_Spread": True}
                          ,
                          {"cash":100,
                           "cashlimit": 1000000000,
@@ -146,6 +157,9 @@ for episode in range(61):
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
     twap_side = np.random.choice(["buy", "sell"])
     kwargs["GymTradingAgent"][1]["side"] = twap_side
+    
+    RLagentInstance.TWAPPresent = -1 if twap_side == "sell" else 1 #comment out for non adversarial agent
+        
     twap_agent_executions_by_episode[episode] = []
     i = 0
     action_num = 0
