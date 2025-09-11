@@ -6,12 +6,12 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 
-log_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/logs'
+log_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/logs/with_randomised_starttimes'
 model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_ADVERSARIAL_RL,TWAP'
+label = 'test_ADVERSARIAL_RL,TWAP_randomisedstart'
 # layer_widths=128
 # n_layers=3
 layer_widths=512
@@ -130,10 +130,10 @@ tc = 0.0001
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 1000, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5)
-RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
+RLagentInstance = AdversarialPPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = j["rewardpenalty"], epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=False, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, TWAPPresent=1, hidden_activation='sigmoid')
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=False, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, TWAPPresent=0, hidden_activation='sigmoid')
 
 j['agent_instance'] = RLagentInstance
 kwargs['GymTradingAgent'] = agents
@@ -152,14 +152,18 @@ start_midprices = []
 twap_agent_executions_by_episode:Dict[int, List] = {}
 RLagentID = 1
 
+start_times = np.load("/home/ajafree/twap_testing_final/start_times.npy")
+
+
 for episode in range(61):
     kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
     twap_side = np.random.choice(["buy", "sell"])
     kwargs["GymTradingAgent"][1]["side"] = twap_side
-    
-    RLagentInstance.TWAPPresent = -1 if twap_side == "sell" else 1 #comment out for non adversarial agent
-        
+    RLagentInstance.TWAPPresent = False
+    twap_time = start_times[episode]
+    # RLagentInstance.TWAPPresent = -1 if twap_side == "sell" else 1 #comment out for non adversarial agent
+    kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
     twap_agent_executions_by_episode[episode] = []
     i = 0
     action_num = 0
@@ -187,6 +191,9 @@ for episode in range(61):
         AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
         print(f"Agents with IDs {AgentsIDs} have an action available")
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
+        if isinstance(RLagentInstance, AdversarialPPOAgent):
+            if(Simstate['TimeCode'] > twap_time) and not RLagentInstance.TWAPPresent:
+                RLagentInstance.TWAPPresent = -1 if twap_side == 'sell' else 1
         
         # action:list[Tuple] = []
         for agent in agents:

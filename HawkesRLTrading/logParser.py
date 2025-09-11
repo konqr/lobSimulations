@@ -551,4 +551,9 @@ if __name__ == "__main__":
     calcSlippage(midprices_file, executions_file)
 
     print("Sharpe for trained")
-    print(calcSharpe("/Users/alirazajafree/researchprojects/Training Results/outputfile/logstrain_RLAgent_vs_SELL_TWAP_300q_1s_repeated_profit.npy"))
+    print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/logstest_ADVERSARIAL_RL,TWAP_profit.npy"))
+
+    print("Sharpe for untrained")
+    print(calcSharpe('/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/logstest_untrained_RL,TWAP_profit.npy'))
+
+    
