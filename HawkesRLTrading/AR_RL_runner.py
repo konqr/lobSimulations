@@ -157,11 +157,10 @@ inventory_without_twap = []
 inventory_with_twap_sell = []
 inventory_with_twap_buy = []
 
-
+twap_side = np.random.choice(["buy", "sell"])
 for episode in range(1):
     kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
-    twap_side = np.random.choice(["buy", "sell"])
     kwargs["GymTradingAgent"][1]["side"] = twap_side
     RLagentInstance.TWAPPresent = False
     # twap_time = start_times[episode]
@@ -404,7 +403,11 @@ for episode, executions in twap_agent_executions_by_episode.items():
         executions_data[f"episode_{episode}"] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
 
 np.save(log_dir + "without_twap_1.npy", np.array(inventory_without_twap))
-np.save(log_dir + "with_twap_1.npy", np.array(inventory_with_twap))
+
+if(twap_side == "sell"):
+    np.save(log_dir + "with_twap_1.npy", np.array(inventory_with_twap_sell))
+else:
+    np.save(log_dir + "with_twap_1.npy", np.array(inventory_with_twap_buy))
 
 # np.save(log_dir + label + '_start_midprices.npy', start_midprices_array)
 # np.savez(log_dir + label + '_twap_executions.npz', **executions_data)
