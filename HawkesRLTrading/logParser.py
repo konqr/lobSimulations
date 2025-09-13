@@ -486,6 +486,37 @@ def print_symmetry_report(results: Dict[str, Any]) -> None:
         for detail in results['details']:
             print(f"  {detail}")
 
+def calcSlippage_trained(start_midprices_file, twap_executions_file):
+    start_times = np.load("/Users/alirazajafree/researchprojects/FinalTWAPTesting/start_times.npy")
+    startimes = [time - 100 for time in start_times]
+    # start_midprices = np.load(start_midprices_file)
+    twap_executions = np.load(twap_executions_file)
+    slippage_total = 0
+    differences = 0
+    for episode in range(61):
+        time = startimes[episode]
+        episode_executions = twap_executions[f"episode_{episode}"]
+        episode_total_execution_value = 0
+        episode_side = episode_executions[0]["side"]
+        total_executed = 0
+        for execution in episode_executions:
+            print(execution["price"])
+            total_executed += execution["quantity"]
+            episode_total_execution_value += execution["price"]*execution["quantity"]
+        start_midprice = episode_executions[0]["price"]
+        arrival = start_midprice * total_executed
+        if episode_side == "sell":
+            differences += (arrival - episode_total_execution_value)
+            slippage = (arrival - episode_total_execution_value) / arrival
+            
+        else:
+            differences += (episode_total_execution_value - arrival)
+            slippage = (episode_total_execution_value - arrival) / arrival
+        slippage_total += slippage
+
+    print(f"Differences: {differences}")
+    print((slippage_total/61)*100*100)
+
 def calcSlippage(start_midprices_file, twap_executions_file):
     start_midprices = np.load(start_midprices_file)
     twap_executions = np.load(twap_executions_file)
@@ -497,22 +528,21 @@ def calcSlippage(start_midprices_file, twap_executions_file):
         episode_side = episode_executions[0]["side"]
         total_executed = 0
         for execution in episode_executions:
+            
             total_executed += execution["quantity"]
             episode_total_execution_value += execution["price"]*execution["quantity"]
-        arrival = start_midprices[episode] * total_executed
-
+        start_midprice = episode_executions[0]["price"]
+        arrival = start_midprice * total_executed
         if episode_side == "sell":
             differences += (arrival - episode_total_execution_value)
             slippage = (arrival - episode_total_execution_value) / arrival
-            
         else:
             differences += (episode_total_execution_value - arrival)
             slippage = (episode_total_execution_value - arrival) / arrival
         slippage_total += slippage
 
+    print(f"Differences: {differences}")
     print((slippage_total/61)*100*100)
-
-
 
 
 # if __name__ == "__main__":
@@ -538,22 +568,22 @@ if __name__ == "__main__":
     print("No RL")
     calcSlippage(midprices_file, executions_file)
 
-    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
-    midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
-    executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
-    print("Untrained")
-    calcSlippage(midprices_file, executions_file)
+    # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
+    # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
+    # executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
+    # print("Untrained")
+    # calcSlippage(midprices_file, executions_file)
 
-    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/"
-    midprices_file = log_label+ "logstest_ADVERSARIAL_RL,TWAP_start_midprices.npy"
-    executions_file = log_label+"logstest_ADVERSARIAL_RL,TWAP_twap_executions.npz"
+    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
+    midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
+    executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
     print("Trained")
-    calcSlippage(midprices_file, executions_file)
+    calcSlippage_trained(midprices_file, executions_file)
 
     print("Sharpe for trained")
-    print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/logstest_ADVERSARIAL_RL,TWAP_profit.npy"))
+    print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_profit.npy"))
 
-    print("Sharpe for untrained")
-    print(calcSharpe('/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/logstest_untrained_RL,TWAP_profit.npy'))
+    # print("Sharpe for untrained")
+    # print(calcSharpe('/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/logstest_untrained_RL,TWAP_profit.npy'))
 
     
