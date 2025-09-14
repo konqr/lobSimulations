@@ -8,6 +8,7 @@ from collections import defaultdict
 import pickle
 import numpy as np
 from typing import Dict, Any, Tuple, List
+import glob
 
 def parse_log_file(filename):
     """
@@ -544,6 +545,68 @@ def calcSlippage(start_midprices_file, twap_executions_file):
     print(f"Differences: {differences}")
     print((slippage_total/61)*100*100)
 
+def graphInventories(beforetwap, withtwap_buy, withtwap_sell):
+    plt.figure(figsize=(12, 8))
+    
+    # Flatten the lists of lists to get all inventory values
+    all_before = []
+    all_buy = []
+    all_sell = []
+    
+    # Flatten beforetwap (list of lists across episodes)
+    for episode_inventories in beforetwap:
+        all_before.extend(episode_inventories)
+    
+    # Flatten withtwap_buy (list of lists across episodes) 
+    for episode_inventories in withtwap_buy:
+        all_buy.extend(episode_inventories)
+        
+    # Flatten withtwap_sell (list of lists across episodes)
+    for episode_inventories in withtwap_sell:
+        all_sell.extend(episode_inventories)
+    
+    # Create normalized histograms (density=True gives probability density)
+    # weights parameter normalizes to show ratios/proportions that sum to 1
+    if all_before:
+        weights_before = np.ones(len(all_before)) / len(all_before)
+        plt.hist(all_before, bins=30, alpha=0.7, label=f'Before TWAP (n={len(all_before)})', 
+                 color='blue', edgecolor='black', weights=weights_before)
+    
+    if all_buy:
+        weights_buy = np.ones(len(all_buy)) / len(all_buy)
+        plt.hist(all_buy, bins=30, alpha=0.7, label=f'With TWAP Buy (n={len(all_buy)})', 
+                 color='green', edgecolor='black', weights=weights_buy)
+    
+    if all_sell:
+        weights_sell = np.ones(len(all_sell)) / len(all_sell)
+        plt.hist(all_sell, bins=30, alpha=0.7, label=f'With TWAP Sell (n={len(all_sell)})', 
+                 color='red', edgecolor='black', weights=weights_sell)
+    
+    # Add median lines
+    if all_before:
+        plt.axvline(np.median(all_before), color='blue', linestyle='--', linewidth=2, 
+                   label=f'Before Median: {np.median(all_before):.1f}')
+    if all_buy:
+        plt.axvline(np.median(all_buy), color='green', linestyle='--', linewidth=2,
+                   label=f'Buy Median: {np.median(all_buy):.1f}')
+    if all_sell:
+        plt.axvline(np.median(all_sell), color='red', linestyle='--', linewidth=2,
+                   label=f'Sell Median: {np.median(all_sell):.1f}')
+    
+    plt.xlabel('RL Agent Inventory')
+    plt.ylabel('Proportion') 
+    plt.title('RL Agent Inventory Distribution: Before vs With TWAP (Normalized)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Print summary statistics
+    print(f"Before TWAP - Count: {len(all_before)}, Median: {np.median(all_before) if all_before else 0:.2f}, Mean: {np.mean(all_before) if all_before else 0:.2f}")
+    print(f"With TWAP Buy - Count: {len(all_buy)}, Median: {np.median(all_buy) if all_buy else 0:.2f}, Mean: {np.mean(all_buy) if all_buy else 0:.2f}")
+    print(f"With TWAP Sell - Count: {len(all_sell)}, Median: {np.median(all_sell) if all_sell else 0:.2f}, Mean: {np.mean(all_sell) if all_sell else 0:.2f}")
+    
+    plt.tight_layout()
+    plt.show()
+
 
 # if __name__ == "__main__":
 #     # Your example params
@@ -562,26 +625,46 @@ if __name__ == "__main__":
     # Run the analysis
     # df = main()
     # print(calcSharpe())
-    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsNoAgent/"
-    midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
-    executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
-    print("No RL")
-    calcSlippage(midprices_file, executions_file)
+    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/testing_RL/npy_files/"
+    beforetwap = []
+    twapbuy = []
+    twapsell = []
+    # Find all files matching the pattern
+    without_files = glob.glob(log_label + "without_twap_*.npy")
+    for file in without_files:
+        arr = np.load(file)
+        beforetwap.append(arr.tolist())
 
-    # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
-    # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
-    # executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
-    # print("Untrained")
+    buy_files = glob.glob(log_label + "with_twap_*_buy.npy")
+    for file in buy_files:
+        arr = np.load(file)
+        twapbuy.append(arr.tolist())
+
+    sell_files = glob.glob(log_label + "with_twap_*_sell.npy")
+    for file in sell_files:
+        arr = np.load(file)
+        twapsell.append(arr.tolist())
+
+    graphInventories(beforetwap, twapbuy, twapsell)
+    # midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
+    # executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
+    # print("No RL")
     # calcSlippage(midprices_file, executions_file)
 
-    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
-    midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
-    executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
-    print("Trained")
-    calcSlippage_trained(midprices_file, executions_file)
+    # # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
+    # # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
+    # # executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
+    # # print("Untrained")
+    # # calcSlippage(midprices_file, executions_file)
 
-    print("Sharpe for trained")
-    print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_profit.npy"))
+    # log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
+    # midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
+    # executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
+    # print("Trained")
+    # calcSlippage_trained(midprices_file, executions_file)
+
+    # print("Sharpe for trained")
+    # print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_profit.npy"))
 
     # print("Sharpe for untrained")
     # print(calcSharpe('/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/logstest_untrained_RL,TWAP_profit.npy'))
