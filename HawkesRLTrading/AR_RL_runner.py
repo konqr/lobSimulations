@@ -11,7 +11,7 @@ model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_episode1'
+label = 'test_episode2'
 # layer_widths=128
 # n_layers=3
 layer_widths=512
@@ -402,12 +402,12 @@ for episode, executions in twap_agent_executions_by_episode.items():
     if executions:
         executions_data[f"episode_{episode}"] = np.array(executions, dtype=[('price', 'f8'), ('quantity', 'f8'), ('side', 'U4')])
 
-np.save(log_dir + "without_twap_1.npy", np.array(inventory_without_twap))
+np.save(log_dir + "without_twap_2.npy", np.array(inventory_without_twap))
 
 if(twap_side == "sell"):
-    np.save(log_dir + "with_twap_1_sell.npy", np.array(inventory_with_twap_sell))
+    np.save(log_dir + "with_twap_2_sell.npy", np.array(inventory_with_twap_sell))
 else:
-    np.save(log_dir + "with_twap_1_buy.npy", np.array(inventory_with_twap_buy))
+    np.save(log_dir + "with_twap_2_buy.npy", np.array(inventory_with_twap_buy))
 
 # np.save(log_dir + label + '_start_midprices.npy', start_midprices_array)
 # np.savez(log_dir + label + '_twap_executions.npz', **executions_data)
