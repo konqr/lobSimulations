@@ -494,6 +494,7 @@ def calcSlippage_trained(start_midprices_file, twap_executions_file):
     twap_executions = np.load(twap_executions_file)
     slippage_total = 0
     differences = 0
+    epis = 0
     for episode in range(61):
         time = startimes[episode]
         episode_executions = twap_executions[f"episode_{episode}"]
@@ -501,22 +502,27 @@ def calcSlippage_trained(start_midprices_file, twap_executions_file):
         episode_side = episode_executions[0]["side"]
         total_executed = 0
         for execution in episode_executions:
-            print(execution["price"])
+            # print(execution["price"])
             total_executed += execution["quantity"]
             episode_total_execution_value += execution["price"]*execution["quantity"]
         start_midprice = episode_executions[0]["price"]
         arrival = start_midprice * total_executed
-        if episode_side == "sell":
-            differences += (arrival - episode_total_execution_value)
-            slippage = (arrival - episode_total_execution_value) / arrival
-            
-        else:
+        if episode_side == "buy":
+            if (episode_total_execution_value - arrival) < 0:
+                thing+=1
+                print(f"Execution value: {episode_total_execution_value}. Arrival cost: {arrival}")
             differences += (episode_total_execution_value - arrival)
+            
             slippage = (episode_total_execution_value - arrival) / arrival
-        slippage_total += slippage
-
+            epis+=1
+            slippage_total += slippage
+        # else:
+        #     differences += (arrival - episode_total_execution_value)
+        #     slippage = (arrival - episode_total_execution_value) / arrival
+            
+    print(epis)
     print(f"Differences: {differences}")
-    print((slippage_total/61)*100*100)
+    print((slippage_total/epis)*100*100)
 
 def calcSlippage(start_midprices_file, twap_executions_file):
     start_midprices = np.load(start_midprices_file)
@@ -625,31 +631,32 @@ if __name__ == "__main__":
     # Run the analysis
     # df = main()
     # print(calcSharpe())
-    log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/testing_RL/npy_files/"
-    beforetwap = []
-    twapbuy = []
-    twapsell = []
-    # Find all files matching the pattern
-    without_files = glob.glob(log_label + "without_twap_*.npy")
-    for file in without_files:
-        arr = np.load(file)
-        beforetwap.append(arr.tolist())
+    # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/testing_RL/npy_files/"
+    # beforetwap = []
+    # twapbuy = []
+    # twapsell = []
+    # # Find all files matching the pattern
+    # without_files = glob.glob(log_label + "without_twap_*.npy")
+    # for file in without_files:
+    #     arr = np.load(file)
+    #     beforetwap.append(arr.tolist())
 
-    buy_files = glob.glob(log_label + "with_twap_*_buy.npy")
-    for file in buy_files:
-        arr = np.load(file)
-        twapbuy.append(arr.tolist())
+    # buy_files = glob.glob(log_label + "with_twap_*_buy.npy")
+    # for file in buy_files:
+    #     arr = np.load(file)
+    #     twapbuy.append(arr.tolist())
 
-    sell_files = glob.glob(log_label + "with_twap_*_sell.npy")
-    for file in sell_files:
-        arr = np.load(file)
-        twapsell.append(arr.tolist())
+    # sell_files = glob.glob(log_label + "with_twap_*_sell.npy")
+    # for file in sell_files:
+    #     arr = np.load(file)
+    #     twapsell.append(arr.tolist())
 
-    graphInventories(beforetwap, twapbuy, twapsell)
-    # midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
-    # executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
-    # print("No RL")
-    # calcSlippage(midprices_file, executions_file)
+    # graphInventories(beforetwap, twapbuy, twapsell)
+    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsNoAgent/'
+    midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
+    executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
+    print("No RL")
+    calcSlippage(midprices_file, executions_file)
 
     # # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
     # # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
@@ -657,11 +664,11 @@ if __name__ == "__main__":
     # # print("Untrained")
     # # calcSlippage(midprices_file, executions_file)
 
-    # log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
-    # midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
-    # executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
-    # print("Trained")
-    # calcSlippage_trained(midprices_file, executions_file)
+    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
+    midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
+    executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
+    print("Trained")
+    calcSlippage_trained(midprices_file, executions_file)
 
     # print("Sharpe for trained")
     # print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_profit.npy"))

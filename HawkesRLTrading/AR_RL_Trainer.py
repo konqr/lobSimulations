@@ -6,17 +6,76 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 
-log_dir = '/home/ajafree/TRAINING/logs'
+log_dir = '/home/ajafree/TRAINING/logs/'
 model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
-label = 'train_RLAgent_vs_SELL_TWAP_300q_1s_repeated'
+label = 'train_RLAgent_vs_TWAP_standardised_starttime'
 layer_widths=512
 n_layers=1
 checkpoint_params = None # ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
+
+def graphInventories(beforetwap, withtwap_buy, withtwap_sell, episode_num):
+    plt.figure(figsize=(12, 8))
+    
+    # Flatten the lists of lists to get all inventory values
+    all_before = []
+    all_buy = []
+    all_sell = []
+    
+    # Flatten beforetwap (list of lists across episodes)
+    for episode_inventories in beforetwap:
+        all_before.extend(episode_inventories)
+    
+    # Flatten withtwap_buy (list of lists across episodes) 
+    for episode_inventories in withtwap_buy:
+        all_buy.extend(episode_inventories)
+        
+    # Flatten withtwap_sell (list of lists across episodes)
+    for episode_inventories in withtwap_sell:
+        all_sell.extend(episode_inventories)
+    
+    # Create normalized histograms (density=True gives probability density)
+    # weights parameter normalizes to show ratios/proportions that sum to 1
+    if all_before:
+        weights_before = np.ones(len(all_before)) / len(all_before)
+        plt.hist(all_before, bins=30, alpha=0.7, label=f'Before TWAP (n={len(all_before)})', 
+                 color='blue', edgecolor='black', weights=weights_before)
+    
+    if all_buy:
+        weights_buy = np.ones(len(all_buy)) / len(all_buy)
+        plt.hist(all_buy, bins=30, alpha=0.7, label=f'With TWAP Buy (n={len(all_buy)})', 
+                 color='green', edgecolor='black', weights=weights_buy)
+    
+    if all_sell:
+        weights_sell = np.ones(len(all_sell)) / len(all_sell)
+        plt.hist(all_sell, bins=30, alpha=0.7, label=f'With TWAP Sell (n={len(all_sell)})', 
+                 color='red', edgecolor='black', weights=weights_sell)
+    
+    # Add median lines
+    if all_before:
+        plt.axvline(np.median(all_before), color='blue', linestyle='--', linewidth=2, 
+                   label=f'Before Median: {np.median(all_before):.1f}')
+    if all_buy:
+        plt.axvline(np.median(all_buy), color='green', linestyle='--', linewidth=2,
+                   label=f'Buy Median: {np.median(all_buy):.1f}')
+    if all_sell:
+        plt.axvline(np.median(all_sell), color='red', linestyle='--', linewidth=2,
+                   label=f'Sell Median: {np.median(all_sell):.1f}')
+    
+    plt.xlabel('RL Agent Inventory')
+    plt.ylabel('Proportion') 
+    plt.title('RL Agent Inventory Distribution: Before vs With TWAP (Normalized)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(log_dir + f'_all_inventory_distributions_episode_{episode_num}.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+
 
 # with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
@@ -121,6 +180,11 @@ RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=
 # RLagentInstance = ProbabilisticAgent(seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], 
 #                           rewardpenalty = 1e-4, transaction_cost=tc, start_trading_lag = j['start_trading_lag'])
+
+inventories_with_twap_buy = []
+inventories_with_twap_sell = []
+inventories_without_twap = []
+
 j['agent_instance'] = RLagentInstance
 kwargs['GymTradingAgent'] = agents
 i_eps=0
@@ -136,11 +200,14 @@ inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 RLagentID = 1
 
-for episode in range(50):
+for episode in range(100):
+    inventory_with_twap_buy = []
+    inventory_with_twap_sell = []
+    inventory_without_twap = []
     kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
     #the time that the TWAP agent will kick in:
-    twap_time = int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
+    twap_time = 150 + start_trading_lag #int(np.clip(np.random.normal(150, 50), 1, 300)) + start_trading_lag
     RLagentInstance.TWAPPresent = False
     twap_side = np.random.choice(["buy", "sell"])
     kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
@@ -196,6 +263,13 @@ for episode in range(50):
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
                 
             else:
+                if(Simstate["TimeCode"] > twap_time):
+                    if twap_side == "sell":
+                        inventory_with_twap_sell.append(observations["Inventory"])
+                    else:
+                        inventory_with_twap_buy.append(observations["Inventory"])
+                else:
+                    inventory_without_twap.append(observations["Inventory"])
                 action_num+=1
                 RLagentID = agent.id
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id), epsilon = 0.5 if i_eps < 100 else 0.1)
@@ -279,7 +353,14 @@ for episode in range(50):
             print(agent.current_time)
             print(f"ACTION DONE{action_num}")
             
-            
+    if(len(inventory_with_twap_buy) > 0):
+        inventories_with_twap_buy.append(inventory_with_twap_buy)
+    else:
+        inventories_with_twap_sell.append(inventory_with_twap_sell)
+    inventories_without_twap.append(inventory_without_twap)
+    graphInventories(withtwap_buy = inventories_with_twap_buy, withtwap_sell=inventories_with_twap_sell, beforetwap=inventories_without_twap, episode_num=episode)
+
+
     if termination:
         print("Termination condition reached.")
     elif truncation:
