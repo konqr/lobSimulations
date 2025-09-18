@@ -199,11 +199,16 @@ cashs:Dict[int, List] = {}
 inventories:Dict[int, List] = {}
 actionss:Dict[int, List] = {}
 RLagentID = 1
+twap_sell_slippages = []
+twap_buy_slippages = []
 
 for episode in range(100):
     inventory_with_twap_buy = []
     inventory_with_twap_sell = []
     inventory_without_twap = []
+    twap_diff = 0
+    starting_midprice = 0
+    new_midprice = True
     kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
     #the time that the TWAP agent will kick in:
@@ -247,6 +252,9 @@ for episode in range(100):
             #check if agent is an RL agent or not
             
             if not isinstance(agent, PPOAgent):
+                if(new_midprice):
+                    starting_midprice = float((observations.get('LOB0').get('Ask_L1')[0] + observations.get('LOB0').get('Bid_L1')[0])/2)
+                    new_midprice = False
                 action_num+=1
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id))
                 action = (agent.id, agentAction)
@@ -360,7 +368,32 @@ for episode in range(100):
     inventories_without_twap.append(inventory_without_twap)
     graphInventories(withtwap_buy = inventories_with_twap_buy, withtwap_sell=inventories_with_twap_sell, beforetwap=inventories_without_twap, episode_num=episode)
 
+    for agent in agents:
+        if agent.isinstance(TWAPGymTradingAgent):
+            if agent.side == "sell":
+                total_executed = 500 - agent.Inventory["ICRL"] 
+                assert total_executed > 0
+                total_earned = agent.Inventory["cash"] - 1000000
+                twap_sell_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
+            else:
+                total_executed = agent.Inventory["ICRL"] - 500
+                assert total_executed > 0
+                total_paid = 1000000 - agent.Inventory["cash"]
+                twap_buy_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
 
+    plt.figure(figsize=(10, 6))
+    if twap_sell_slippages:
+        plt.plot(-np.array(twap_sell_slippages), label='TWAP Sell Slippage (negated)', marker='o')
+    if twap_buy_slippages:
+        plt.plot(twap_buy_slippages, label='TWAP Buy Slippage', marker='x')
+    plt.xlabel('Episode')
+    plt.ylabel('Slippage')
+    plt.title('TWAP Slippages (Buy vs Sell)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(log_dir + label + '_twap_slippages.png', dpi=300, bbox_inches='tight')
+    plt.close()
     if termination:
         print("Termination condition reached.")
     elif truncation:
