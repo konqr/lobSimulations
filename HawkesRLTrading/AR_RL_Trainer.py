@@ -16,7 +16,7 @@ start_trading_lag = 100
 label = 'train_RLAgent_vs_TWAP_standardised_starttime'
 layer_widths=512
 n_layers=1
-checkpoint_params = None # ('20250618_115039_inv10_symmHP_lowEpochs_standard', 52)
+checkpoint_params = ('20250825_142323_train_RLAgent_vs_SELL_TWAP_300q_1s_repeated', 48)
 
 def graphInventories(beforetwap, withtwap_buy, withtwap_sell, episode_num):
     plt.figure(figsize=(12, 8))
