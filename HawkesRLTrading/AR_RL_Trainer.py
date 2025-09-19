@@ -369,7 +369,7 @@ for episode in range(100):
     graphInventories(withtwap_buy = inventories_with_twap_buy, withtwap_sell=inventories_with_twap_sell, beforetwap=inventories_without_twap, episode_num=episode)
 
     for agent in agents:
-        if agent.isinstance(TWAPGymTradingAgent):
+        if isinstance(agent, TWAPGymTradingAgent):
             if agent.side == "sell":
                 total_executed = 500 - agent.Inventory["ICRL"] 
                 assert total_executed > 0
