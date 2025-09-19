@@ -271,13 +271,6 @@ for episode in range(100):
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
                 
             else:
-                if(Simstate["TimeCode"] > twap_time):
-                    if twap_side == "sell":
-                        inventory_with_twap_sell.append(observations["Inventory"])
-                    else:
-                        inventory_with_twap_buy.append(observations["Inventory"])
-                else:
-                    inventory_without_twap.append(observations["Inventory"])
                 action_num+=1
                 RLagentID = agent.id
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id), epsilon = 0.5 if i_eps < 100 else 0.1)
@@ -289,6 +282,13 @@ for episode in range(100):
                 cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
                 inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
+                if(Simstate["TimeCode"] > twap_time):
+                    if twap_side == "sell":
+                        inventory_with_twap_sell.append(observations["Inventory"])
+                    else:
+                        inventory_with_twap_buy.append(observations["Inventory"])
+                else:
+                    inventory_without_twap.append(observations["Inventory"])
                 t += [Simstate['TimeCode']]
                 if 'test' in label:
                     observations['current_time'] = 100+((observations['current_time'] - 100)%300)
@@ -371,15 +371,15 @@ for episode in range(100):
     for agent in agents:
         if isinstance(agent, TWAPGymTradingAgent):
             if agent.side == "sell":
-                total_executed = 500 - agent.Inventory["ICRL"] 
+                total_executed = 500 - agent.Inventory["INTC"] 
                 assert total_executed > 0
-                total_earned = agent.Inventory["cash"] - 1000000
+                total_earned = agent.cash - 1000000
                 twap_sell_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
             else:
-                total_executed = agent.Inventory["ICRL"] - 500
+                total_executed = agent.Inventory["INTC"] - 500
                 assert total_executed > 0
                 total_paid = 1000000 - agent.Inventory["cash"]
-                twap_buy_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
+                twap_buy_slippages.append((total_paid - total_executed*starting_midprice)/(total_executed*starting_midprice))
 
     plt.figure(figsize=(10, 6))
     if twap_sell_slippages:
