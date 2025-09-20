@@ -3,6 +3,7 @@ import os
 sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
 # sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
+from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent
 
 import torch
 
@@ -13,10 +14,11 @@ model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
-label = 'train_RLAgent_vs_TWAP_standardised_starttime'
+label = 'train_RLAgent_vs_TWAP_standardised_starttime_repeated_withslippagegraphs'
 layer_widths=512
 n_layers=1
-checkpoint_params = ('20250825_142323_train_RLAgent_vs_SELL_TWAP_300q_1s_repeated', 48)
+
+checkpoint_params = ('20250919_071428_train_RLAgent_vs_TWAP_standardised_starttime', 36)
 
 def graphInventories(beforetwap, withtwap_buy, withtwap_sell, episode_num):
     plt.figure(figsize=(12, 8))
@@ -378,7 +380,7 @@ for episode in range(100):
             else:
                 total_executed = agent.Inventory["INTC"] - 500
                 assert total_executed > 0
-                total_paid = 1000000 - agent.Inventory["cash"]
+                total_paid = 1000000 - agent.cash
                 twap_buy_slippages.append((total_paid - total_executed*starting_midprice)/(total_executed*starting_midprice))
 
     plt.figure(figsize=(10, 6))
