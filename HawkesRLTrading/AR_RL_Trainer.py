@@ -14,11 +14,11 @@ model_dir = '/home/ajafree/TRAINING/icrl_ppo_model_symmetric'
 
 start_trading_lag = 100
 
-label = 'train_RLAgent_vs_TWAP_standardised_starttime_repeated_withslippagegraphs'
+label = 'train_RLAgent_vs_TWAP_standardised_updatedslippagegraphs'
 layer_widths=512
 n_layers=1
 
-checkpoint_params = ('20250919_071428_train_RLAgent_vs_TWAP_standardised_starttime', 36)
+checkpoint_params = ('20250920_101819_train_RLAgent_vs_TWAP_standardised_starttime_repeated_withslippagegraphs', 28)
 
 def graphInventories(beforetwap, withtwap_buy, withtwap_sell, episode_num):
     plt.figure(figsize=(12, 8))
@@ -459,7 +459,7 @@ for episode in range(100):
     plt.tight_layout()
     plt.savefig(log_dir + label + '_twap_slippages.png', dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     if termination:
         print("Termination condition reached.")
     elif truncation:
