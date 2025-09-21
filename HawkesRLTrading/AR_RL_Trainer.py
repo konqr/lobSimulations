@@ -271,7 +271,61 @@ for episode in range(100):
                 cashs.update({agent.id:cashs.get(agent.id, [])+[observations['Cash']]})
                 inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
-                
+                twap_agent = agent if isinstance(agent, TWAPGymTradingAgent) else None
+                if 399 <= Simstate['TimeCode'] <= 400:
+                    if twap_agent.side == "sell":
+                        # TWAP started with 500 shares, calculate how many were sold
+                        total_executed = 500 - twap_agent.Inventory["INTC"]
+                        if total_executed > 0:
+                            # Calculate cash earned from selling
+                            total_earned = twap_agent.cash - 1000000  # Started with 1M cash
+                            # Benchmark: what they would have earned selling at starting mid-price
+                            benchmark_earned = total_executed * starting_midprice
+                            # Slippage: (actual - benchmark) / benchmark
+                            slippage = (total_earned - benchmark_earned) / benchmark_earned
+                            
+                            # Overwrite if we already have data for this episode (prevent duplicates)
+                            if len(twap_sell_slippages) > episode:
+                                twap_sell_slippages[episode] = slippage
+                                print(f"SELL - Overwriting episode {episode} slippage data")
+                            else:
+                                # Pad with None if needed and add new data
+                                while len(twap_sell_slippages) < episode:
+                                    twap_sell_slippages.append(None)
+                                twap_sell_slippages.append(slippage)
+                            
+                            print(f"SELL - Executed: {total_executed}, Earned: {total_earned}, Benchmark: {benchmark_earned}, Slippage: {slippage}")
+                        else:
+                            print("SELL - No executions this episode")
+                            
+                    elif twap_agent.side == "buy":
+                        # TWAP started with 500 shares, calculate how many were bought
+                        total_executed = twap_agent.Inventory["INTC"] - 500
+                        if total_executed > 0:
+                            # Calculate cash spent on buying
+                            total_paid = 1000000 - twap_agent.cash  # Started with 1M cash
+                            # Benchmark: what they would have paid buying at starting mid-price
+                            benchmark_paid = total_executed * starting_midprice
+                            # Slippage: (actual - benchmark) / benchmark
+                            slippage = (total_paid - benchmark_paid) / benchmark_paid
+                            
+                            # Overwrite if we already have data for this episode (prevent duplicates)
+                            if len(twap_buy_slippages) > episode:
+                                twap_buy_slippages[episode] = slippage
+                                print(f"BUY - Overwriting episode {episode} slippage data")
+                            else:
+                                # Pad with None if needed and add new data
+                                while len(twap_buy_slippages) < episode:
+                                    twap_buy_slippages.append(None)
+                                twap_buy_slippages.append(slippage)
+                            
+                            print(f"BUY - Executed: {total_executed}, Paid: {total_paid}, Benchmark: {benchmark_paid}, Slippage: {slippage}")
+                        else:
+                            print("BUY - No executions this episode")
+                    
+                    # Debug output
+                    print(f"Total slippages recorded so far - Sell: {len([s for s in twap_sell_slippages if s is not None])}, Buy: {len([s for s in twap_buy_slippages if s is not None])}")
+                    
             else:
                 action_num+=1
                 RLagentID = agent.id
@@ -370,24 +424,33 @@ for episode in range(100):
     inventories_without_twap.append(inventory_without_twap)
     graphInventories(withtwap_buy = inventories_with_twap_buy, withtwap_sell=inventories_with_twap_sell, beforetwap=inventories_without_twap, episode_num=episode)
 
-    for agent in agents:
-        if isinstance(agent, TWAPGymTradingAgent):
-            if agent.side == "sell":
-                total_executed = 500 - agent.Inventory["INTC"] 
-                assert total_executed > 0
-                total_earned = agent.cash - 1000000
-                twap_sell_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
-            else:
-                total_executed = agent.Inventory["INTC"] - 500
-                assert total_executed > 0
-                total_paid = 1000000 - agent.cash
-                twap_buy_slippages.append((total_paid - total_executed*starting_midprice)/(total_executed*starting_midprice))
+    # for agent in agents:
+    #     if isinstance(agent, TWAPGymTradingAgent):
+    #         if agent.side == "sell":
+    #             total_executed = 500 - agent.Inventory["INTC"] 
+    #             assert total_executed > 0
+    #             total_earned = agent.cash - 1000000
+    #             twap_sell_slippages.append((total_earned - total_executed*starting_midprice)/(total_executed*starting_midprice))
+    #         else:
+    #             total_executed = agent.Inventory["INTC"] - 500
+    #             assert total_executed > 0
+    #             total_paid = 1000000 - agent.cash
+    #             twap_buy_slippages.append((total_paid - total_executed*starting_midprice)/(total_executed*starting_midprice))
 
+# Plot slippages (filter out None values)
     plt.figure(figsize=(10, 6))
-    if twap_sell_slippages:
-        plt.plot(-np.array(twap_sell_slippages), label='TWAP Sell Slippage (negated)', marker='o')
-    if twap_buy_slippages:
-        plt.plot(twap_buy_slippages, label='TWAP Buy Slippage', marker='x')
+    
+    valid_sell_slippages = [s for s in twap_sell_slippages if s is not None]
+    valid_buy_slippages = [s for s in twap_buy_slippages if s is not None]
+    
+    if valid_sell_slippages:
+        sell_episodes = [i for i, s in enumerate(twap_sell_slippages) if s is not None]
+        plt.plot(sell_episodes, [-s for s in valid_sell_slippages], label=f'TWAP Sell Slippage (negated) n={len(valid_sell_slippages)}', marker='o')
+    
+    if valid_buy_slippages:
+        buy_episodes = [i for i, s in enumerate(twap_buy_slippages) if s is not None]
+        plt.plot(buy_episodes, valid_buy_slippages, label=f'TWAP Buy Slippage n={len(valid_buy_slippages)}', marker='x')
+    
     plt.xlabel('Episode')
     plt.ylabel('Slippage')
     plt.title('TWAP Slippages (Buy vs Sell)')
@@ -396,6 +459,7 @@ for episode in range(100):
     plt.tight_layout()
     plt.savefig(log_dir + label + '_twap_slippages.png', dpi=300, bbox_inches='tight')
     plt.close()
+    
     if termination:
         print("Termination condition reached.")
     elif truncation:
