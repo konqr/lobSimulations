@@ -366,6 +366,8 @@ class NeuralNet(BaseNet):
 
         # Final layer as fully connected
         self.final_layer = DenseLayer(output_dim, layer_width, activation=final_activation)
+        self.scale = nn.Parameter(torch.tensor(1.0))
+        self.shift = nn.Parameter(torch.tensor(0.0))
 
     def forward(self, t, x):
         '''
@@ -414,7 +416,7 @@ class NeuralNet(BaseNet):
 
         # For regression, just return the result
         if self.is_regression:
-            return result
+            return self.scale*result + self.shift
 
         # For classification, return predicted class and probabilities
         op = torch.argmax(result, 1)

@@ -102,7 +102,7 @@ class ProbabilisticAgent(GymTradingAgent):
         inv = data[0][1]
         pa, pb = data[0][2], data[0][3]
         actions = []
-        if np.argmax(lambdas_norm) == 4: # mo ask
+        if np.argmax(lambdas_norm) == 4: # mo ask - hits ask
             if inv < -self.inv_threshold:
                 # if lambdas[7] + 1000 < lambdas[4]:
                     return ((12,size),(7,size)) # mo_bid
@@ -116,8 +116,8 @@ class ProbabilisticAgent(GymTradingAgent):
                 if data[0][-3]/data[0][4] > 1:
                     actions.append((9,size)) # lo bid top
                 if data[0][-2]/data[0][5]<1:
-                    actions.append((2,size))
-        elif np.argmax(lambdas_norm) == 7: # mo bid
+                    actions.append((3,size))
+        elif np.argmax(lambdas_norm) == 7: # mo bid - hits bid
             if inv > self.inv_threshold:
                 # if lambdas[4] + 1000 < lambdas[7]:
                     return ((12,size),(4,size)) # mo_ask

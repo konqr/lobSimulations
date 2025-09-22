@@ -3,10 +3,49 @@ import numpy as np
 import DGMTorch_old as DGM
 from utils import TrainingLogger, ModelManager, get_gpu_specs
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import os
 import pickle
 import pandas as pd
+
+def gumbel_softmax_sample(logits, tau=1.0, hard=True):
+    """Gumbel-Softmax with straight-through trick."""
+    # gumbel_noise = -torch.log(-torch.log(torch.rand_like(logits) + 1e-20) + 1e-20)
+    # y = (logits + gumbel_noise) / tau
+    y_soft = F.softmax(logits, dim=-1)
+
+    if hard:
+        # Forward: one-hot, Backward: soft
+        index = y_soft.max(dim=-1, keepdim=True)[1]
+        y_hard = torch.zeros_like(logits).scatter_(-1, index, 1.0)
+        y = y_hard.detach() - y_soft.detach() + y_soft
+    else:
+        y = y_soft
+    return y
+
+
+def gumbel_softmax_entropy(u_logits, tau=1.0, n_samples=1):
+    """
+    Estimate entropy using Gumbel-Softmax relaxation.
+
+    Args:
+        u_logits: [batch_size, n_actions] raw logits
+        tau: temperature > 0 (higher = more uniform, lower = sharper)
+        n_samples: number of Gumbel draws for Monte Carlo estimate
+
+    Returns:
+        scalar entropy estimate
+    """
+    entropies = []
+    for _ in range(n_samples):
+        # Sample relaxed categorical distribution
+        probs = F.gumbel_softmax(u_logits, tau=tau, hard=False)
+        log_probs = torch.log(probs + 1e-12)
+        entropy = -(probs * log_probs).sum(dim=1)   # per sample entropy
+        entropies.append(entropy)
+
+    return torch.stack(entropies, dim=0).mean()
 
 class MarketMaking():
     def __init__(self, num_points=100, num_epochs=1000, ric='AAPL'):
@@ -22,11 +61,11 @@ class MarketMaking():
         '''
         self.device = None
         self.SAMPLER = 'sim'
-        self.TERMINATION_TIME = 23400
+        self.TERMINATION_TIME = 300
         self.NDIMS = 12
         self.NUM_POINTS = num_points
         self.EPOCHS = num_epochs
-        self.eta = 0.005  # inventory penalty
+        self.eta = 1  # inventory penalty
         self.E = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
                   "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid", "lo_deep_Bid"]
         self.U = ["lo_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
@@ -40,6 +79,7 @@ class MarketMaking():
         self.alphas = []
         if ric == 'AAPL':
             self.lambdas_poisson = [1.91, 2.35, 4.39, 4.23, 1.09, 1.01, 1.01, 1.09, 4.23, 4.39, 2.35, 1.91]
+
     def sampler(self, num_points=1000, seed=None, boundary=False):
         '''
         Sample points from the stationary distributions for the DGM learning
@@ -48,32 +88,71 @@ class MarketMaking():
         '''
         if seed:
             np.random.seed(seed)
-            torch.random.set_seed(seed)
+            torch.manual_seed(seed)
 
-        # Generate sample data using NumPy
+        # Generate sample data
         Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
         Ys = np.round(2 * np.random.randn(num_points, 1), 0)
         P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
-        spreads = 0.01 *  np.random.geometric(.8, [num_points, 1])
+        spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
         p_as = np.round(P_mids + spreads / 2, 2)
         p_bs = p_as - spreads
         q_as = np.random.geometric(.002, [num_points, 1])
         qD_as = np.random.geometric(.0015, [num_points, 1])
         q_bs = np.random.geometric(.002, [num_points, 1])
         qD_bs = np.random.geometric(.0015, [num_points, 1])
-        n_as = np.array([np.random.randint(0, b) for b in q_as + qD_as])
-        n_bs = np.array([np.random.randint(0, b) for b in q_bs + qD_bs])
+        n_as = np.array([np.random.randint(0, b) for b in q_as])
+        n_bs = np.array([np.random.randint(0, b) for b in q_bs])
 
-        t = np.random.uniform(0, self.TERMINATION_TIME, [num_points, 1])
-        t_boundary = self.TERMINATION_TIME * np.ones([num_points, 1])
+        t = np.random.uniform(0, self.TERMINATION_TIME, [num_points, 1]) / self.TERMINATION_TIME
+        t_boundary = np.ones([num_points, 1])
 
-        # Convert to TensorFlow tensors immediately
+        # Stack features
+        features = np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids])
+
+        # --- Standardize using known distributions ---
+        eps = 1e-8
+        means = np.array([
+            0.0,   # X ~ N(0, 1000^2)
+            0.0,   # Y ~ N(0, 2^2)
+            100.0, # ask price ~ Pmid + spread/2
+            100.0, # bid price ~ Pmid - spread/2
+            (1-0.002)/0.002,   # mean of Geom(0.002)
+            (1-0.002)/0.002,   # mean of Geom(0.002)
+            (1-0.0015)/0.0015, # mean of Geom(0.0015)
+            (1-0.0015)/0.0015, # mean of Geom(0.0015)
+            None,  # n_as ~ U(0, q_as) (data dependent, center later)
+            None,  # n_bs ~ U(0, q_bs)
+            100.0  # Pmid
+        ])
+
+        stds = np.array([
+            1000.0,
+            2.0,
+            5.0,
+            5.0,
+            np.sqrt((1-0.002)/(0.002**2)),
+            np.sqrt((1-0.002)/(0.002**2)),
+            np.sqrt((1-0.0015)/(0.0015**2)),
+            np.sqrt((1-0.0015)/(0.0015**2)),
+            None,
+            None,
+            5.0
+        ])
+
+        # Fill n_as, n_bs normalization from sample (since uniform depends on q)
+        means[8] = n_as.mean()
+        means[9] = n_bs.mean()
+        stds[8] = n_as.std() + eps
+        stds[9] = n_bs.std() + eps
+
+        features = (features - means) / (stds + eps)
+        features = features.astype('float')
         if boundary:
-            return torch.tensor(t_boundary, dtype=torch.float32), torch.tensor(
-                np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+            return torch.tensor(t_boundary, dtype=torch.float32), torch.tensor(features, dtype=torch.float32)
 
-        return torch.tensor(t, dtype=torch.float32), torch.tensor(
-            np.hstack([Xs, Ys, p_as, p_bs, q_as, q_bs, qD_as, qD_bs, n_as, n_bs, P_mids]), dtype=torch.float32)
+        return torch.tensor(t, dtype=torch.float32), torch.tensor(features, dtype=torch.float32)
+
 
     def sampler_sim(self, ric='AAPL', num_points=1000, seed=None, boundary=False):
         path = '/SAN/fca/Konark_PhD_Experiments/simulated/poisson'
@@ -650,138 +729,192 @@ class MarketMaking():
         # Return the highest value
         return torch.max(interventions, 1)[0].reshape((batch_size, 1)).to(self.device)
 
+    # def oracle_d(self, model_phi, model_u, ts, Ss):
+    #     batch_size = ts.shape[0]
+    #     lambdas = self.lambdas_poisson
+    #     # Initialize tensor to store HJB values for each decision
+    #     hjb = torch.zeros((batch_size, 2), dtype=torch.float32, device=self.device)
+    #
+    #     for d in [0, 1]:
+    #         ts.requires_grad_(True)
+    #         output = model_phi(ts, Ss)
+    #         output.to(self.device)
+    #
+    #         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
+    #         #ts.requires_grad_(False)
+    #
+    #         # Calculate integral term
+    #         I_phi = torch.zeros_like(output)
+    #         I_phi.to(self.device)
+    #         for i in range(self.NDIMS):
+    #             # Calculate transition for event i
+    #             Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
+    #             Ss_transitioned.to(self.device)
+    #             I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
+    #
+    #         # Calculate generator term
+    #         L_phi = phi_t + I_phi
+    #
+    #         # Calculate running cost
+    #         f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+    #         f = f.reshape(-1, 1).to(self.device)
+    #
+    #         # Get optimal decision and control
+    #         ds = torch.ones((batch_size, 1), dtype=torch.float32, device=self.device) * d
+    #         us, _ = model_u(ts, Ss)
+    #
+    #         # Calculate intervention value
+    #         M_phi = model_phi(ts, self.intervention( ts, Ss, us))
+    #
+    #         # Calculate HJB evaluation
+    #         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
+    #
+    #         # Store in hjb tensor
+    #         indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
+    #                                torch.ones(batch_size, dtype=torch.int64) * d], dim=1)
+    #         hjb[indices[:, 0], indices[:, 1]] = evaluation.reshape(-1).to(self.device)
+    #
+    #     # Return the decision with highest value
+    #     return torch.argmax(hjb, dim=1).to(self.device)
+
     def oracle_d(self, model_phi, model_u, ts, Ss):
         batch_size = ts.shape[0]
-        lambdas = self.lambdas_poisson
-        # Initialize tensor to store HJB values for each decision
-        hjb = torch.zeros((batch_size, 2), dtype=torch.float32, device=self.device)
 
-        for d in [0, 1]:
-            ts.requires_grad_(True)
-            output = model_phi(ts, Ss)
-            output.to(self.device)
+        # Get the control from model_u
+        us, _ = model_u(ts, Ss)
 
-            phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
-            #ts.requires_grad_(False)
+        # Intervention values
+        with torch.no_grad():
+            # d = 0: do nothing
+            phi_no_intervention = model_phi(ts, Ss)  # [batch_size, 1]
+            # d = 1: apply control
+            phi_with_intervention = model_phi(ts, self.intervention(ts, Ss, us))  # [batch_size, 1]
 
-            # Calculate integral term
-            I_phi = torch.zeros_like(output)
-            I_phi.to(self.device)
-            for i in range(self.NDIMS):
-                # Calculate transition for event i
-                Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
-                Ss_transitioned.to(self.device)
-                I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
+            # Stack along decision dimension: 0 = no intervention, 1 = intervene
+            phi_stack = torch.cat([phi_no_intervention, phi_with_intervention], dim=1)  # [batch_size, 2]
 
-            # Calculate generator term
-            L_phi = phi_t + I_phi
+            # Optimal d = argmax intervention value
+            optimal_d = torch.argmax(phi_stack, dim=1)
 
-            # Calculate running cost
-            f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
-            f = f.reshape(-1, 1).to(self.device)
+        return optimal_d.to(self.device)
 
-            # Get optimal decision and control
-            ds = torch.ones((batch_size, 1), dtype=torch.float32, device=self.device) * d
-            us, _ = model_u(ts, Ss)
 
-            # Calculate intervention value
-            M_phi = self.sup_intervention(model_phi, ts, Ss) #model_phi(ts, self.intervention( ts, Ss, us))
+    def loss_phi_poisson(self, model_phi, model_d, model_u,
+                         ts, Ss, Ts, S_boundarys, lambdas,
+                         train_phi=False, train_d=False, train_u=False, tau=0.5):
 
-            # Calculate HJB evaluation
-            evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
-
-            # Store in hjb tensor
-            indices = torch.stack([torch.arange(batch_size, dtype=torch.int64),
-                                   torch.ones(batch_size, dtype=torch.int64) * d], dim=1)
-            hjb[indices[:, 0], indices[:, 1]] = evaluation.reshape(-1).to(self.device)
-
-        # Return the decision with highest value
-        return torch.argmax(hjb, dim=1).to(self.device)
-
-    def loss_phi_poisson(self, model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas):
-        # Use autograd to calculate time derivative
+        # Autograd for time derivative
         ts.requires_grad_(True)
         output = model_phi(ts, Ss)
-        output.to(self.device)
+        output = output.to(self.device)
 
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
-        #ts.requires_grad_(False)
 
-        # Calculate integral term
-        I_phi = torch.zeros_like(output)
-        I_phi.to(self.device)
+        # Integral term
+        I_phi = torch.zeros_like(output).to(self.device)
         for i in range(self.NDIMS):
-            # Calculate transition for event i
-            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
-            Ss_transitioned.to(self.device)
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32, device=self.device))
             I_phi += lambdas[i] * (model_phi(ts, Ss_transitioned) - output)
 
-        # Calculate generator term
+        # Generator term
         L_phi = phi_t + I_phi
 
-        # Calculate running cost
-        f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+        # Running cost
+        f = -self.eta * torch.square(Ss[:, 1])
         f = f.reshape(-1, 1).to(self.device)
 
-        # Get optimal decision and control
-        ds, logits_d = model_d(ts, Ss)
-        us, _ = model_u(ts, Ss)
-        ds = torch.argmax(logits_d, 1)
-        ds = ds.reshape(ds.shape[0], 1).float().to(self.device)
-        # Calculate intervention value
-        M_phi = self.sup_intervention(model_phi, ts, Ss) #model_phi(ts, self.intervention(ts, Ss, us))
+        # Decision network
+        _, logits_d = model_d(ts, Ss)
+        if train_d:
+            ds_onehot = gumbel_softmax_sample(logits_d, tau=tau, hard=True)
+            ds = ds_onehot[:, 1:2]   # assuming binary choice: intervene vs not
+        else:
+            ds = torch.argmax(logits_d, dim=-1).reshape(-1, 1).float().detach()
 
-        # Calculate HJB evaluation
+        # Control network
+        _, logits_u = model_u(ts, Ss)
+        if train_u:
+            us_onehot = gumbel_softmax_sample(logits_u, tau=tau, hard=True)
+            us = us_onehot.argmax(dim=-1, keepdim=True).float()  # categorical forward
+            # (gradients flow through logits via straight-through)
+        else:
+            us = torch.argmax(logits_u, dim=-1, keepdim=True).float().detach()
+
+        # Intervention value
+        M_phi = model_phi(ts, self.intervention(ts, Ss, us))
+
+        # HJB evaluation
         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
 
         # Interior loss
-        interior_loss = nn.MSELoss()(evaluation, torch.zeros_like(evaluation))
+        interior_loss = nn.MSELoss()(output + evaluation, output)
 
         # Boundary loss
         output_boundary = model_phi(Ts, S_boundarys)
-        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]  # Terminal condition
+        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1] - 2*self.eta*S_boundarys[:, 1]**2 # terminal condition
         g = g.reshape(-1, 1).to(self.device)
         boundary_loss = nn.MSELoss()(output_boundary, g)
 
-        # Combine losses with potential weighting
-        loss = interior_loss + boundary_loss
+        # Combine losses
+
+        lamb_bc = 1e-2
+        loss = interior_loss + boundary_loss*lamb_bc
+        print(interior_loss, boundary_loss)
+        # Optionally freeze φ
+        if not train_phi:
+            loss = loss.detach()
 
         return loss, evaluation
 
-    def loss_phi_hawkes(self, model_phi, model_d, model_u, ts, Ss, lambdas, Ts, S_boundarys, lambdas_boundary):
+    def loss_phi_hawkes(self, model_phi, model_d, model_u,
+                        ts, Ss, lambdas, Ts, S_boundarys, lambdas_boundary,
+                        train_phi=True, train_d=True, train_u=True, tau=0.5):
         # Use autograd to calculate time derivative
         ts.requires_grad_(True)
         lambdas.requires_grad_(True)
+
         output = model_phi(ts, Ss, lambdas)
-        output.to(self.device)
+        output = output.to(self.device)
 
         phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(self.device)
         phi_lamb = torch.autograd.grad(output.sum(), lambdas, create_graph=True)[0].to(self.device)
 
         # Calculate integral term
-        I_phi = torch.zeros_like(output)
-        I_phi.to(self.device)
+        I_phi = torch.zeros_like(output).to(self.device)
         for i in range(self.NDIMS):
-            # Calculate transition for event i
-            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32))
-            Ss_transitioned.to(self.device)
-            lambdas_transitioned = self.transition_lambda(lambdas, torch.tensor(i, dtype=torch.float32))
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32, device=self.device))
+            lambdas_transitioned = self.transition_lambda(lambdas, torch.tensor(i, dtype=torch.float32, device=self.device))
             I_phi += lambdas * (model_phi(ts, Ss_transitioned, lambdas_transitioned) - output)
-        # Calculate generator term
-        L_phi = phi_t + I_phi + (self.mus - self.gammas*lambdas)*phi_lamb
 
-        # Calculate running cost
-        f = -self.eta * torch.square(Ss[:, 1])  # Inventory penalty
+        # Generator term
+        L_phi = phi_t + I_phi + (self.mus - self.gammas * lambdas) * phi_lamb
+
+        # Running cost
+        f = -self.eta * torch.square(Ss[:, 1])
         f = f.reshape(-1, 1).to(self.device)
 
-        # Get optimal decision and control
-        ds, _ = model_d(ts, Ss)
-        us, _ = model_u(ts, Ss)
+        # Decision network
+        logits_d = model_d(ts, Ss)[1]
+        if train_d:
+            ds_onehot = gumbel_softmax_sample(logits_d, tau=tau, hard=True)  # categorical + differentiable
+            ds = ds_onehot[:, 1:2]   # assuming binary: [no-intervene, intervene]
+        else:
+            ds = torch.argmax(logits_d, dim=-1).reshape(-1, 1).float().detach()
 
-        # Calculate intervention value
-        M_phi = model_phi(ts, self.intervention(ts, Ss, us), self.transition_lambda(lambdas, us))
+        # Control network
+        logits_u = model_u(ts, Ss)[1]
+        if train_u:
+            us_onehot = gumbel_softmax_sample(logits_u, tau=tau, hard=True)
+            us = us_onehot.argmax(dim=-1, keepdim=True).float()  # categorical for forward
+            # but gradients flow through logits_u thanks to straight-through
+        else:
+            us = torch.argmax(logits_u, dim=-1, keepdim=True).float().detach()
 
-        # Calculate HJB evaluation
+        # Intervention value
+        M_phi = model_phi(ts, self.intervention(ts, Ss, us),
+                          self.transition_lambda(lambdas, us))
+
+        # HJB evaluation
         evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
 
         # Interior loss
@@ -789,14 +922,25 @@ class MarketMaking():
 
         # Boundary loss
         output_boundary = model_phi(Ts, S_boundarys, lambdas_boundary)
-        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]  # Terminal condition
+        g = S_boundarys[:, 0] + S_boundarys[:, 1] * S_boundarys[:, -1]
         g = g.reshape(-1, 1).to(self.device)
         boundary_loss = nn.MSELoss()(output_boundary, g)
 
-        # Combine losses with potential weighting
+        # Combine losses
         loss = interior_loss + boundary_loss
 
+        # Optionally freeze φ by detaching its contribution
+        if not train_phi:
+            loss = loss.detach()
+
         return loss
+
+    def update_alpha(self, log_alpha, entropy, target_entropy, optimizer_alpha):
+        alpha_loss = -(log_alpha * (entropy.detach() - target_entropy)).mean()
+        optimizer_alpha.zero_grad()
+        alpha_loss.backward()
+        optimizer_alpha.step()
+        return alpha_loss.item(), log_alpha.exp().item()
 
     def train_step(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, phi_optim='ADAM'):
         # Setup for training
@@ -820,12 +964,12 @@ class MarketMaking():
 
         def closure():
             optimizer_phi.zero_grad()
-            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas, train_phi=True)
             loss_phi.backward()
             return loss_phi
         # Use gradient clipping to prevent exploding gradients
         for j in range(phi_epochs):
-            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas)
+            loss_phi, _ = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas, train_phi=True)
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
             if phi_optim == 'ADAM':
@@ -849,54 +993,33 @@ class MarketMaking():
                 lr = param_group['lr']
                 print('Model Phi LR: '+str(lr))
         # # Train control function
-        # gt_u = self.oracle_u(model_phi, ts, Ss)
-        train_loss_u = 0.0
-        acc_u = 0.0
-        # loss_object_u = nn.CrossEntropyLoss()
-        #
-        # for j in range(phi_epochs):
-        #     optimizer_u.zero_grad()
-        #     pred_u, prob_us = model_u(ts, Ss)
-        #     print(np.unique(gt_u.cpu(), return_counts=True))
-        #     print(np.unique(pred_u.cpu(), return_counts=True))
-        #     acc_u = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
-        #     loss_u = loss_object_u(prob_us, gt_u)
-        #     loss_u.backward()
-        #
-        #     # Clip gradients to prevent exploding values
-        #     torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
-        #     optimizer_u.step()
-        #     train_loss_u = loss_u.item()
-        #     scheduler_u.step()
-        #
-        #     # Check for NaN or Inf
-        #     if torch.isnan(loss_u) or torch.isinf(loss_u):
-        #         print("Warning: NaN or Inf detected in loss value")
-        #         break
-        #
-        #     print(f'Model u loss: {train_loss_u:0.4f}')
-        #     print(f'Model u Acc: {acc_u:0.4f}')
-        #     for param_group in optimizer_u.param_groups:
-        #         lr = param_group['lr']
-        #         print('Model U LR: '+str(lr))
-        # Train decision function
-        gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
-        train_loss_d = 0.0
-        acc_d = 0.0
+        for j in range(phi_epochs):
+            _, eval = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas, train_u = True)
+            loss_u = -eval.mean()
+            u_logits = model_u(ts, Ss)[1]
+            u_entropy_loss = -(torch.softmax(u_logits + 1e-3, dim=1) * F.log_softmax(u_logits + 1e-20, dim=1)).sum(dim=1).mean()
+            loss_u -= 0.1*u_entropy_loss
+            optimizer_u.zero_grad()
+            loss_u.backward()
+            # Clip gradients to prevent exploding values
+            torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
+            optimizer_u.step()
+            train_loss_u = loss_u.item()
+            scheduler_u.step()
+            # Check for NaN or Inf
+            if torch.isnan(loss_u) or torch.isinf(loss_u):
+                print("Warning: NaN or Inf detected in loss value")
+                break
 
+            print(f'Model u loss: {train_loss_u:0.4f}')
 
         for j in range(phi_epochs):
+            _, eval = self.loss_phi_poisson(model_phi, model_d, model_u, ts, Ss, Ts, S_boundarys, lambdas, train_d = True)
+            loss_d = -eval.mean()
+            d_logits = model_d(ts, Ss)[1]
+            d_entropy_loss = -(torch.softmax(d_logits + 1e-3, dim=1) * F.log_softmax(d_logits+1e-20, dim=1)).sum(dim=1).mean()
+            loss_d -= 10*d_entropy_loss
             optimizer_d.zero_grad()
-            pred_d, prob_ds = model_d(ts, Ss)
-            print(np.unique(gt_d.cpu(), return_counts=True))
-            print(np.unique(pred_d.cpu(), return_counts=True))
-            print(np.unique(self.oracle_u(model_phi, ts, Ss).cpu(), return_counts=True))
-            acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
-            weight = np.max(np.unique(gt_d.cpu(), return_counts=True)[1])/torch.tensor(np.unique(gt_d.cpu(), return_counts=True)[1])
-            if len(weight) == 1: weight = torch.tensor([1.,1.])
-            loss_object_d = nn.CrossEntropyLoss(weight=weight.to(self.device))
-            loss_d = loss_object_d(prob_ds, gt_d)
-
             loss_d.backward()
             # Clip gradients to prevent exploding values
             torch.nn.utils.clip_grad_norm_(model_d.parameters(), 1.0)
@@ -909,9 +1032,27 @@ class MarketMaking():
                 break
 
             print(f'Model d loss: {train_loss_d:0.4f}')
-            print(f'Model d Acc: {acc_d:0.4f}')
+        gt_u = self.oracle_u(model_phi, ts, Ss)
+        # train_loss_u = 0.0
+        acc_u = 0.0
+        acc_d = 0.0
 
-        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u, acc_u, acc_d
+        pred_u, prob_us = model_u(ts, Ss)
+
+        acc_u = 100*torch.sum(pred_u.flatten() == gt_u).item() / len(pred_u)
+
+        print(f'Model u Acc: {acc_u:0.4f}')
+
+        # # Train decision function
+        gt_d = self.oracle_d(model_phi, model_u, ts, Ss)
+        #
+        pred_d, prob_ds = model_d(ts, Ss)
+
+        acc_d = 100*torch.sum(pred_d.flatten() == gt_d).item() / len(pred_d)
+
+        print(f'Model d Acc: {acc_d:0.4f}')
+
+        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u, acc_d, acc_u
 
     def train(self, **kwargs):
         # Default parameter values
@@ -927,7 +1068,7 @@ class MarketMaking():
             'model_dir': './models',
             'label': None,
             'refresh_epoch' : 300,
-            'lr' : 1e-3,
+            'lr' : 1e-2,
             'sampler': 'sim',
             'phi_epochs' : 10,
             'phi_optim' : 'ADAM',
@@ -979,7 +1120,7 @@ class MarketMaking():
             model_d = DGM.DenseNet(feature_width, layer_widths[3], n_layers[3], 2, model0, hidden_activation=activation)
         else:
             model_phi = DGM.DGMNet(layer_widths[0], n_layers[0], 11, typeNN = typeNN, hidden_activation=activation)
-            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = 'Dense', hidden_activation=activation)
+            model_u = DGM.PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2, hidden_activation=activation)
             model_d = DGM.PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2, hidden_activation=activation)
 
         if torch.cuda.device_count() > 1:
@@ -1008,7 +1149,7 @@ class MarketMaking():
             #decay_rate = np.log(1e-4) / (self.EPOCHS*phi_epochs - 1)
             #return np.max([1e-5,np.exp(decay_rate * epoch )])
             #return (1 - 1e-5)**epoch
-            return np.max([1e-4,0.1**(epoch//1000)])
+            return np.max([1e-6,0.1**(epoch//500)])
 
         def lr_lambda_lbfgs(epoch):
             # Calculate decay rate
@@ -1032,6 +1173,13 @@ class MarketMaking():
         scheduler_u = optim.lr_scheduler.LambdaLR(optimizer_u, lr_lambda)
         scheduler_d = optim.lr_scheduler.LambdaLR(optimizer_d, lr_lambda)
 
+        #entropy target a la SAC
+        self.log_alpha_u = torch.tensor(2.0, requires_grad=True, device=self.device)
+        self.log_alpha_d = torch.tensor(2.0, requires_grad=True, device=self.device)
+        self.optimizer_alpha_u = torch.optim.Adam([self.log_alpha_u], lr=3e-4)
+        self.optimizer_alpha_d = torch.optim.Adam([self.log_alpha_d], lr=3e-4)
+        self.target_entropy_u = -np.log(1.0 / len(self.U))  # or a tuned value
+        self.target_entropy_d = -np.log(1.0 / 2)
         # Training loop
         for epoch in range(continue_epoch, self.EPOCHS):
             print(f"\nEpoch {epoch+1}/{self.EPOCHS}")
@@ -1414,5 +1562,5 @@ class MarketMakingUnifiedControl(MarketMaking):
         return model_phi, model_u
 
 # get_gpu_specs()
-# MM = MarketMaking(num_epochs=2000, num_points=100)
-# MM.train(sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [20]*3, n_layers= [2]*3, unified=False, label = 'LSTM')
+MM = MarketMaking(num_epochs=2000, num_points=100)
+MM.train(ric='INTC', phi_epochs = 1, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [30, 20, 20], n_layers= [5, 3, 3], unified=False, label = 'LSTM_INTC', activation='sigmoid')

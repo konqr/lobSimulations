@@ -6,7 +6,6 @@ from HJBQVI.utils import get_gpu_specs
 import torch
 get_gpu_specs()
 
-
 log_dir = './logs'
 model_dir = './models'
 label = 'smallPen2_alt_limitedAction_exp'
@@ -14,7 +13,6 @@ layer_widths=128
 n_layers=3
 checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
 with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
-
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
@@ -52,17 +50,17 @@ Pi_Q0= {'Ask_L1': [0.,
                    [(10, 1.)]]}
 kwargs={
     "TradingAgent": [],
+
     "GymTradingAgent": [{"cash": 2500,
                          "strategy": "ICRL",
+
                          "action_freq": 0.2,
                          "rewardpenalty": 0.5,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
                          "inventorylimit": 25,
-
                          'start_trading_lag' : 0,
-
                          "wake_on_MO": True,
                          "wake_on_Spread": True}],
     "Exchange": {"symbol": "INTC",
@@ -83,15 +81,11 @@ kwargs={
 }
 j = kwargs['GymTradingAgent'][0]
 tc = 0.0001
-agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
-                          wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
-                          layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 10, epochs = 5, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=False, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0) #, hidden_activation='sigmoid'
 # agentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
-# agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -102,9 +96,7 @@ model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0
 episode_boundaries = [0]
 for episode in range(500):
-
     env=tradingEnv(stop_time=20, wall_time_limit=23400, **kwargs)
-
     print("Initial Observations"+ str(env.getobservations()))
 
     Simstate, observations, termination, truncation =env.step(action=None)
@@ -217,15 +209,15 @@ for episode in range(500):
         print("Truncation condition reached.")
     else:
         pass
-    if ((episode) % 2 == 0):
 
+    if ((episode) % 2 == 0):
         if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
             for epoch in range(1):
-                metrics = agent.train(logger=train_logger) #, use_CEM = bool((episode+1) % 4))
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger) #, use_CEM = bool((episode+1) % 4))
                 train_logger.save_logs()
             train_logger.plot_losses(show=False, save=True)
 
-        model_manager.save_models(epoch = episode, policy = agent.policy, world= agent.world)
+        model_manager.save_models(epoch = episode, u = agent.Actor_Critic_u, d= agent.Actor_Critic_d)
     # ER = agent.experience_replay
     agent.current_time = 0
     agent.istruncated = False
@@ -247,7 +239,6 @@ for episode in range(500):
     plt.yticks(np.arange(0,13), agent.actions)
     plt.title('Actions')
     plt.savefig(log_dir + label+'_policy.png')
-    # plt.show()
     episodic_rewards = []
     r=0
     tmp = agent.trajectory_buffer[0][0]
@@ -279,5 +270,4 @@ for episode in range(500):
 
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
-    # plt.show()
     torch.cuda.empty_cache()

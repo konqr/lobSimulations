@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from utils import MinMaxScaler
+import torch.nn.functional as F
+from torch.distributions import Categorical
 
 class LSTMLayer(nn.Module):
     def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
@@ -221,6 +223,7 @@ class DGMNet(nn.Module):
 
         # Intermediate LSTM layers
         self.n_layers = n_layers
+        self.final_trans = final_trans
         if typeNN == 'LSTM':
             self.LayerList = nn.ModuleList([
                 LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2=hidden_activation) for _ in range(self.n_layers)
@@ -244,7 +247,9 @@ class DGMNet(nn.Module):
         self.typeNN = typeNN
         # Final layer as fully connected with a single output (function value)
         self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
-
+        if self.final_trans is None:
+            self.scale = nn.Parameter(torch.tensor(1000.0))
+            self.shift = nn.Parameter(torch.tensor(0.0))
     def forward(self, t, x):
         '''
         Args:
@@ -277,22 +282,17 @@ class DGMNet(nn.Module):
                     S = layer(S)
 
         # Call final layer
-        result = self.final_layer(S)
+        if self.final_trans is None:
+            result = self.scale*self.final_layer(S) + self.shift
+        else:
+            result = self.final_layer(S)
 
         return result
 
-class PIANet(DGMNet):
-    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None, typeNN = 'LSTM',hidden_activation='tanh',transformer_config=None):
-        '''
-        Args:
-            layer_width:
-            n_layers:    number of intermediate LSTM layers
-            input_dim:   spatial dimension of input data (EXCLUDES time dimension)
-            num_classes: number of output classes
-            final_trans: transformation used in final layer
 
-        Returns: customized PyTorch model object representing DGM neural network
-        '''
+class PIANet(DGMNet):
+    def __init__(self, layer_width, n_layers, input_dim, num_classes, final_trans=None,
+                 typeNN='LSTM', hidden_activation='tanh', transformer_config=None):
         super(PIANet, self).__init__(
             layer_width=layer_width,
             n_layers=n_layers,
@@ -300,24 +300,29 @@ class PIANet(DGMNet):
             output_dim=num_classes,
             typeNN=typeNN,
             hidden_activation=hidden_activation,
+            final_trans='sigmoid',
             transformer_config=transformer_config
         )
 
-    def forward(self, t, x):
-        '''
-        Args:
-            t: sampled time inputs
-            x: sampled space inputs
+    def forward(self, t, x, stochastic=True, tau=1.0, hard=False, max_prob=0.75):
+        logits = super(PIANet, self).forward(t, x)  # [batch_size, num_classes]
 
-        Run the DGM model and obtain fitted function value at the inputs (t,x)
-        '''
-        result = super(PIANet, self).forward(t,x)
+        if stochastic:
+            # # --- Clamp logits to enforce max probability ---
+            # sum_exp = torch.exp(logits).sum(dim=1)
+            # clamp_val = torch.log(max_prob*sum_exp)
+            # logits = torch.clamp(logits, max = clamp_val)
 
-        # Get argmax and result
-        op = torch.argmax(result, 1)
-        op = op.reshape(op.shape[0], 1).float()
+            # Recompute Gumbel-Softmax
+            probs = F.gumbel_softmax(logits, tau=tau, hard=hard, dim=1)
+            # Sample categorical
+            dist = Categorical(probs)
+            actions = dist.sample().unsqueeze(1).float()
+        else:
+            actions = torch.argmax(logits, dim=1, keepdim=True).float()
 
-        return op, result
+        return actions, logits
+
 
 class DenseNet(nn.Module):
     def __init__(self, input_dim, layer_width, n_layers, output_dim, model0, final_trans=None):
