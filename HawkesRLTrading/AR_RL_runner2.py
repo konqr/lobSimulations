@@ -7,7 +7,7 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import torch
 
 log_dir = '/home/ajafree/'
-model_dir = '/home/ajafree/twap_testing_final/vs_untrainedRL/model'
+model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
@@ -157,7 +157,7 @@ inventory_without_twap = []
 inventory_with_twap_sell = []
 inventory_with_twap_buy = []
 
-twap_side = "buy"
+twap_side = "sell"
 for episode in range(1):
     kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
     kwargs["GymTradingAgent"][1]["cash"] = 1000000
