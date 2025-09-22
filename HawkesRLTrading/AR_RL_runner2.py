@@ -7,11 +7,11 @@ from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 import torch
 
 log_dir = '/home/ajafree/'
-model_dir = '/home/ajafree/twap_testing_final/vs_trainedRL/model'
+model_dir = '/home/ajafree/twap_testing_final/vs_untrainedRL/model'
 # log_dir = '/Users/alirazajafree/researchprojects/logs'
 # model_dir = '/Users/alirazajafree/researchprojects/models/icrl_ppo_model_symmetric'
 
-label = 'test_episode_buy'
+label = 'test_episode_sell'
 layer_widths=128
 n_layers=3
 # layer_widths=512
