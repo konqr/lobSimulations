@@ -613,6 +613,72 @@ def graphInventories(beforetwap, withtwap_buy, withtwap_sell):
     plt.tight_layout()
     plt.show()
 
+def getaveragesplit():
+    file = '/Users/alirazajafree/researchprojects/Training Results/slippages/Outputfile/TRAINING_with_twap.sh.o5976730'
+    
+    buy_slippages = []
+    sell_slippages = []
+    
+    with open(file, 'r') as f:
+        lines = f.readlines()
+    
+    current_episode = None
+    current_side = None
+    
+    for line in lines:
+        line = line.strip()
+        
+        # Check for episode start
+        if "Start of episode" in line and "TWAP Time is" in line and "side is" in line:
+            # Extract episode number and side
+            import re
+            match = re.search(r"Start of episode (\d+).*side is (\w+)", line)
+            if match:
+                current_episode = int(match.group(1))
+                current_side = match.group(2)
+                print(f"Found episode {current_episode} with side {current_side}")
+        
+        # Check for SELL slippage
+        elif "SELL - Executed:" in line and "Slippage:" in line:
+            # Updated regex to capture scientific notation: e.g., -1.23e-5, 4.56E+3, etc.
+            match = re.search(r"Slippage: ([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", line)
+            if match:
+                slippage = float(match.group(1))
+                sell_slippages.append(slippage)
+                print(f"SELL slippage found: {match.group(1)} = {slippage}")
+        
+        # Check for BUY slippage  
+        elif "BUY - Executed:" in line and "Slippage:" in line:
+            # Updated regex to capture scientific notation
+            match = re.search(r"Slippage: ([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", line)
+            if match:
+                slippage = float(match.group(1))
+                buy_slippages.append(slippage)
+                print(f"BUY slippage found: {match.group(1)} = {slippage}")
+    
+    # Calculate averages
+    avg_buy_slippage = np.mean(buy_slippages) if buy_slippages else 0
+    avg_sell_slippage = np.mean(sell_slippages) if sell_slippages else 0
+    
+    print(f"\n=== SLIPPAGE ANALYSIS ===")
+    print(f"Buy Episodes: {len(buy_slippages)}")
+    print(f"Buy Slippages: {buy_slippages}")
+    print(f"Average Buy Slippage: {avg_buy_slippage:.8f} ({avg_buy_slippage*10000:.4f} bps)")
+    
+    print(f"\nSell Episodes: {len(sell_slippages)}")
+    print(f"Sell Slippages: {sell_slippages}")
+    print(f"Average Sell Slippage: {avg_sell_slippage:.8f} ({avg_sell_slippage*10000:.4f} bps)")
+    
+    print(f"\nOverall Average: {(avg_buy_slippage + avg_sell_slippage)/2:.8f} ({((avg_buy_slippage + avg_sell_slippage)/2)*10000:.4f} bps)")
+    
+    return {
+        'buy_slippages': buy_slippages,
+        'sell_slippages': sell_slippages,
+        'avg_buy_slippage': avg_buy_slippage,
+        'avg_sell_slippage': avg_sell_slippage,
+        'avg_overall_slippage': (avg_buy_slippage + avg_sell_slippage)/2
+    }
+
 
 # if __name__ == "__main__":
 #     # Your example params
@@ -628,6 +694,8 @@ def graphInventories(beforetwap, withtwap_buy, withtwap_sell):
 #     print(f"\nIs symmetric: {results['is_symmetric']}")
 
 if __name__ == "__main__":
+    getaveragesplit()
+
     # Run the analysis
     # df = main()
     # print(calcSharpe())
@@ -652,23 +720,23 @@ if __name__ == "__main__":
     #     twapsell.append(arr.tolist())
 
     # graphInventories(beforetwap, twapbuy, twapsell)
-    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsNoAgent/'
-    midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
-    executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
-    print("No RL")
-    calcSlippage(midprices_file, executions_file)
+    # log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsNoAgent/'
+    # midprices_file = log_label+ "logstest_no_RL,TWAP_start_midprices.npy"
+    # executions_file = log_label+"logstest_no_RL,TWAP_twap_executions.npz"
+    # print("No RL")
+    # calcSlippage(midprices_file, executions_file)
 
-    # # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
-    # # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
-    # # executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
-    # # print("Untrained")
-    # # calcSlippage(midprices_file, executions_file)
+    # # # log_label = "/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsUntrainedRL/Logs/"
+    # # # midprices_file = log_label+ "logstest_untrained_RL,TWAP_start_midprices.npy"
+    # # # executions_file = log_label+"logstest_untrained_RL,TWAP_twap_executions.npz"
+    # # # print("Untrained")
+    # # # calcSlippage(midprices_file, executions_file)
 
-    log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
-    midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
-    executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
-    print("Trained")
-    calcSlippage_trained(midprices_file, executions_file)
+    # log_label = '/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/'
+    # midprices_file = log_label+ "with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_start_midprices.npy"
+    # executions_file = log_label+"with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_twap_executions.npz"
+    # print("Trained")
+    # calcSlippage_trained(midprices_file, executions_file)
 
     # print("Sharpe for trained")
     # print(calcSharpe("/Users/alirazajafree/researchprojects/FinalTWAPTesting/vsAdversarialAgent/Logs/randomised_starttimes/with_randomised_starttimestest_ADVERSARIAL_RL,TWAP_randomisedstart_profit.npy"))
