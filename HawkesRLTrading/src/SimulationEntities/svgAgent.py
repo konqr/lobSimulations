@@ -111,7 +111,6 @@ class SVGAgent(GymTradingAgent):
     """
     def __init__(self,
                  n_actions_d: int = 2,
-                 n_actions_u: int = 4,
                  device: str = "cpu",
                  gamma: float = 0.999,
                  policy_hidden: Tuple[int, ...] = (256, 256),
@@ -123,9 +122,9 @@ class SVGAgent(GymTradingAgent):
                  seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
-                 start_trading_lag=0, truncation_enabled=True, action_space_config = 1, include_time = False,
+                 start_trading_lag=0, truncation_enabled=False, action_space_config = 1, include_time = False,
                  alt_state=False, enhance_state=False, buffer_capacity=100000, rewardpenalty = 0.1, hidden_activation='leaky_relu',
-                 transaction_cost = 0.01):
+                 transaction_cost = 0.0001):
         super().__init__(seed=seed, log_events=log_events, log_to_file=log_to_file, strategy=strategy,
                          Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO,
                          wake_on_Spread=wake_on_Spread, cashlimit=cashlimit, inventorylimit=inventorylimit, start_trading_lag=start_trading_lag,
@@ -141,7 +140,7 @@ class SVGAgent(GymTradingAgent):
         self.opt_policy: Optional[torch.optim.Optimizer] = None
         self.opt_world: Optional[torch.optim.Optimizer] = None
         self.n_actions_d = n_actions_d
-        self.n_actions_u = n_actions_u
+
         self._cfg = dict(policy_hidden=policy_hidden, model_hidden=model_hidden,
                          lr_policy=lr_policy, lr_model=lr_model)
         self.action_space_config = action_space_config
@@ -154,6 +153,7 @@ class SVGAgent(GymTradingAgent):
             self.convert_dict = {0:2, 1:3, 2:8, 3:9}
         elif action_space_config == 2:
             self.allowed_actions = ['lo-lo', 'bid-co-lo', 'ask-co-lo']
+        self.n_actions_u = len(self.allowed_actions)
         self.include_time = include_time
         self.alt_state = alt_state
         self.enhance_state = enhance_state
@@ -303,7 +303,7 @@ class SVGAgent(GymTradingAgent):
         cash_tp, inv_tp, mid_tp = s_next[:, 0], s_next[:, 1], s_next[:, 10]
         penalty = self.rewardpenalty
         delta_cash = cash_tp - cash_t
-        delta_inv_val = inv_tp * mid_tp - inv_t * mid_t
+        delta_inv_val = inv_tp * mid_tp*(1- self.transaction_cost*torch.sign(inv_tp)) - inv_t * mid_t*(1- self.transaction_cost*torch.sign(inv_t))
         r = delta_cash + delta_inv_val - penalty * (inv_tp ** 2)
         return r
 
@@ -529,8 +529,8 @@ class SVGAgent(GymTradingAgent):
 
         return {
             "svg_backward_applied": 1.0,
-            "param_max_update": max_diff,
-            "param_mean_update": mean_diff
+            "param_max_update_loss": max_diff,
+            "param_mean_update_loss": mean_diff
         }
 
     def _world_stats(self, s: Tensor, a_d_oh: Tensor, a_u_oh: Tensor) -> Tuple[Tensor, Tensor]:
@@ -681,18 +681,18 @@ class SVGAgent(GymTradingAgent):
         # if self.istruncated or termination:
         #     deltaPNL += self.countInventory() * self.mid
         # reward shaping
-        if self.istruncated:
-            penalty += 100
-        if self.last_action != 12:
-            penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
-        if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
-            penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
-        if self.alt_state:
-            if self.two_sided_reward:
-                if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
-                    penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
-            if self.exploration_bonus:
-                penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:5], self.last_action)
+        # if self.istruncated:
+        #     penalty += 100
+        # if self.last_action != 12:
+        #     penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
+        # if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
+        #     penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+        # if self.alt_state:
+        #     if self.two_sided_reward:
+        #         if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
+        #             penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+        #     if self.exploration_bonus:
+        #         penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:5], self.last_action)
         return deltaPNL + deltaInv - penalty
 
 

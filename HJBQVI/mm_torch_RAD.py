@@ -257,8 +257,8 @@ class MarketMakingRAD(MarketMaking):
     Enhanced with boundary loss handling
     """
 
-    def __init__(self, num_points=100, num_epochs=1000, ric='AAPL'):
-        super().__init__(num_points, num_epochs, ric)
+    def __init__(self, num_points=100, num_epochs=1000, ric='AAPL', hawkes=True):
+        super().__init__(num_points, num_epochs, ric, hawkes=hawkes)
         self.rad_sampler = RADSampler(
             initial_points=num_points,
             adaptation_frequency=10,

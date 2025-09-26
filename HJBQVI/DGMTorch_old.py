@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import MinMaxScaler
+from HJBQVI.utils import MinMaxScaler
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
@@ -50,6 +50,13 @@ class LSTMLayer(nn.Module):
         self.br = nn.Parameter(torch.empty(1, self.output_dim))
         self.bh = nn.Parameter(torch.empty(1, self.output_dim))
 
+        # layer norm
+        self.ln_Z = nn.LayerNorm(output_dim)
+        self.ln_G = nn.LayerNorm(output_dim)
+        self.ln_R = nn.LayerNorm(output_dim)
+        self.ln_H = nn.LayerNorm(output_dim)
+
+
         # Initialize parameters
         self._initialize_weights()
 
@@ -73,11 +80,11 @@ class LSTMLayer(nn.Module):
         Returns: customized PyTorch layer output
         '''
         # Compute components of LSTM layer output
-        Z = self.trans1(torch.add(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)), self.bz))
-        G = self.trans1(torch.add(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)), self.bg))
-        R = self.trans1(torch.add(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)), self.br))
+        Z = self.trans1(self.ln_Z(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)) + self.bz))
+        G = self.trans1(self.ln_G(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)) + self.bg))
+        R = self.trans1(self.ln_R(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)) + self.br))
 
-        H = self.trans2(torch.add(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)), self.bh))
+        H = self.trans2(self.ln_H(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)) + self.bh))
 
         # Compute LSTM layer output
         S_new = torch.add(torch.mul(torch.sub(torch.ones_like(G), G), H), torch.mul(Z, S))
@@ -112,7 +119,8 @@ class DenseLayer(nn.Module):
         if transformation:
             activation_map = {
                 "tanh": torch.tanh,
-                "relu": torch.relu
+                "relu": torch.relu,
+                "sigmoid":torch.sigmoid
             }
             self.transformation = activation_map.get(transformation, None)
         else:
@@ -226,7 +234,7 @@ class DGMNet(nn.Module):
         self.final_trans = final_trans
         if typeNN == 'LSTM':
             self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2=hidden_activation) for _ in range(self.n_layers)
+                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2='tanh') for _ in range(self.n_layers)
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
@@ -248,7 +256,7 @@ class DGMNet(nn.Module):
         # Final layer as fully connected with a single output (function value)
         self.final_layer = DenseLayer(output_dim, layer_width, transformation=final_trans)
         if self.final_trans is None:
-            self.scale = nn.Parameter(torch.tensor(1000.0))
+            self.scale = nn.Parameter(torch.tensor(1.0))
             self.shift = nn.Parameter(torch.tensor(0.0))
     def forward(self, t, x):
         '''
@@ -261,7 +269,7 @@ class DGMNet(nn.Module):
         # Define input vector as time-space pairs
 
         X = torch.cat([t, x], 1)
-        X = MinMaxScaler().fit_transform(X)
+        # X = MinMaxScaler().fit_transform(X)
         # Call initial layer
         S = self.initial_layer(X)
 
@@ -304,7 +312,7 @@ class PIANet(DGMNet):
             transformer_config=transformer_config
         )
 
-    def forward(self, t, x, stochastic=True, tau=1.0, hard=False, max_prob=0.75):
+    def forward(self, t, x, stochastic=False, tau=1.0, hard=False, max_prob=0.75):
         logits = super(PIANet, self).forward(t, x)  # [batch_size, num_classes]
 
         if stochastic:

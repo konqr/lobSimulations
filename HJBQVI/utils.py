@@ -253,7 +253,7 @@ class ModelManager:
             suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
             meta_path = os.path.join(
                 self.model_dir,
-                f"model_metadata{suffix}_{timestamp}.json"
+                f"models\\model_metadata{suffix}_{timestamp}.json"
             )
 
         # Load metadata
@@ -272,7 +272,7 @@ class ModelManager:
 
                 try:
                     state_dict = torch.load(
-                        metadata['models'][model_name],
+                        os.path.join(self.model_dir, metadata['models'][model_name]),
                         map_location=torch.device(device)
                     )
 
