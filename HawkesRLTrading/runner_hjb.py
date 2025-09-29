@@ -56,12 +56,12 @@ kwargs={
     "GymTradingAgent": [{"cash": 2500,
                          "strategy": "ICRL",
 
-                         "action_freq": .1,
+                         "action_freq": .5,
                          "rewardpenalty": 1.0,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
-                         "inventorylimit": 12,
+                         "inventorylimit": 120000,
                          'start_trading_lag' : 0,
                          "wake_on_MO": False,
                          "wake_on_Spread": False}],
@@ -88,7 +88,7 @@ tc = 0.000
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
 # agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
-agentInstance = ImpulseControlAgent(label = '20250925_120727_LSTM_INTC_hawkes',  epoch = 100, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = ImpulseControlAgent(label = '20250926_155119_LSTM_INTC_hawkes',  epoch = 200, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -99,7 +99,7 @@ model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0
 episode_boundaries = [0]
 for episode in range(500):
-    env=tradingEnv(stop_time=100, wall_time_limit=23400, **kwargs)
+    env=tradingEnv(stop_time=300, wall_time_limit=23400, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
 
     Simstate, observations, termination, truncation =env.step(action=None)

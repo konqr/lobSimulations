@@ -114,6 +114,7 @@ class MarketMaking():
         spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
         p_as = np.round(P_mids + spreads / 2, 2)
         p_bs = p_as - spreads
+        P_mids = (p_as + p_bs)/2.
         p = 0.1
         p2 = p/2
         q_as = np.random.geometric(p, [num_points, 1])
@@ -123,31 +124,8 @@ class MarketMaking():
         n_as = np.array([np.random.randint(0, 2*b) for b in q_as])/q_as
         n_bs = np.array([np.random.randint(0, 2*b) for b in q_bs])/q_bs
         if hawkes:
-
-            # shape_lambs = 2*self.mus*self.gammas/(1e-8 + self.alphas**2)
-            # scale_lambs = self.alphas**2/(2*(self.gammas - self.alphas) + 1e-8)
-            # lambdas = np.random.gamma(shape=shape_lambs, scale=scale_lambs, size = [num_points,len(self.E), len(self.E)])
-            # means_lambs = shape_lambs*scale_lambs
-            # std_lambs  = torch.sqrt(shape_lambs)*scale_lambs
-            # p_lamb = 0.3
-            # sigma_l = self.alphas/(self.gammas + 1e-8)#torch.sqrt(torch.log(1 + self.alphas**2/(2*self.mus*self.gammas + 1e-8)))
-            # mu_l = sigma_l#torch.log(1e-8 + self.mus/(1 - self.alphas/(self.gammas+1e-8)))
-            # ds = torch.tensor(np.random.binomial(1, p_lamb, size=[num_points,len(self.E), len(self.E)]))
-            # lambdas = torch.clamp(torch.tensor(self.mus + ds*np.random.normal(mu_l, np.abs(sigma_l), size=[num_points,len(self.E), len(self.E)]), dtype=torch.float32), min=0)
-            # # analytical mean
-            # mean_lambda = self.mus + p_lamb * mu_l   # broadcast to [E,E]
-            #
-            # # analytical second moment
-            # second_moment = (self.mus ** 2) + p_lamb * (sigma_l ** 2 + mu_l ** 2)
-            #
-            # # variance and std (clamp to avoid tiny negative numerical artifacts)
-            # var_lambda = second_moment - mean_lambda ** 2
-            # var_lambda = torch.clamp(var_lambda, min=1e-12)   # avoid negative/zero
-            # std_lambda = torch.sqrt(var_lambda)
             frozen_mask = (self.alphas != 0)
             lambdas = torch.log((torch.tensor(np.random.pareto(3.0, [num_points,len(self.E), len(self.E)]), dtype=torch.float32)*frozen_mask+ 1)*self.mus)
-            # mean_lambda = torch.mean(lambdas, axis=0)
-            # var_lambda = torch.var(torch.exp(lambdas), axis = 0)
 
         t = np.random.uniform(0, self.TERMINATION_TIME, [num_points, 1]) / self.TERMINATION_TIME
         t_boundary = np.ones([num_points, 1])
@@ -554,16 +532,19 @@ class MarketMaking():
         # 0: Limit order deep asks
         mask = us_onehot[:, 0]
         qD_as_updated = mask * (qD_as + 1.0) + (1 - mask) * qD_as_updated
-
+        # 1: CO Deep ask
+        mask = us_onehot[:,1]
+        qD_as_new  = self.tr_co_deep(qD_as, n_as, q_as)
+        qD_as_updated = mask * (qD_as_new) + (1 - mask) * qD_as_updated
         # 1: Limit order top asks
-        mask = us_onehot[:, 1]
+        mask = us_onehot[:, 2]
         q_as_new = q_as + 1.0
         n_as_new = torch.where(n_as >= q_as_new, q_as_new, n_as)
         q_as_updated = mask * q_as_new + (1 - mask) * q_as_updated
         n_as_updated = mask * n_as_new + (1 - mask) * n_as_updated
 
         # 2: Cancel order top asks
-        mask = us_onehot[:, 2]
+        mask = us_onehot[:, 3]
         co_q_as, co_n_as, co_qD_as, co_p_as, co_P_mids = self.tr_co_top(
             1.0, q_as, n_as, qD_as, p_as, P_mids, intervention=True
         )
@@ -574,7 +555,7 @@ class MarketMaking():
         P_mids_updated = mask * co_P_mids + (1 - mask) * P_mids_updated
 
         # 3: Market order asks
-        mask = us_onehot[:, 3]
+        mask = us_onehot[:, 4]
         mo_q_as, mo_n_as, mo_qD_as, mo_p_as, mo_P_mids, mo_Xs, mo_Ys = self.tr_mo(
             1.0, q_as, n_as, qD_as, p_as, P_mids, Xs, Ys, intervention=True
         )
@@ -588,7 +569,7 @@ class MarketMaking():
         inter_profit   = inter_profit + mask * mo_p_as
 
         # 4: Limit order in-spread asks
-        mask = us_onehot[:, 4]
+        mask = us_onehot[:, 5]
         spreads = p_as - p_bs
         valid = (spreads >= 0.015).float()
         mask = mask * valid  # ensure valid only when spread is large
@@ -602,7 +583,7 @@ class MarketMaking():
         p_as_updated   = mask * lo_p_as   + (1 - mask) * p_as_updated
 
         # 5: Limit order in-spread bids
-        mask = us_onehot[:, 5]
+        mask = us_onehot[:, 6]
         mask = mask * valid
         lo_q_bs, lo_qD_bs, lo_n_bs, lo_P_mids, lo_p_bs = self.tr_is(
             -1.0, q_bs, qD_bs, n_bs, P_mids, p_bs, intervention=True
@@ -614,7 +595,7 @@ class MarketMaking():
         p_bs_updated   = mask * lo_p_bs   + (1 - mask) * p_bs_updated
 
         # 6: Market order bids
-        mask = us_onehot[:, 6]
+        mask = us_onehot[:, 7]
         mo_q_bs, mo_n_bs, mo_qD_bs, mo_p_bs, mo_P_mids, mo_Xs, mo_Ys = self.tr_mo(
             -1.0, q_bs, n_bs, qD_bs, p_bs, P_mids, Xs, Ys, intervention=True
         )
@@ -628,7 +609,7 @@ class MarketMaking():
         inter_profit   = inter_profit - mask * mo_p_bs
 
         # 7: Cancel order top bids
-        mask = us_onehot[:, 7]
+        mask = us_onehot[:, 8]
         co_q_bs, co_n_bs, co_qD_bs, co_p_bs, co_P_mids = self.tr_co_top(
             -1.0, q_bs, n_bs, qD_bs, p_bs, P_mids, intervention=True
         )
@@ -639,14 +620,14 @@ class MarketMaking():
         P_mids_updated = mask * co_P_mids + (1 - mask) * P_mids_updated
 
         # 8: Limit order top bids
-        mask = us_onehot[:, 8]
+        mask = us_onehot[:, 9]
         q_bs_new = q_bs + 1.0
         n_bs_new = torch.where(n_bs >= q_bs_new, q_bs_new, n_bs)
         q_bs_updated = mask * q_bs_new + (1 - mask) * q_bs_updated
         n_bs_updated = mask * n_bs_new + (1 - mask) * n_bs_updated
 
         # 9: Limit order deep bids
-        mask = us_onehot[:, 9]
+        mask = us_onehot[:, 10]
         qD_bs_updated = mask * (qD_bs + 1.0) + (1 - mask) * qD_bs_updated
 
         # ---------- Build final state ----------

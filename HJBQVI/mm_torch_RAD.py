@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from sklearn.mixture import GaussianMixture
-from mm_torch import MarketMaking
+from mm_torch import MarketMaking, gumbel_softmax_sample
 import torch.nn as nn
 
 class RADSampler:
@@ -675,31 +675,290 @@ def train_with_rad():
 
     return model_phi, model_d, model_u
 
-train_with_rad()
+class RADMarketMaking(MarketMaking):
+    """
+    MarketMaking subclass that implements Residual-Adaptive Distribution (RAD) sampling for the interior (PINN) loss.
+    - Focuses on HAWKES variant.
+    - Ignores boundary loss entirely (interior only).
+    """
 
-# Mathematical formulation in comments:
-"""
-RAD Methodology Mathematical Framework:
+    def __init__(self, *args, pool_multiplier=10, alpha=1.0, **kwargs):
+        """
+        pool_multiplier: how many candidates relative to requested NUM_POINTS (pool_size = pool_multiplier * NUM_POINTS)
+        alpha: exponent for residual weighting (prob ∝ |residual|^alpha). alpha=1 linear, >1 concentrates more.
+        All other args forwarded to MarketMaking.__init__
+        """
+        super().__init__(*args, **kwargs)
+        self.pool_multiplier = pool_multiplier
+        self.alpha = alpha
 
-1. Residual Computation:
-   R(θ, x_i) = |HJB_residual(θ, x_i)|
-   
-2. Adaptive Weight Distribution:
-   w_i = R(θ, x_i)^α / Σ_j R(θ, x_j)^α
-   
-3. Sampling Probability:
-   P(x) ∝ α * w_residual(x) + β * w_diversity(x)
-   
-4. GMM Fitting:
-   p_adaptive(x) = Σ_k π_k N(x; μ_k, Σ_k)
-   where parameters are fitted using residual weights
-   
-5. Multi-scale Refinement:
-   - Coarse scale (full domain)
-   - Medium scale (high-residual regions)  
-   - Fine scale (local refinement)
+    ###############
+    # RAD utilities
+    ###############
+    def _compute_hawkes_interior_evaluation(self, model_phi, model_d, model_u, ts, Ss, lambdas, train_phi=False, train_d=False, train_u=False, tau=0.5):
+        """
+        Compute the HJB interior evaluation (same expression used to compute interior loss in loss_phi_hawkes)
+        but DO NOT compute or return any boundary loss. Returns:
+            evaluation: (N,1) tensor containing HJB residual (evaluation) for each sample (before MSE)
+        This function reproduces the forward / derivative / I_phi / L_phi / decision/control logic needed
+        to compute the per-sample HJB residual (same as in your loss_phi_hawkes).
+        """
+        device = self.device if self.device is not None else torch.device('cpu')
 
-6. Balanced Strategy:
-   - 70% samples from adaptive distribution
-   - 30% samples from uniform distribution (exploration)
-"""
+        ts = ts.clone().detach().to(device).requires_grad_(True)
+        lambdas = lambdas.clone().detach().to(device).requires_grad_(True)
+        Ss = Ss.clone().detach().to(device)
+
+        # Forward pass and transforms
+        lambdas_E = torch.log(torch.clamp(torch.exp(lambdas).sum(dim=2), min=1e-6))
+        lambdas_E = (lambdas_E - self.means_lamb) / (self.std_lamb + 1e-8)
+        lambdas_E[:, self.std_lamb == 0] = 0
+        states = torch.hstack([Ss, lambdas_E])
+        output = self.ansatz_output(states, ts, model_phi).to(device)
+
+        # dt derivative
+        phi_t = torch.autograd.grad(output.sum(), ts, create_graph=True)[0].to(device)
+
+        # derivative wrt lambdas (pre-exp chain)
+        grad_lambda = torch.autograd.grad(output.sum(), lambdas, create_graph=True)[0]
+        frozen_mask = (self.alphas == 0).unsqueeze(0).expand_as(lambdas)
+        grad_lambda = grad_lambda.masked_fill(frozen_mask, 0.0)
+        phi_lamb = (torch.exp(lambdas).reshape(lambdas.shape[0], -1) * grad_lambda.reshape(lambdas.shape[0], -1)).to(device)
+
+        # Calculate integral term I_phi
+        I_phi = torch.zeros_like(output).to(device)
+        for i in range(self.NDIMS):
+            Ss_transitioned = self.transition(Ss, torch.tensor(i, dtype=torch.float32, device=device))
+            lambdas_transitioned = self.transition_lambda(lambdas, i)
+            lambdas_transitioned = torch.log(torch.clamp(torch.exp(lambdas_transitioned).sum(dim=2), min=1e-6))
+            lambdas_transitioned = (lambdas_transitioned - self.means_lamb) / (self.std_lamb + 1e-8)
+            lambdas_transitioned[:, self.std_lamb == 0] = 0
+            states_transitioned = torch.hstack([Ss_transitioned, lambdas_transitioned])
+            I_phi += torch.exp(lambdas[:, i, :]).sum(dim=1).reshape(lambdas.shape[0], 1) * (
+                    self.ansatz_output(states_transitioned, ts, model_phi) - output
+            )
+
+        # Generator term L_phi
+        L_phi = phi_t + I_phi + ((self.gammas * (self.mus - torch.exp(lambdas))).reshape(lambdas.shape[0], -1) * phi_lamb).sum(dim=1).reshape(lambdas.shape[0], 1)
+
+        # Running cost f
+        states_lob = self.means + Ss[:, :11].clone() * (self.stds + 1e-8)
+        f = -self.eta * torch.square(states_lob[:, 1])
+        f = f.reshape(-1, 1).to(device)
+
+        # Decision network d
+        logits_d = model_d(ts, states)[1]
+        if train_d:
+            ds_onehot = gumbel_softmax_sample(logits_d, tau=tau, hard=True)  # requires same helper as original
+            ds = ds_onehot[:, 1:2]
+        else:
+            ds = torch.argmax(logits_d, dim=-1).reshape(-1, 1).float().detach()
+
+        # Control network u
+        logits_u = model_u(ts, states)[1]
+        if not train_u:
+            logits_u = logits_u.detach()
+
+        # Intervention value
+        transition_lambdas_E = torch.log(torch.clamp(torch.exp(self.transition_lambda(lambdas, logits_u)).sum(dim=2), min=1e-6))
+        transition_lambdas_E = (transition_lambdas_E - self.means_lamb) / (self.std_lamb + 1e-8)
+        transition_lambdas_E[:, self.std_lamb == 0] = 0
+        states_intervened = torch.hstack([self.intervention(ts, Ss, logits_u), transition_lambdas_E])
+        M_phi = self.ansatz_output(states_intervened, ts, model_phi)
+
+        # HJB evaluation (residual) -- same sign convention as original
+        evaluation = (1 - ds) * (L_phi + f) + ds * (M_phi - output)
+        evaluation = evaluation / 1000.0
+
+        # Return per-sample residuals (not squared). RAD uses magnitude.
+        return evaluation.detach()  # detach so RAD selection doesn't backprop through sampling
+
+    def rad_sample_hawkes(self, model_phi, model_d, model_u, num_points=None, pool_multiplier=None, alpha=None, seed=None):
+        """
+        Generate a RAD-sampled interior minibatch for Hawkes case.
+        - Creates a candidate pool of size pool_multiplier * num_points via self.sampler(hawkes=True)
+        - Computes absolute residual |evaluation| for each candidate
+        - Samples num_points from the pool with probability proportional to |eval|^alpha
+        Returns: ts_selected, Ss_selected, lambdas_selected (tensors on the device)
+        """
+        if num_points is None:
+            num_points = self.NUM_POINTS
+        if pool_multiplier is None:
+            pool_multiplier = self.pool_multiplier
+        if alpha is None:
+            alpha = self.alpha
+
+        pool_size = int(pool_multiplier * num_points)
+        if seed is not None:
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
+        # Create pool
+        ts_pool, Ss_pool, lambdas_pool = self.sampler(pool_size, hawkes=True)
+        # Move to device
+        ts_pool = ts_pool.to(self.device)
+        Ss_pool = Ss_pool.to(self.device)
+        lambdas_pool = lambdas_pool.to(self.device)
+
+        # Compute per-sample interior residuals (absolute)
+        with torch.no_grad():
+            evals = self._compute_hawkes_interior_evaluation(model_phi, model_d, model_u, ts_pool, Ss_pool, lambdas_pool)
+            # evals shape (pool_size, 1)
+            residuals = torch.abs(evals).reshape(-1) + 1e-12  # avoid zeros
+
+        # Create sampling probabilities proportional to residual^alpha
+        weights = (residuals ** alpha).cpu().numpy()
+        weights_sum = weights.sum()
+        if weights_sum <= 0 or np.isnan(weights_sum):
+            # fallback uniform
+            probs = np.ones_like(weights) / len(weights)
+        else:
+            probs = weights / weights_sum
+
+        # Sample indices (with replacement)
+        chosen_idx = np.random.choice(len(probs), size=num_points, replace=True, p=probs)
+
+        # Select corresponding tensors
+        ts_selected = ts_pool[chosen_idx].clone().detach()
+        Ss_selected = Ss_pool[chosen_idx].clone().detach()
+        lambdas_selected = lambdas_pool[chosen_idx].clone().detach()
+
+        return ts_selected, Ss_selected, lambdas_selected
+
+    #########################
+    # Override train_step_hawkes
+    #########################
+    def train_step_hawkes(self, model_phi, optimizer_phi, scheduler_phi, model_d, optimizer_d, scheduler_d, model_u, optimizer_u, scheduler_u, phi_epochs=10, phi_optim='ADAM', freeze_d=False):
+        """
+        Modified training step which uses RAD sampling for interior points and ignores boundary loss entirely.
+        The training loop is similar to the original, but each mini-update uses RAD-sampled interior batches.
+        """
+        # We'll create batches using rad_sample_hawkes and then use the interior residual computations to form losses.
+        # NOTE: This implementation keeps the same structure of optimizing phi, u, d but uses RAD minibatches.
+        train_loss_phi = 0.0
+
+        # For phi training, run phi_epochs gradient steps using RAD minibatches
+        for j in range(phi_epochs):
+            ts_batch, Ss_batch, lambdas_batch = self.rad_sample_hawkes(model_phi, model_d, model_u, num_points=self.NUM_POINTS)
+            ts_batch = ts_batch.to(self.device).requires_grad_(True)
+            Ss_batch = Ss_batch.to(self.device)
+            lambdas_batch = lambdas_batch.to(self.device).requires_grad_(True)
+
+            # compute evaluation (residual) for batch (non-detached, so grads flow into phi)
+            evaluation = self._compute_hawkes_interior_evaluation(model_phi, model_d, model_u, ts_batch, Ss_batch, lambdas_batch, train_phi=True)
+
+            # interior loss = MSE(evaluation, 0)
+            interior_loss = nn.MSELoss()(evaluation, torch.zeros_like(evaluation))
+
+            # backprop & step
+            torch.nn.utils.clip_grad_norm_(model_phi.parameters(), 1.0)
+            if phi_optim == 'ADAM':
+                optimizer_phi.zero_grad()
+                interior_loss.backward()
+                optimizer_phi.step()
+            else:
+                # if LBFGS, define closure (rare for RAD but included)
+                def _closure():
+                    optimizer_phi.zero_grad()
+                    ts_batch2 = ts_batch.clone().detach().requires_grad_(True)
+                    eval2 = self._compute_hawkes_interior_evaluation(model_phi, model_d, model_u, ts_batch2, Ss_batch, lambdas_batch)
+                    loss2 = nn.MSELoss()(eval2, torch.zeros_like(eval2))
+                    loss2.backward()
+                    return loss2
+                optimizer_phi.step(_closure)
+
+            train_loss_phi = interior_loss.item()
+            if scheduler_phi is not None:
+                scheduler_phi.step()
+
+            # Safety checks
+            if torch.isnan(interior_loss) or torch.isinf(interior_loss):
+                print("Warning: NaN or Inf detected in Phi interior loss during RAD training")
+                break
+
+            print(f'RAD Model Phi interior loss: {train_loss_phi:0.6f}')
+            for param_group in optimizer_phi.param_groups:
+                lr = param_group['lr']
+                print('Model Phi LR: ' + str(lr))
+
+        # After phi updates, prepare a detached state for u and d training (use statistics computed from lambdas)
+        # We will use the full RAD sample again (detached)
+        ts_train, Ss_train, lambdas_train = self.rad_sample_hawkes(model_phi, model_d, model_u, num_points=self.NUM_POINTS)
+        ts_train = ts_train.to(self.device)
+        Ss_train = Ss_train.to(self.device)
+        lambdas_E = torch.log(torch.clamp(torch.exp(lambdas_train.to(self.device)).sum(dim=2), min=1e-6))
+        lambdas_E = (lambdas_E - self.means_lamb) / (self.std_lamb + 1e-8)
+        lambdas_E[:, self.std_lamb == 0] = 0
+        states_detached = torch.hstack([Ss_train, lambdas_E]).detach()
+
+        # Train control network u (policy) using evaluation as in original (maximizing negative residual)
+        for j in range(phi_epochs):
+            # compute evaluation but do not train phi now; we want eval w.r.t current phi (detached)
+            # reuse compute function but ensure model_phi is in eval mode to avoid stochastic layers if any
+            evaluation = self._compute_hawkes_interior_evaluation(model_phi, model_d, model_u, ts_train, Ss_train, lambdas_train, train_u=True)
+            loss_u = -evaluation.mean()
+
+            # entropy regularization (same style as original)
+            u_logits = model_u(ts_train, states_detached)[1]
+            u_entropy_loss = -(torch.softmax(u_logits + 1e-3, dim=1) * F.log_softmax(u_logits + 1e-20, dim=1)).sum(dim=1).mean()
+            loss_u -= 1.0 * u_entropy_loss
+
+            optimizer_u.zero_grad()
+            loss_u.backward()
+            # gradient checks
+            grad_norm = 0.0
+            for p in model_u.parameters():
+                if p.grad is not None:
+                    grad_norm += p.grad.data.norm(2).item() ** 2
+            grad_norm = grad_norm ** 0.5
+            if grad_norm < 1e-8:
+                print(f"Warning: vanishing gradients on u (norm={grad_norm:.2e})")
+            torch.nn.utils.clip_grad_norm_(model_u.parameters(), 1.0)
+            optimizer_u.step()
+            if scheduler_u is not None:
+                scheduler_u.step()
+
+            if torch.isnan(loss_u) or torch.isinf(loss_u):
+                print("Warning: NaN or Inf detected in u loss during RAD training")
+                break
+
+            print(f'RAD Model u loss: {loss_u.item():0.6f}')
+
+        # Train decision network d if desired
+        for j in range(int(phi_epochs * (1 if freeze_d else 0))):
+            evaluation = self._compute_hawkes_interior_evaluation(model_phi, model_d, model_u, ts_train, Ss_train, lambdas_train, train_d=True)
+            loss_d = -evaluation.mean()
+            d_logits = model_d(ts_train, states_detached)[1]
+            d_entropy_loss = -(torch.softmax(d_logits + 1e-3, dim=1) * F.log_softmax(d_logits + 1e-20, dim=1)).sum(dim=1).mean()
+            loss_d -= 10 * d_entropy_loss
+            optimizer_d.zero_grad()
+            loss_d.backward()
+            torch.nn.utils.clip_grad_norm_(model_d.parameters(), 1.0)
+            optimizer_d.step()
+            if scheduler_d is not None:
+                scheduler_d.step()
+            if torch.isnan(loss_d) or torch.isinf(loss_d):
+                print("Warning: NaN or Inf detected in d loss during RAD training")
+                break
+            print(f'RAD Model d loss: {loss_d.item():0.6f}')
+
+        # Return same signature as original
+        # compute some basic diagnostics
+        pred_u, prob_us = model_u(ts_train, states_detached)
+        pred_d, prob_ds = model_d(ts_train, states_detached)
+
+        train_loss_u = 0.0
+        train_loss_d = 0.0
+        acc_u = 0.0
+        acc_d = 0.0
+
+        try:
+            print(pred_d.unique(return_counts=True))
+            print(pred_u.unique(return_counts=True))
+        except Exception:
+            pass
+
+        return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u, acc_d, acc_u
+
+MM = RADMarketMaking(num_epochs=2000, num_points=1000, hawkes=True)
+MM.train(lr =1e-3, ric='INTC', phi_epochs = 5, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [50, 50, 50], n_layers= [5,5,5], unified=False, label = 'LSTM_INTC_hawkes_RAD', activation='relu')

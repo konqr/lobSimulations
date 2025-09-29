@@ -43,6 +43,7 @@ class ImpulseControlAgent(GymTradingAgent):
         self.enhance_state = False
         self.device = torch.device('cpu')
         self.buffer = []
+        self.init_cash = 2500
 
     def calculaterewards(self, termination) -> Any:
         penalty = self.rewardpenalty * (self.countInventory()**2)
@@ -179,7 +180,7 @@ class ImpulseControlAgent(GymTradingAgent):
         n_bs = np.append(n_bs, [q_b+qD_b])
         n_a, n_b = np.min(n_as)/q_a, np.min(n_bs)/q_b
         state = np.array([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5]], dtype=float)
-        t = torch.tensor([[self.current_time]], dtype=torch.float32)/100
+        t = torch.tensor([[self.current_time]], dtype=torch.float32)/300
         # --- Standardize using known distributions ---
         p = 0.1
         p2 = p/2
