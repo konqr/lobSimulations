@@ -66,7 +66,7 @@ class MarketMaking():
         self.NDIMS = 12
         self.NUM_POINTS = num_points
         self.EPOCHS = num_epochs
-        self.eta = 100  # inventory penalty
+        self.eta = 10  # inventory penalty
         self.E = ["lo_deep_Ask", "co_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
                   "lo_inspread_Bid", "mo_Bid", "co_top_Bid", "lo_top_Bid", "co_deep_Bid", "lo_deep_Bid"]
         self.U = ["lo_deep_Ask", "lo_top_Ask", "co_top_Ask", "mo_Ask", "lo_inspread_Ask",
@@ -95,7 +95,7 @@ class MarketMaking():
 
     def ansatz_output(self, states, ts, model_phi):
         states_lob = self.means + states[:,:11].clone()*(self.stds + 1e-8)
-        return (states_lob[:,0] + states_lob[:,1]*states_lob[:,10]).unsqueeze(-1) + (1 - ts)*model_phi(ts, states)*1000
+        return (states_lob[:,0] + states_lob[:,1]*(states_lob[:,10] - 1e-2*states_lob[:,1])).unsqueeze(-1) + (1 - ts)*model_phi(ts, states)*1000
 
     def sampler(self, num_points=1000, seed=None, boundary=False, hawkes=False):
         '''
@@ -108,8 +108,9 @@ class MarketMaking():
             torch.manual_seed(seed)
 
         # Generate sample data
-        Xs = np.round(1e3 * np.random.randn(num_points, 1), 2)
+
         Ys = np.round(6 * np.random.randn(num_points, 1), 0)
+        Xs = 2500 - 100*Ys + np.round(0.1*np.random.randn(num_points, 1), 2)
         P_mids = np.round(200 + 10 * np.random.randn(num_points, 1), 2) / 2
         spreads = 0.01 * np.random.geometric(.8, [num_points, 1])
         p_as = np.round(P_mids + spreads / 2, 2)
@@ -121,8 +122,8 @@ class MarketMaking():
         qD_as = np.random.geometric(p2, [num_points, 1])
         q_bs = np.random.geometric(p, [num_points, 1])
         qD_bs = np.random.geometric(p2, [num_points, 1])
-        n_as = np.array([np.random.randint(0, 2*b) for b in q_as])/q_as
-        n_bs = np.array([np.random.randint(0, 2*b) for b in q_bs])/q_bs
+        n_as = np.array([np.random.randint(0, b) for b in q_as + qD_as + 1])/q_as
+        n_bs = np.array([np.random.randint(0, b) for b in q_bs + qD_bs + 1])/q_bs
         if hawkes:
             frozen_mask = (self.alphas != 0)
             lambdas = torch.log((torch.tensor(np.random.pareto(3.0, [num_points,len(self.E), len(self.E)]), dtype=torch.float32)*frozen_mask+ 1)*self.mus)
@@ -136,7 +137,7 @@ class MarketMaking():
         # --- Standardize using known distributions ---
         eps = 1e-8
         means = np.array([
-            0.0,   # X ~ N(0, 1000^2)
+            2500.0,
             0.0,   # Y ~ N(0, 2^2)
             100.0, # ask price ~ Pmid + spread/2
             100.0, # bid price ~ Pmid - spread/2
@@ -144,13 +145,13 @@ class MarketMaking():
             (1-p)/p,   # mean of Geom(0.002)
             (1-p2)/p2, # mean of Geom(0.0015)
             (1-p2)/p2, # mean of Geom(0.0015)
-            None,  # n_as ~ U(0, q_as) (data dependent, center later)
-            None,  # n_bs ~ U(0, q_bs)
+            0,  # n_as ~ U(0, q_as) (data dependent, center later)
+            0,  # n_bs ~ U(0, q_bs)
             100.0  # Pmid
         ])
 
         stds = np.array([
-            1000.0,
+            6.0,
             6.0,
             5.0,
             5.0,
@@ -158,8 +159,8 @@ class MarketMaking():
             np.sqrt((1-p)/(p**2)),
             np.sqrt((1-p2)/(p2**2)),
             np.sqrt((1-p2)/(p2**2)),
-            None,
-            None,
+            1,
+            1,
             5.0
         ])
 
@@ -1638,4 +1639,4 @@ class MarketMakingUnifiedControl(MarketMaking):
 
 # get_gpu_specs()
 MM = MarketMaking(num_epochs=2000, num_points=1000, hawkes=True)
-MM.train(lr =1e-3, ric='INTC', phi_epochs = 5, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [50, 50, 50], n_layers= [5,5,5], unified=False, label = 'LSTM_INTC_hawkes', activation='relu')
+MM.train(lr =1e-3, ric='INTC', phi_epochs = 5, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [50, 50, 50], n_layers= [5,5,5], unified=False, label = 'LSTM_INTC_hawkes_tc1', activation='relu')

@@ -83,7 +83,9 @@ class HawkesArrival(ArrivalModel):
         self.left=None
         self.pointcount=0
         self.current_intensity = np.random.rand(len(self.cols)) # start with correct dims
-        
+        self.TAU = 500
+        if self.expApprox: self.TAU = 10
+
     def generatefakeparams(self):
         """
         Generates all the necessary default/fake parameters for the Hawkes Simulation model. 
@@ -313,7 +315,7 @@ class HawkesArrival(ArrivalModel):
             else:
                 while self.left<len(self.timeseries):
                     #print("Iterating: s: ", s, ", timestamp: ", timeseries[left][0])
-                    if self.s-self.timeseries[self.left][0]>=500:
+                    if self.s-self.timeseries[self.left][0]>=self.TAU:
                         self.left+=1 
                     else:
                         break
@@ -373,7 +375,7 @@ class HawkesArrival(ArrivalModel):
                 tau = decays[k][0]
                 self.n[k]+=1
                 self.timeseries.append((self.s, k)) #(time, event)
-                if self.timeseries[-1][0] - self.timeseries[0][0] > 600: # purge too big timeseries
+                if self.timeseries[-1][0] - self.timeseries[0][0] > self.TAU: # purge too big timeseries
                     self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
                 self.pointcount+=pointcount
                 return pointcount

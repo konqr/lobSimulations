@@ -194,22 +194,22 @@ class ImpulseControlAgent(GymTradingAgent):
             (1-p)/p,   # mean of Geom(0.002)
             (1-p2)/p2, # mean of Geom(0.0015)
             (1-p2)/p2, # mean of Geom(0.0015)
-            (1-p)/(2*p),   # n_as ~ U(0, q_as) (data dependent, center later)
-            (1-p)/(2*p),  # n_bs ~ U(0, q_bs)
+            0.,   # n_as ~ U(0, q_as) (data dependent, center later)
+            0.,  # n_bs ~ U(0, q_bs)
             100.0  # Pmid
         ])
 
         stds = np.array([
-            1000.0,
-            2.0,
+            6.0,
+            6.0,
             5.0,
             5.0,
             np.sqrt((1-p)/(p**2)),
             np.sqrt((1-p)/(p**2)),
             np.sqrt((1-p2)/(p2**2)),
             np.sqrt((1-p2)/(p2**2)),
-            np.sqrt((1-p)/(2*(p**2))),
-            np.sqrt((1-p)/(2*(p**2))),
+            1.,
+            1.,
             5.0
         ])
 
@@ -237,6 +237,10 @@ class ImpulseControlAgent(GymTradingAgent):
         else:
             action = 12
         u = action
+        # if u in [4,7]:
+        #     _u = u
+        #     if _u == 4: u = 7
+        #     elif _u == 7: u = 4
         d = 0 if action == 12 else 1
 
         # Validation checks
@@ -254,12 +258,71 @@ class ImpulseControlAgent(GymTradingAgent):
                 self.last_action = 12
                 return 12, (d, 0)
 
-        if (int(u) == 4) and ((self.countInventory() < 1) or
-                              (self.countInventory() >= self.inventorylimit - 2)):
+        if (int(u) == 7) and (self.countInventory() >= self.inventorylimit - 2):
             self.last_action = 12
             return 12, (d, 0)
 
-        if (int(u) == 7) and (self.countInventory() <= 2 - self.inventorylimit):
+        if (int(u) == 4) and (self.countInventory() <= 2 - self.inventorylimit):
             self.last_action = 12
             return 12, (d, 0)
         return  u, (d, u)
+
+class ImpulseControlAgentPoisson(ImpulseControlAgent):
+    def __init__(self, label:str,  epoch : int, model_dir: str, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True, wake_on_Spread: bool=True , cashlimit=1000000, **kwargs):
+        super().__init__(label,  epoch , model_dir, seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread , cashlimit=cashlimit)
+        self.resetseed(seed)
+        self.first_action = True
+        self.second_action = True
+        # model ids
+        self.label = label
+        self.model_dir = model_dir
+        self.epoch = epoch
+        ###
+        self.model_u = None #PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
+        self.model_d = None #PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
+        self.layer_widths = [50,30,30]
+        self.n_layers= [10,10,10]
+        # self.load_nets()
+
+    def setupNNs(self,o):
+        model_manager = ModelManager(model_dir = self.model_dir, label = self.label)
+        self.model_d =PIANet(self.layer_widths[1],self.n_layers[1],11, 2, typeNN='Dense')
+        self.model_u = PIANet(self.layer_widths[2], self.n_layers[2], 11, 10, typeNN = 'Dense')
+        self.model_d, self.model_u = model_manager.load_models( d= self.model_d,u= self.model_u, timestamp= self.label, epoch = self.epoch)
+        return
+
+    def get_action(self, data = None, **kwargs) :
+        size = 1
+        if self.first_action:
+            action = 0 # lo_deep_ask
+            self.first_action = False
+            return action, (1, action)
+        if self.second_action:
+            action = 11 # lo_deep_bid
+            self.second_action = False
+            return action, (1, action)
+        p_a, q_a = data['LOB0']['Ask_L1']
+        p_b, q_b = data['LOB0']['Bid_L1']
+        _, qD_a = data['LOB0']['Ask_L2']
+        _, qD_b = data['LOB0']['Bid_L2']
+        pos = data['Positions']
+        n_as = get_queue_priority(data, pos, 'Ask_L1')
+        n_as = np.append(n_as, get_queue_priority(data, pos, 'Ask_L2'))
+        n_as = np.append(n_as, [q_a+qD_a])
+        n_bs = get_queue_priority(data, pos, 'Bid_L1')
+        n_bs = np.append(n_bs, get_queue_priority(data, pos, 'Bid_L2'))
+        n_bs = np.append(n_bs, [q_b+qD_b])
+        n_a, n_b = np.min(n_as), np.min(n_bs)
+        state = torch.tensor([[self.cash, self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5]], dtype=torch.float32)
+        t = torch.tensor([[self.current_time]], dtype=torch.float32)
+        d, _ = self.model_d(t, state)
+        if d:
+            u, _ = self.model_u(t,state)
+            if u > 0:
+                u += 1
+                if u > 9:
+                    u += 1
+            action = int(u.item())
+        else:
+            action = 12
+        return action, (d, action)

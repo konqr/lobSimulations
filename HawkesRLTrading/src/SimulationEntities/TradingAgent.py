@@ -165,8 +165,8 @@ class TradingAgent(Entity):
         elif self.actions[k][0:2]=="mo":
             #marketorder
             level=self.actionsToLevels[self.actions[k]]
-            if "Ask" in level:
-                assert self.Inventory[self.exchange.symbol]>=size, f"Agent {self.id} does not have sufficient inventory for ASK Market Orders of size {size}."
+            # if "Ask" in level:
+            #     assert self.Inventory[self.exchange.symbol]>=size, f"Agent {self.id} does not have sufficient inventory for ASK Market Orders of size {size}."
             order=MarketOrder(time_placed=self.current_time, side=side, size=size, symbol=self.exchange.symbol, agent_id=self.id, _level=level)
 
         else:

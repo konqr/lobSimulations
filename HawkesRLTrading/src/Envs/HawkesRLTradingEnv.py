@@ -6,7 +6,7 @@ import logging
 import matplotlib.pyplot as plt
 from HawkesRLTrading.src.SimulationEntities.GymTradingAgent import GymTradingAgent, RandomGymTradingAgent
 from HawkesRLTrading.src.SimulationEntities.MetaOrderTradingAgents import TWAPGymTradingAgent, POVGymTradingAgent
-from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent
+from HawkesRLTrading.src.SimulationEntities.ImpulseControlAgent import ImpulseControlAgent, ImpulseControlAgentPoisson
 from HawkesRLTrading.src.SimulationEntities.ICRLAgent import ICRLAgent, ICRL2, ICRLSG, PPOAgent, AdversarialPPOAgent
 from HawkesRLTrading.src.SimulationEntities.ProbabilisticAgent import ProbabilisticAgent
 from HawkesRLTrading.src.Stochastic_Processes.Arrival_Models import ArrivalModel, HawkesArrival

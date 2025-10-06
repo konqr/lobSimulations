@@ -12,10 +12,10 @@ label = 'hjb_hawkesMOOnly'
 layer_widths=128
 n_layers=3
 checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
-# with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson", 'rb') as f: #
-#     kernelparams = pickle.load(f)
-with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_moOnly_new_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson", 'rb') as f: #
     kernelparams = pickle.load(f)
+# with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_moOnly_new_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+#     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
 #     tod = pickle.load(f)
@@ -56,7 +56,7 @@ kwargs={
     "GymTradingAgent": [{"cash": 2500,
                          "strategy": "ICRL",
 
-                         "action_freq": .5,
+                         "action_freq": .2,
                          "rewardpenalty": 1.0,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
@@ -88,7 +88,7 @@ tc = 0.000
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
 # agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
-agentInstance = ImpulseControlAgent(label = '20250926_155119_LSTM_INTC_hawkes',  epoch = 200, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = ImpulseControlAgent(label = '20251006_095107_LSTM_INTC_hawkes_tc1',  epoch = 250, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -234,6 +234,73 @@ for episode in range(500):
     plt.yticks(np.arange(0,13), agent.actions)
     plt.title('Actions')
     plt.savefig(log_dir + label+'_policy.png')
+    # ---- Policy Plot (episode aware, 3 subplots, time resets per episode) ----
+    plt.figure(figsize=(12, 10))
+
+    cash_arr = np.array(cash)
+    inv_arr = np.array(inventory)
+    act_arr = np.array(actions)
+    pft_arr = np.array(finalcash2) - 2500
+    all_cash, all_inv , all_pft = [], [], []
+
+    # Prepare subplots
+    ax1 = plt.subplot(311)  # Cash
+    ax2 = plt.subplot(312)  # Inventory
+    ax3 = plt.subplot(313)  # Profit
+
+    for i in range(len(episode_boundaries)):
+        start_idx = episode_boundaries[i]
+        end_idx = episode_boundaries[i + 1] if i + 1 < len(episode_boundaries) else len(cash_arr)
+
+        if end_idx > start_idx:
+            ep_cash = cash_arr[start_idx:end_idx]
+            ep_inv = inv_arr[start_idx:end_idx]
+            ep_act = act_arr[start_idx:end_idx]
+            ep_pft = pft_arr[start_idx:end_idx]
+            ep_t = np.arange(len(ep_cash))  # <-- reset time per episode
+
+            # Store for mean calculation (align by episode step count)
+            all_cash.append(ep_cash)
+            all_inv.append(ep_inv)
+            all_pft.append(ep_pft)
+            # Faint episode traces
+            ax1.plot(ep_t, ep_cash, color="blue", alpha=0.1)
+            ax2.plot(ep_t, ep_inv, color="red", alpha=0.1)
+            ax3.plot(ep_t, ep_pft, color="purple", alpha=0.1)
+            # Actions
+            # ax3.scatter(ep_t, ep_act, s=8, c="black", alpha=0.1)
+
+    # --- Mean calculation across episodes ---
+    from itertools import zip_longest
+    def pad(list_of_arrays):
+        return np.array(list(zip_longest(*list_of_arrays, fillvalue=np.nan))).T
+
+    all_cash = pad(all_cash)
+    all_inv = pad(all_inv)
+    all_pft = pad(all_pft)
+    mean_cash = np.nanmean(all_cash, axis=0)
+    mean_inv = np.nanmean(all_inv, axis=0)
+    mean_pft = np.nanmean(all_pft, axis=0)
+    steps = np.arange(len(mean_cash))  # common x-axis for mean lines
+
+    # --- Mean lines ---
+    ax1.plot(steps, mean_cash, color="blue", linewidth=2, label="Cash (mean)")
+    ax2.plot(steps, mean_inv, color="red", linewidth=2, label="Inventory (mean)")
+    ax3.plot(steps, mean_pft, color='purple', linewidth=2, label = 'Profit (mean)')
+    # --- Styling ---
+    ax1.set_title("Cash")
+    ax1.legend()
+    ax2.set_title("Inventory")
+    ax2.legend()
+    ax3.set_title("Profit")
+    ax3.legend()
+
+    for ax in (ax1, ax2, ax3):
+        ax.set_xlabel("Time steps (per episode)")
+        ax.grid(True, linestyle="--", alpha=0.6)
+
+    plt.tight_layout()
+    plt.savefig(log_dir + label + "_policy2.png")
     episodic_rewards = []
     r=0
     tmp = agent.trajectory_buffer[0][0]
