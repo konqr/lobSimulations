@@ -961,4 +961,4 @@ class RADMarketMaking(MarketMaking):
         return model_phi, model_d, model_u, train_loss_phi, train_loss_d, train_loss_u, acc_d, acc_u
 
 MM = RADMarketMaking(num_epochs=2000, num_points=1000, hawkes=True)
-MM.train(lr =1e-3, ric='INTC', phi_epochs = 5, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [50, 50, 50], n_layers= [5,5,5], unified=False, label = 'LSTM_INTC_hawkes_tc100', activation='relu')
+MM.train(lr =1e-4, ric='INTC', phi_epochs = 5, sampler='iid',log_dir = 'logs', model_dir = 'models', typeNN='LSTM', layer_widths = [50, 50, 50], n_layers= [5,5,5], unified=False, label = 'LSTM_INTC_hawkes_tc100', activation='relu')

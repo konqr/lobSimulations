@@ -229,11 +229,14 @@ class ImpulseControlAgent(GymTradingAgent):
         d, _ = self.model_d(t, state)
         if d:
             u, _ = self.model_u(t,state)
+            mapping = [2, 3, 8, 9]
+
             # if u > 0:
             #     u += 1
             #     if u > 9:
             #         u += 1
             action = int(u.item())
+            action = mapping[action]
         else:
             action = 12
         u = action

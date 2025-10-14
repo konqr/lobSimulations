@@ -88,7 +88,7 @@ tc = 0.000
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
 # agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
-agentInstance = ImpulseControlAgent(label = '20251006_095107_LSTM_INTC_hawkes_tc1',  epoch = 250, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = ImpulseControlAgent(label = '20251006_145953_LSTM_INTC_hawkes_tc1',  epoch = 150, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
