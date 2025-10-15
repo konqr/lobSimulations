@@ -16,40 +16,126 @@ Tensor = torch.Tensor
 # Networks
 # -----------------------------
 
-class MLP(nn.Module):
-    def __init__(self, in_dim: int, out_dim: int, hidden: Tuple[int, ...] = (256, 256),
+# class MLP(nn.Module):
+#     def __init__(self, in_dim: int, out_dim: int, hidden: Tuple[int, ...] = (256, 256),
+#                  layernorm: bool = True):
+#         super().__init__()
+#         layers: List[nn.Module] = []
+#         last = in_dim
+#         for h in hidden:
+#             layers += [nn.Linear(last, h), nn.ReLU()]
+#             if layernorm:
+#                 layers += [nn.LayerNorm(h)]
+#             last = h
+#         layers += [nn.Linear(last, out_dim)]
+#         self.net = nn.Sequential(*layers)
+#
+#     def forward(self, x: Tensor) -> Tensor:
+#         return self.net(x)
+#
+#
+# class PolicyNet(nn.Module):
+#     """Two‑head categorical policy with Gumbel‑Softmax outputs for differentiable actions."""
+#     def __init__(self, state_dim: int, n_actions_d: int = 13, n_actions_u: int = 13,
+#                  hidden: Tuple[int, ...] = (256, 256)):
+#         super().__init__()
+#         self.trunk = MLP(state_dim, hidden[-1], hidden=hidden[:-1] if len(hidden) > 1 else (hidden[0],))
+#         feat_dim = hidden[-1]
+#         self.logits_d = nn.Linear(feat_dim, n_actions_d)
+#         self.logits_u = nn.Linear(feat_dim, n_actions_u)
+#
+#     def forward(self, s: Tensor) -> Tuple[Tensor, Tensor]:
+#         z = self.trunk(s)
+#         return self.logits_d(z), self.logits_u(z)
+#
+#     @torch.no_grad()
+#     def act(self, s: Tensor, greedy: bool = True) -> Tuple[int, int]:
+#         ld, lu = self.forward(s)
+#         if greedy:
+#             a_d = torch.argmax(ld, dim=-1)
+#             a_u = torch.argmax(lu, dim=-1)
+#         else:
+#             a_d = Categorical(logits=ld).sample()
+#             a_u = Categorical(logits=lu).sample()
+#         return int(a_d.item()), int(a_u.item())
+#
+#     def gumbel_actions(self, s: Tensor, tau: float = 1.0, hard: bool = True) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+#         """Return differentiable one‑hots via straight‑through Gumbel‑Softmax.
+#         Returns: (onehot_d, onehot_u, logits_d, logits_u)
+#         """
+#         logits_d, logits_u = self.forward(s)
+#         y_d = F.gumbel_softmax(logits_d, tau=tau, hard=hard)
+#         y_u = F.gumbel_softmax(logits_u, tau=tau, hard=hard)
+#         return y_d, y_u, logits_d, logits_u
+#
+#
+# class WorldModel(nn.Module):
+#     """Predict Δs = f(s, a_d_onehot, a_u_onehot, ε), with ε ~ N(0, I)."""
+#     def __init__(self, state_dim: int, n_actions_d: int = 13, n_actions_u: int = 13, hidden=(512, 512)):
+#         super().__init__()
+#         self.noise_dim = state_dim
+#         in_dim = state_dim + n_actions_d + n_actions_u + self.noise_dim
+#         self.net_mu = MLP(in_dim, state_dim, hidden=hidden)
+#         self.net_logstd = MLP(in_dim, state_dim, hidden=hidden)
+#         self.max_logstd = 2.0
+#         self.min_logstd = -5.0
+#
+#     def forward(self, s: Tensor, a_d_oh: Tensor, a_u_oh: Tensor, eps: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:
+#         batch = s.size(0)
+#         if eps is None:
+#             eps = torch.randn(batch, self.noise_dim, device=s.device)
+#         x = torch.cat([s, a_d_oh, a_u_oh, eps], dim=-1)
+#         mu = self.net_mu(x)
+#         logstd = torch.clamp(self.net_logstd(x), self.min_logstd, self.max_logstd)
+#         std = torch.exp(logstd)
+#         delta = mu + std * torch.randn_like(mu)
+#         s_next = s + delta
+#         return s_next, mu, logstd
+
+
+
+
+class LSTMModel(nn.Module):
+    """A general LSTM feature extractor replacing the MLP."""
+    def __init__(self, in_dim: int, out_dim: int, hidden_dim: int = 256, num_layers: int = 2,
                  layernorm: bool = True):
         super().__init__()
-        layers: List[nn.Module] = []
-        last = in_dim
-        for h in hidden:
-            layers += [nn.Linear(last, h), nn.ReLU()]
-            if layernorm:
-                layers += [nn.LayerNorm(h)]
-            last = h
-        layers += [nn.Linear(last, out_dim)]
-        self.net = nn.Sequential(*layers)
+        self.lstm = nn.LSTM(input_size=in_dim,
+                            hidden_size=hidden_dim,
+                            num_layers=num_layers,
+                            batch_first=True)
+        self.layernorm = nn.LayerNorm(hidden_dim) if layernorm else nn.Identity()
+        self.fc_out = nn.Linear(hidden_dim, out_dim)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.net(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: (batch, seq_len, in_dim)
+        If x is (batch, in_dim), we add a dummy seq_len = 1 dimension.
+        """
+        if x.dim() == 2:
+            x = x.unsqueeze(1)  # add sequence dimension
+        out, _ = self.lstm(x)
+        out = out[:, -1, :]  # last time step
+        out = self.layernorm(out)
+        out = self.fc_out(out)
+        return out
 
 
 class PolicyNet(nn.Module):
-    """Two‑head categorical policy with Gumbel‑Softmax outputs for differentiable actions."""
+    """Two-head categorical policy with Gumbel-Softmax outputs for differentiable actions (LSTM version)."""
     def __init__(self, state_dim: int, n_actions_d: int = 13, n_actions_u: int = 13,
-                 hidden: Tuple[int, ...] = (256, 256)):
+                 hidden_dim: int = 256, num_layers: int = 2):
         super().__init__()
-        self.trunk = MLP(state_dim, hidden[-1], hidden=hidden[:-1] if len(hidden) > 1 else (hidden[0],))
-        feat_dim = hidden[-1]
-        self.logits_d = nn.Linear(feat_dim, n_actions_d)
-        self.logits_u = nn.Linear(feat_dim, n_actions_u)
+        self.trunk = LSTMModel(state_dim, hidden_dim, hidden_dim=hidden_dim, num_layers=num_layers)
+        self.logits_d = nn.Linear(hidden_dim, n_actions_d)
+        self.logits_u = nn.Linear(hidden_dim, n_actions_u)
 
-    def forward(self, s: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, s: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         z = self.trunk(s)
         return self.logits_d(z), self.logits_u(z)
 
     @torch.no_grad()
-    def act(self, s: Tensor, greedy: bool = True) -> Tuple[int, int]:
+    def act(self, s: torch.Tensor, greedy: bool = True) -> Tuple[int, int]:
         ld, lu = self.forward(s)
         if greedy:
             a_d = torch.argmax(ld, dim=-1)
@@ -59,10 +145,8 @@ class PolicyNet(nn.Module):
             a_u = Categorical(logits=lu).sample()
         return int(a_d.item()), int(a_u.item())
 
-    def gumbel_actions(self, s: Tensor, tau: float = 1.0, hard: bool = True) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-        """Return differentiable one‑hots via straight‑through Gumbel‑Softmax.
-        Returns: (onehot_d, onehot_u, logits_d, logits_u)
-        """
+    def gumbel_actions(self, s: torch.Tensor, tau: float = 1.0, hard: bool = True
+                       ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         logits_d, logits_u = self.forward(s)
         y_d = F.gumbel_softmax(logits_d, tau=tau, hard=hard)
         y_u = F.gumbel_softmax(logits_u, tau=tau, hard=hard)
@@ -70,28 +154,31 @@ class PolicyNet(nn.Module):
 
 
 class WorldModel(nn.Module):
-    """Predict Δs = f(s, a_d_onehot, a_u_onehot, ε), with ε ~ N(0, I)."""
-    def __init__(self, state_dim: int, n_actions_d: int = 13, n_actions_u: int = 13, hidden=(512, 512)):
+    """Predict Δs = f(s, a_d_onehot, a_u_onehot, ε), with ε ~ N(0, I), using LSTM."""
+    def __init__(self, state_dim: int, n_actions_d: int = 13, n_actions_u: int = 13,
+                 hidden_dim: int = 512, num_layers: int = 2):
         super().__init__()
         self.noise_dim = state_dim
         in_dim = state_dim + n_actions_d + n_actions_u + self.noise_dim
-        self.net_mu = MLP(in_dim, state_dim, hidden=hidden)
-        self.net_logstd = MLP(in_dim, state_dim, hidden=hidden)
+        self.net_mu = LSTMModel(in_dim, state_dim, hidden_dim=hidden_dim, num_layers=num_layers)
+        self.net_logstd = LSTMModel(in_dim, state_dim, hidden_dim=hidden_dim, num_layers=num_layers)
         self.max_logstd = 2.0
         self.min_logstd = -5.0
 
-    def forward(self, s: Tensor, a_d_oh: Tensor, a_u_oh: Tensor, eps: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor]:
+    def forward(self, s: torch.Tensor, a_d_oh: torch.Tensor, a_u_oh: torch.Tensor,
+                eps: Optional[torch.Tensor] = None
+                ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         batch = s.size(0)
         if eps is None:
             eps = torch.randn(batch, self.noise_dim, device=s.device)
         x = torch.cat([s, a_d_oh, a_u_oh, eps], dim=-1)
+        x = x.unsqueeze(1)  # LSTM expects (batch, seq_len, in_dim)
         mu = self.net_mu(x)
         logstd = torch.clamp(self.net_logstd(x), self.min_logstd, self.max_logstd)
         std = torch.exp(logstd)
         delta = mu + std * torch.randn_like(mu)
         s_next = s + delta
         return s_next, mu, logstd
-
 
 # -----------------------------
 # SVG(∞) Trainer — Algorithm 1 implementation (no imagined multi‑step rollouts)
@@ -113,12 +200,12 @@ class SVGAgent(GymTradingAgent):
                  n_actions_d: int = 2,
                  device: str = "cpu",
                  gamma: float = 0.999,
-                 policy_hidden: Tuple[int, ...] = (256, 256),
-                 model_hidden: Tuple[int, ...] = (512, 512),
+                 policy_hidden: int = 256,
+                 model_hidden: int =  512,
                  tau_gumbel: float = 1.0,
                  entropy_coef: float = 1e-3,
-                 lr_policy: float = 1e-2,
-                 lr_model: float = 1e-1,
+                 lr_policy: float = 1e-3,
+                 lr_model: float = 1e-3,
                  seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random",
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
@@ -163,6 +250,7 @@ class SVGAgent(GymTradingAgent):
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
         self.transaction_cost = transaction_cost
+        self.ablation_params = {}
 
     def getState(self, data):
         """
@@ -288,8 +376,8 @@ class SVGAgent(GymTradingAgent):
         data0 = self.getState(state)
         state_dim = len(data0[0])
         self.state_dim = state_dim
-        self.policy = PolicyNet(state_dim, self.n_actions_d, self.n_actions_u, hidden=self._cfg['policy_hidden']).to(self.device)
-        self.world = WorldModel(state_dim, self.n_actions_d, self.n_actions_u, hidden=self._cfg['model_hidden']).to(self.device)
+        self.policy = PolicyNet(state_dim, self.n_actions_d, self.n_actions_u, hidden_dim=self._cfg['policy_hidden']).to(self.device)
+        self.world = WorldModel(state_dim, self.n_actions_d, self.n_actions_u, hidden_dim=self._cfg['model_hidden']).to(self.device)
         self.opt_policy = torch.optim.Adam(self.policy.parameters(), lr=self._cfg['lr_policy'])
         self.opt_world = torch.optim.Adam(self.world.parameters(), lr=self._cfg['lr_model'])
 

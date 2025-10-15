@@ -9,7 +9,7 @@ import pickle
 import numpy as np
 from typing import Dict, Any, Tuple, List
 import glob
-
+from collections import Counter
 def parse_log_file(filename):
     """
     Parse the limit order book log file and extract relevant information
@@ -305,8 +305,49 @@ def calcSharpe(file):
     for s, e in zip(start_idxs, end_idxs):
         log_ret2.append(np.log(arr[1][e]/arr[1][s]))
     sharpe=np.mean(log_ret2)/np.std(log_ret2)
-    annualized_sharpe = np.sqrt(6.5*12*252)*sharpe
+    annualized_sharpe = np.sqrt(6.5*252*3600/(arr[0][e] - arr[0][s]))*sharpe
     return sharpe, annualized_sharpe
+
+def calcSharpe_fRL(file):
+    arr = np.load(file)  # arr[0] = times, arr[1] = values
+    times = arr[0]
+    values = arr[1]
+
+    def window_sharpe(t_start, t_end):
+        # Restrict to the current window
+        mask = (times >= t_start) & (times < t_end)
+        t_win = times[mask]
+        v_win = values[mask]
+
+        if len(t_win) < 2:
+            return np.nan, np.nan
+
+        # Recalculate episode boundaries inside this window
+        episode_boundaries = np.where(np.diff(t_win) < 0)[0]
+        print('Num Episodes = ', len(episode_boundaries))
+        start_idxs = np.insert(episode_boundaries + 1, 0, 0)
+        end_idxs = np.append(episode_boundaries, len(t_win) - 1)
+
+        log_ret2 = []
+        for s, e in zip(start_idxs, end_idxs):
+            if v_win[s] > 0 and v_win[e] > 0:
+                log_ret2.append(np.log(v_win[e] / v_win[s]))
+
+        if len(log_ret2) == 0:
+            return np.nan, np.nan
+
+        sharpe = np.mean(log_ret2) / np.std(log_ret2)
+        annualized_sharpe = np.sqrt(6.5 * 252 * 3600 / (t_end - t_start)) * sharpe
+        return sharpe, annualized_sharpe
+
+    # Compute Sharpe for the two windows
+    sharpe_100_250, ann_sharpe_100_250 = window_sharpe(100, 250)
+    sharpe_250_400, ann_sharpe_250_400 = window_sharpe(250, 400)
+
+    return (sharpe_100_250, ann_sharpe_100_250,
+            sharpe_250_400, ann_sharpe_250_400)
+
+
 
 
 def check_bid_ask_symmetry(params: Dict[str, Any], tolerance: float = 1e-10) -> Dict[str, Any]:
@@ -679,6 +720,234 @@ def getaveragesplit():
         'avg_overall_slippage': (avg_buy_slippage + avg_sell_slippage)/2
     }
 
+def detect_episodes_arr(time_array):
+    """Return list of (start_idx, end_idx) episode index ranges."""
+    episodes = []
+    start_idx = 0
+    for i in range(1, len(time_array)):
+        if time_array[i] < time_array[i - 1]:  # non-monotonic → new episode
+            episodes.append((start_idx, i - 1))
+            start_idx = i
+    episodes.append((start_idx, len(time_array) - 1))
+    return episodes
+
+def plot_rl_twap_action_inv(filepath):
+    # Patterns for detecting key lines
+    time_pattern = re.compile(r"^(\d+\.\d+)")
+    rl_action_pattern = re.compile(r"RL Action:\s*(\(.*\))")
+    twap_action_pattern = re.compile(r"TWAP Action:\s*(\(.*\))")
+    rl_inv_pattern = re.compile(r"RL Inventory:\s*(-?\d+)")
+    twap_inv_pattern = re.compile(r"TWAP Inventory:\s*(-?\d+)")
+
+    # Containers
+    rl_times, rl_actions, rl_inventories = [], [], []
+    twap_times, twap_actions, twap_inventories = [], [], []
+
+    current_time = None
+    current_rl_inv = None
+    current_twap_inv = None
+
+    def clean_action_string(s):
+        """Remove numpy wrappers like np.float64(100.0) → 100.0"""
+        s = re.sub(r"np\.\w+\(([^()]+)\)", r"\1", s)
+        return s
+
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+
+            # Detect time
+            time_match = time_pattern.match(line)
+            if time_match:
+                current_time = float(time_match.group(1))
+
+            # RL Inventory
+            rl_inv_match = rl_inv_pattern.search(line)
+            if rl_inv_match:
+                current_rl_inv = int(rl_inv_match.group(1))
+
+            # TWAP Inventory
+            twap_inv_match = twap_inv_pattern.search(line)
+            if twap_inv_match:
+                current_twap_inv = int(twap_inv_match.group(1))
+
+
+            # RL Action
+            rl_match = rl_action_pattern.search(line)
+            if (rl_match is not None) & (current_rl_inv is not None) & (current_time  is not None):
+                action_str = clean_action_string(rl_match.group(1))
+                try:
+                    action_tuple = ast.literal_eval(action_str)
+                    rl_times.append(current_time)
+                    rl_actions.append(action_tuple[1][0])  # extract the 12 in (1, (12, 1))
+                    rl_inventories.append(current_rl_inv if current_rl_inv is not None else np.nan)
+                except Exception as e:
+                    print(f"⚠️ Warning: could not parse RL action line:\n  {line}\n  Error: {e}")
+                current_time = None  # reset for next block
+
+            # TWAP Action
+            twap_match = twap_action_pattern.search(line)
+            if (twap_match is not None) & (current_twap_inv is not None) & (current_time  is not None) :
+                action_str = clean_action_string(twap_match.group(1))
+                try:
+                    action_tuple = ast.literal_eval(action_str)
+                    twap_times.append(current_time)
+                    twap_actions.append(action_tuple[1][0])
+                    twap_inventories.append(current_twap_inv if current_twap_inv is not None else np.nan)
+                except Exception as e:
+                    print(f"⚠️ Warning: could not parse TWAP action line:\n  {line}\n  Error: {e}")
+                current_time = None
+
+    rl_array = np.column_stack((rl_times, rl_actions, rl_inventories)) if rl_times else np.empty((0, 3))
+    twap_array = np.column_stack((twap_times, twap_actions, twap_inventories)) if twap_times else np.empty((0, 3))
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex='col')
+    fig.suptitle("RL vs TWAP Actions and Inventory over Time", fontsize=14, weight='bold')
+
+    # === RL: Action vs Time ===
+    axes[0, 0].scatter(rl_array[:, 0], rl_array[:, 1], color='tab:blue', s=5, label="RL Action")
+    axes[0, 0].set_ylabel("Action Value")
+    axes[0, 0].set_title("RL: Action vs Time")
+    axes[0, 0].grid(True, linestyle='--', alpha=0.5)
+    axes[0, 0].legend()
+
+    # === TWAP: Action vs Time ===
+    axes[0, 1].scatter(twap_array[:, 0], twap_array[:, 1], color='tab:orange', s=5, label="TWAP Action")
+    axes[0, 1].set_title("TWAP: Action vs Time")
+    axes[0, 1].grid(True, linestyle='--', alpha=0.5)
+    axes[0, 1].legend()
+
+    # === RL: Inventory vs Time (faint per episode) ===
+    episodes = detect_episodes_arr(rl_array[:, 0])
+    for (start, end) in episodes:
+        axes[1, 0].plot(rl_array[start:end+1, 0],
+                        rl_array[start:end+1, 2],
+                        color='tab:green',
+                        alpha=0.5)
+        axes[1, 1].plot(twap_array[start+1:end-1, 0], twap_array[start+1:end-1, 2], color='tab:red', alpha=0.5)
+        # vertical bar to mark episode end in the RL action plot
+        end_time = rl_array[end, 0]
+        axes[0, 0].axvline(end_time, color='gray', linestyle='--', alpha=0.3)
+
+    axes[1, 0].set_xlabel("Time")
+    axes[1, 0].set_ylabel("Inventory")
+    axes[1, 0].set_title("RL: Inventory vs Time (per episode)")
+    axes[1, 0].grid(True, linestyle='--', alpha=0.5)
+
+    # === TWAP: Inventory vs Time ===
+
+    axes[1, 1].set_xlabel("Time")
+    axes[1, 1].set_title("TWAP: Inventory vs Time")
+    axes[1, 1].grid(True, linestyle='--', alpha=0.5)
+
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
+
+    # === Separate plot for last episode RL actions ===
+    last_start, last_end = episodes[-1]
+    plt.figure(figsize=(8, 4))
+    plt.scatter(rl_array[last_start:last_end+1, 0],
+                rl_array[last_start:last_end+1, 1],
+                color='tab:blue', s=8)
+    plt.title("RL Actions (Last Episode Only)")
+    plt.xlabel("Time")
+    plt.ylabel("Action Value")
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.show()
+
+    # === RL action statistics ===
+    print("\n=== RL Action Statistics ===")
+    times = rl_array[:, 0]
+    actions = rl_array[:, 1]
+    t_min, t_max = np.min(times), np.max(times)
+    bins = np.arange(t_min, t_max + 10, 10)
+    bin_indices = np.digitize(times, bins)
+
+    # Compute normalized frequency per bin
+    unique_actions = np.unique(actions)
+    freq_matrix = np.zeros((len(bins), len(unique_actions)))
+
+    for i in range(1, len(bins)):
+        mask = bin_indices == i
+        if np.any(mask):
+            counts = Counter(actions[mask])
+            total = sum(counts.values())
+            for j, a in enumerate(unique_actions):
+                freq_matrix[i, j] = counts.get(a, 0) / total
+
+    # Plot action frequency vs. time
+    plt.figure(figsize=(10, 5))
+    for j, a in enumerate(unique_actions):
+        if a==12: continue
+        plt.plot(bins, freq_matrix[:, j], label=f"Action {a}", alpha=0.5)
+    plt.title("RL Action Distribution (10s bins)")
+    plt.xlabel("Time")
+    plt.ylabel("Normalized Frequency")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.show()
+
+    # === Inventory Distribution Comparison (100–250s vs 250–400s) ===
+    mask_1 = (rl_array[:, 0] >= 100) & (rl_array[:, 0] < 250)
+    mask_2 = (rl_array[:, 0] >= 250) & (rl_array[:, 0] < 400)
+    inv_1 = rl_array[mask_1, 2]
+    inv_2 = rl_array[mask_2, 2]
+    inv_1 = inv_1[~np.isnan(inv_1)]
+    inv_2 = inv_2[~np.isnan(inv_2)]
+    plt.figure(figsize=(8, 4))
+    bins = np.linspace(min(inv_1), max(inv_1), 30)
+    plt.hist(inv_1, bins=bins, alpha=0.5, color='tab:green', label='100–250 s', density=True)
+    bins = np.linspace(min(inv_2), max(inv_2), 30)
+    plt.hist(inv_2, bins=bins, alpha=0.5, color='tab:purple', label='250–400 s', density=True)
+    plt.title("RL Inventory Distribution Comparison")
+    plt.xlabel("Inventory")
+    plt.ylabel("Normalized Density")
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.show()
+    return rl_array, twap_array
+
+def slippage_calc():
+    import numpy as np
+    twap_obsv_episodes = np.load("D:\\PhD\\students\\aliraza\\retest_fRL_versus_buytwap_observations.npy", allow_pickle=True)
+    starting_midprices = []
+    decoded_episodes = {}
+    for episode_idx, episode_obsv in enumerate(twap_obsv_episodes):
+        episode_data = {
+            'episode': episode_idx,
+            'timestamps': [],
+            'cash': [],
+            'inventory': [],
+            'lob_data': [],
+            'market_volume': [],
+            'current_time': [],
+            'num_observations': len(episode_obsv)
+        }
+        for obs_idx, obs in enumerate(episode_obsv):
+            episode_data['cash'].append(obs.get('Cash', None))
+            episode_data['inventory'].append(obs.get('Inventory', None))
+            episode_data['current_time'].append(obs.get('current_time', None))
+            episode_data['market_volume'].append(obs.get('market_volume', None))
+            lob = obs.get('LOB0', {})
+            lob_snapshot = {
+                'ask_l1': lob.get('Ask_L1'),
+                'bid_l1': lob.get('Bid_L1'),
+                'ask_l2': lob.get('Ask_L2'),
+                'bid_l2': lob.get('Bid_L2')
+            }
+            episode_data['lob_data'].append(lob_snapshot)
+            if obs_idx == 0:
+                starting_midprices.append((lob_snapshot['ask_l1'][0]+lob_snapshot['bid_l1'][0])/2)
+    print(starting_midprices)
+    file = 'D:\\PhD\\students\\aliraza\\retest_fRL_versus_buytotal_executed.npy'
+    exec_sell =np.load(file)
+    print(exec_sell)
+    file = 'D:\\PhD\\students\\aliraza\\retest_fRL_versus_buyfinal_cash.npy'
+    cash_sell = np.load(file)
+    exec_price = np.abs(cash_sell- 1e6)/exec_sell
+    print(exec_price)
+    print((exec_price/starting_midprices - 1).mean()*10000)
 
 # if __name__ == "__main__":
 #     # Your example params
@@ -694,8 +963,11 @@ def getaveragesplit():
 #     print(f"\nIs symmetric: {results['is_symmetric']}")
 
 if __name__ == "__main__":
-    getaveragesplit()
-
+    # getaveragesplit()
+    # plot_rl_twap_action_inv("D:\\PhD\\students\\aliraza\\twap_fRL_retesting_buy.o6089213") #twap_fRL_retesting_sell.o6083776")
+    # a=calcSharpe_fRL("D:\\PhD\\students\\aliraza\\retest_fRL_versus_buy_profit.npy")
+    # print(a)
+    slippage_calc()
     # Run the analysis
     # df = main()
     # print(calcSharpe())

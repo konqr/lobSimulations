@@ -8,11 +8,11 @@ get_gpu_specs()
 
 log_dir = './logs'
 model_dir = './models'
-label = 'smallPen2_alt_limitedAction_exp'
+label = 'svgRL_MOOnly_actionconfig_1'
 layer_widths=128
 n_layers=3
 checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
-with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_Symm_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
+with open("D:\\PhD\\calibrated params\\INTC.OQ_ParamsInferredWCutoffEyeMu_moOnly_new_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
     kernelparams = pickle.load(f)
 kernelparams = preprocessdata(kernelparams)
 # with open("D:\\PhD\\calibrated params\\INTC.OQ_Params_2019-01-02_2019-03-29_dictTOD_constt", 'rb') as f:
@@ -29,25 +29,25 @@ tod=np.zeros(shape=(len(cols), 13))
 for i in range(len(cols)):
     tod[i]=[faketod[cols[i]][k] for k in range(13)]
 Pis={'Bid_L2': [0.,
-                [(10, 1.)]],
+                [(40, 1.)]],
      'Bid_inspread': [0.,
-                      [(10, 1.)]],
+                      [(40, 1.)]],
      'Bid_L1': [0.,
-                [(10, 1.)]],
+                [(40, 1.)]],
      'Bid_MO': [0.,
-                [(10, 1.)]]}
+                [(40, 1.)]]}
 Pis["Ask_MO"] = Pis["Bid_MO"]
 Pis["Ask_L1"] = Pis["Bid_L1"]
 Pis["Ask_inspread"] = Pis["Bid_inspread"]
 Pis["Ask_L2"] = Pis["Bid_L2"]
 Pi_Q0= {'Ask_L1': [0.,
-                   [(200, 1.)]],
+                   [(400, 1.)]],
         'Ask_L2': [0.,
-                   [(200, 1.)]],
+                   [(400, 1.)]],
         'Bid_L1': [0.,
-                   [(200, 1.)]],
+                   [(400, 1.)]],
         'Bid_L2': [0.,
-                   [(200, 1.)]]}
+                   [(400, 1.)]]}
 kwargs={
     "TradingAgent": [],
 
@@ -60,7 +60,7 @@ kwargs={
                          "log_to_file": True,
                          "cashlimit": 5000000,
                          "inventorylimit": 10,
-                         'start_trading_lag' : 0,
+                         'start_trading_lag' : 10,
                          "wake_on_MO": False,
                          "wake_on_Spread": False}],
     "Exchange": {"symbol": "INTC",
@@ -85,7 +85,9 @@ tc = 0.0002
 #                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
-agentInstance = SVGAgent(action_space_config = 0, transaction_cost=tc, rewardpenalty=j['rewardpenalty'],strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = SVGAgent(lr_model= 1e-4, lr_policy= 1e-4, action_space_config = 1, transaction_cost=tc, rewardpenalty=j['rewardpenalty'],strategy=j["strategy"], Inventory=j["Inventory"],
+                         cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'],
+                         start_trading_lag=j['start_trading_lag'], include_time = True, alt_state=True, enhance_state=True)
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -96,7 +98,7 @@ model_manager = ModelManager(model_dir = model_dir, label = label)
 counter_profit = 0
 episode_boundaries = [0]
 for episode in range(500):
-    env=tradingEnv(stop_time=100, wall_time_limit=23400, **kwargs)
+    env=tradingEnv(stop_time=300, wall_time_limit=23400, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
 
     Simstate, observations, termination, truncation =env.step(action=None)
