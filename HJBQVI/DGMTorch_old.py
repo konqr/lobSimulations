@@ -244,7 +244,7 @@ class DGMNet(nn.Module):
         self.final_trans = final_trans
         if typeNN == 'LSTM':
             self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2='tanh', ln= False) for _ in range(self.n_layers)
+                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2='tanh', ln= True) for _ in range(self.n_layers)
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
