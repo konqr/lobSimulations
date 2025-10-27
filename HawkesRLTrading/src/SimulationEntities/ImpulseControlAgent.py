@@ -270,9 +270,9 @@ class ImpulseControlAgent(GymTradingAgent):
             return 12, (d, 0)
         return  u, (d, u)
 
-class ImpulseControlAgentPoisson(ImpulseControlAgent):
-    def __init__(self, label:str,  epoch : int, model_dir: str, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True, wake_on_Spread: bool=True , cashlimit=1000000, **kwargs):
-        super().__init__(label,  epoch , model_dir, seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread , cashlimit=cashlimit)
+class ImpulseControlAgentPoisson(GymTradingAgent):
+    def __init__(self, label:str,  epoch : int, model_dir: str, seed=1, log_events: bool = True, log_to_file: bool = False, strategy: str= "Random", Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5, wake_on_MO: bool=True, wake_on_Spread: bool=True , cashlimit=1000000):
+        super().__init__(seed=seed, log_events = log_events, log_to_file = log_to_file, strategy=strategy, Inventory=Inventory, cash=cash, action_freq=action_freq, wake_on_MO=wake_on_MO, wake_on_Spread=wake_on_Spread , cashlimit=cashlimit)
         self.resetseed(seed)
         self.first_action = True
         self.second_action = True
@@ -283,27 +283,38 @@ class ImpulseControlAgentPoisson(ImpulseControlAgent):
         ###
         self.model_u = None #PIANet(layer_widths[1], n_layers[1], 11, 10, typeNN = typeNN2)
         self.model_d = None #PIANet(layer_widths[2], n_layers[2], 11, 2, typeNN = typeNN2)
-        self.layer_widths = [50,30,30]
-        self.n_layers= [10,10,10]
+        self.layer_widths = [20,20,20]
+        self.n_layers= [3,3,3]
         # self.load_nets()
+        self.trajectory_buffer =[]
+        self.device = torch.device('cpu')
 
-    def setupNNs(self,o):
+    def load_nets(self):
         model_manager = ModelManager(model_dir = self.model_dir, label = self.label)
-        self.model_d =PIANet(self.layer_widths[1],self.n_layers[1],11, 2, typeNN='Dense')
-        self.model_u = PIANet(self.layer_widths[2], self.n_layers[2], 11, 10, typeNN = 'Dense')
-        self.model_d, self.model_u = model_manager.load_models( d= self.model_d,u= self.model_u, timestamp= self.label, epoch = self.epoch)
+        self.model_d =PIANet(self.layer_widths[1],self.n_layers[1],11, 2, typeNN='LSTM')
+        self.model_u = PIANet(self.layer_widths[2], self.n_layers[2], 11, 10, typeNN = 'LSTM')
+        _, self.model_d, self.model_u = model_manager.load_models(None, self.model_d, self.model_u, timestamp= self.label, epoch = self.epoch)
         return
 
-    def get_action(self, data = None, **kwargs) :
+    def setupNNs(self, o):
+        model_manager = ModelManager(model_dir = self.model_dir, label = self.label)
+        self.model_d =PIANet(self.layer_widths[1],self.n_layers[1],11, 2, typeNN='LSTM')
+        self.model_u = PIANet(self.layer_widths[2], self.n_layers[2], 11, 10, typeNN = 'LSTM')
+        d = model_manager.load_models( d= self.model_d,u= self.model_u, timestamp= self.label, epoch = self.epoch)
+        self.model_u = d['u']
+        self.model_d = d['d']
+        return
+
+    def get_action(self, data, epsilon = None) -> Optional[Tuple[int, int]]:
         size = 1
         if self.first_action:
             action = 0 # lo_deep_ask
             self.first_action = False
-            return action, (1, action)
+            return action, size
         if self.second_action:
             action = 11 # lo_deep_bid
             self.second_action = False
-            return action, (1, action)
+            return action, size
         p_a, q_a = data['LOB0']['Ask_L1']
         p_b, q_b = data['LOB0']['Bid_L1']
         _, qD_a = data['LOB0']['Ask_L2']
@@ -328,4 +339,66 @@ class ImpulseControlAgentPoisson(ImpulseControlAgent):
             action = int(u.item())
         else:
             action = 12
-        return action, (d, action)
+        return action, size
+
+    def store_transition(self, ep, state, action, reward, next_state, done):
+        """
+        Store transition in trajectory buffer
+
+        :param state: Current state
+        :param action: Chosen action (tuple of d and u)
+        :param reward: Received reward
+        :param next_state: Next state
+        :param done: Episode termination flag
+        """
+        # Unpack action components
+        u = action
+        d = 1 if u == 12 else 0
+        if d is None: return
+        # Store additional trajectory information
+        transition = (
+            state,       # Current state
+            d,           # Decision action
+            u,           # Utility action
+            reward,      # Reward
+            next_state,  # Next state
+            int(done)         # Done flag
+        )
+        self.trajectory_buffer.append((ep, transition))
+
+    def readData(self, data):
+        return self.getState(data)
+
+    def getState(self, data):
+        """
+        Read and preprocess trading data
+
+        :param data: Input trading data
+        :return: Processed state tensor
+        """
+        time = data['current_time']
+        p_a, q_a = data['LOB0']['Ask_L1']
+        p_b, q_b = data['LOB0']['Bid_L1']
+        self.mid = 0.5*(p_a + p_b)
+        _, qD_a = data['LOB0']['Ask_L2']
+        _, qD_b = data['LOB0']['Bid_L2']
+        pos = data['Positions']
+        n_as = get_queue_priority(data, pos, 'Ask_L1')
+        n_as = np.append(n_as, get_queue_priority(data, pos, 'Ask_L2'))
+        n_as = np.append(n_as, [q_a+qD_a])
+        n_bs = get_queue_priority(data, pos, 'Bid_L1')
+        n_bs = np.append(n_bs, get_queue_priority(data, pos, 'Bid_L2'))
+        n_bs = np.append(n_bs, [q_b+qD_b])
+        n_a, n_b = np.min(n_as), np.min(n_bs)
+        lambdas = data['current_intensity']
+        lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
+        past_times = data['past_times']
+        if self.Inventory['INTC'] ==0: self.init_cash = self.cash
+        skew = (n_a - n_b)/(0.5*(q_a + q_b))
+        avgFillPrice = 0
+        if self.Inventory['INTC'] != 0 :
+            avgFillPrice = (self.cash-self.init_cash)/self.Inventory['INTC']
+        bool_mo_bid = np.argmax(lambdas_norm) == 4
+        bool_mo_ask = np.argmax(lambdas_norm) == 7
+        state = torch.tensor([[ self.Inventory['INTC'], p_a, p_b, q_a, q_b, qD_a, qD_b, n_a, n_b, (p_a + p_b)*0.5] + list(lambdas.flatten()) + list(past_times.flatten())], dtype=torch.float32).to(self.device)
+        return state

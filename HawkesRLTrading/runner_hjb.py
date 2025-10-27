@@ -8,7 +8,7 @@ get_gpu_specs()
 
 log_dir = './logs'
 model_dir = './models'
-label = 'hjb_hawkesMOOnly'
+label = 'hjb_poisson'
 layer_widths=128
 n_layers=3
 checkpoint_params = None #('20250530_143024_multi_PPO_tc_0.01_sep', 219)
@@ -88,7 +88,7 @@ tc = 0.000
 #                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = 1e-4, epochs = 100, transaction_cost=tc, start_trading_lag = j['start_trading_lag'],
 #                           gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, include_time=False, optim_type='ADAM',entropy_coef=0,lr=1e-5, exploration_bonus=0.1) #, hidden_activation='sigmoid'
 # agentInstance = SVGAgent(strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
-agentInstance = ImpulseControlAgent(label = '20251006_145953_LSTM_INTC_hawkes_tc1',  epoch = 150, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' , rewardpenalty = j["rewardpenalty"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'])
+agentInstance = ImpulseControlAgentPoisson(label = '20250826_172704_LSTM_INTC',  epoch = 950, model_dir = 'C:\\Users\\konar\\IdeaProjects\\lobSimulations\\HJBQVI\\' ,Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"], wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"]) # rewardpenalty = j["rewardpenalty"], ,inventorylimit=j['inventorylimit']
 j['agent_instance'] = agentInstance
 kwargs['GymTradingAgent'] = [j]
 i_eps=0
@@ -130,8 +130,8 @@ for episode in range(500):
         if 'test' in label:
             observations['current_time'] = 100+((observations['current_time'] - 100)%300)
         # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-        agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
-        print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
+        agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(), agent.readData(observations), (termination or truncation)) #termination
+        # print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
         # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
         i_eps+=1
         logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
@@ -303,33 +303,33 @@ for episode in range(500):
     plt.savefig(log_dir + label + "_policy2.png")
     episodic_rewards = []
     r=0
-    tmp = agent.trajectory_buffer[0][0]
-    for ij in agent.trajectory_buffer:
-        if ij[0] == tmp:
-            r+=ij[1][3]
-        else:
-            episodic_rewards.append(r)
-            r = ij[1][3]
-            tmp=ij[0]
-    avgEpisodicRewards.append(np.mean(episodic_rewards[-4:]))
-    stdEpisodicRewards.append(np.std(episodic_rewards[-4:]))
-    finalcash.append(cash[-1] + inventory[-1]*agent.mid )
-    pft = np.array(finalcash) - j["cash"]
-    ma = np.convolve(pft, np.ones(5)/5, mode='valid')
-    plt.figure(figsize=(12,8))
-    plt.subplot(311)
-    plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
-    plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
-    plt.title('Moving Avg Episodic Rewards')
-    plt.subplot(312)
-    plt.plot(np.arange(len(ma)), ma)
-    plt.ticklabel_format(useOffset=False, style='plain')
-    plt.title('Final Profit MA')
-    plt.subplot(313)
-    plt.plot(np.arange(len(pft)), pft)
-    plt.ticklabel_format(useOffset=False, style='plain')
-    plt.title('Final Profit Raw')
-
-
-    plt.savefig(log_dir + label+'_avgepisodicreward.png')
+    # tmp = agent.trajectory_buffer[0][0]
+    # for ij in agent.trajectory_buffer:
+    #     if ij[0] == tmp:
+    #         r+=ij[1][3]
+    #     else:
+    #         episodic_rewards.append(r)
+    #         r = ij[1][3]
+    #         tmp=ij[0]
+    # avgEpisodicRewards.append(np.mean(episodic_rewards[-4:]))
+    # stdEpisodicRewards.append(np.std(episodic_rewards[-4:]))
+    # finalcash.append(cash[-1] + inventory[-1]*agent.mid )
+    # pft = np.array(finalcash) - j["cash"]
+    # ma = np.convolve(pft, np.ones(5)/5, mode='valid')
+    # plt.figure(figsize=(12,8))
+    # plt.subplot(311)
+    # plt.plot(np.arange(len(avgEpisodicRewards)),avgEpisodicRewards)
+    # plt.fill_between(np.arange(len(avgEpisodicRewards)),np.array(avgEpisodicRewards) - np.array(stdEpisodicRewards),np.array(avgEpisodicRewards) + np.array(stdEpisodicRewards), alpha=0.3  )
+    # plt.title('Moving Avg Episodic Rewards')
+    # plt.subplot(312)
+    # plt.plot(np.arange(len(ma)), ma)
+    # plt.ticklabel_format(useOffset=False, style='plain')
+    # plt.title('Final Profit MA')
+    # plt.subplot(313)
+    # plt.plot(np.arange(len(pft)), pft)
+    # plt.ticklabel_format(useOffset=False, style='plain')
+    # plt.title('Final Profit Raw')
+    #
+    #
+    # plt.savefig(log_dir + label+'_avgepisodicreward.png')
     torch.cuda.empty_cache()

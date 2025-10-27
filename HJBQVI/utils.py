@@ -419,5 +419,44 @@ def plot_losses_from_json(json_path, show=True, save=True):
 
     return plt.gcf()
 
+def symlog_plot(json_path):
+    import json
+    import matplotlib.pyplot as plt
+
+    # Load JSON
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    epochs = data["epochs"]
+    phi_loss = data["phi_loss"]
+    u_loss = data["u_loss"]
+    d_loss = data["d_loss"]
+
+    fig, axes = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+
+    # 1. phi_loss (log scale)
+    axes[0].plot(epochs, phi_loss, color="tab:blue")
+    axes[0].set_yscale("log")
+    axes[0].set_ylabel("phi_loss (log)")
+    axes[0].set_title("Losses vs Epochs")
+
+    # 2. u_loss (symlog)
+    axes[1].plot(epochs, u_loss, color="tab:orange")
+    axes[1].set_yscale("symlog", linthresh=1e-3)
+    axes[1].set_ylabel("u_loss (symlog)")
+
+    # 3. d_loss (symlog)
+    axes[2].plot(epochs, d_loss, color="tab:green")
+    axes[2].set_yscale("symlog", linthresh=1e-3)
+    axes[2].set_ylabel("d_loss (symlog)")
+    axes[2].set_xlabel("Epochs")
+
+    # Optional: grid for better readability
+    for ax in axes:
+        ax.grid(True, which="both", linestyle="--", alpha=0.6)
+
+    plt.tight_layout()
+    plt.show()
+
 # Example usage
-# plot_losses_from_json('D:\\PhD\\results - hjbqvi\\training_logs_20250317_120356.json')
+symlog_plot('D:\\PhD\\results - hjbqvi\\training_logs_20250924_163938_LSTM_INTC_hawkes.json')

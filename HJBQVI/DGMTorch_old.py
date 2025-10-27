@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 
 class LSTMLayer(nn.Module):
-    def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh"):
+    def __init__(self, output_dim, input_dim, trans1="tanh", trans2="tanh", ln = True):
         '''
         Args:
             input_dim (int):       dimensionality of input data
@@ -51,10 +51,13 @@ class LSTMLayer(nn.Module):
         self.bh = nn.Parameter(torch.empty(1, self.output_dim))
 
         # layer norm
-        self.ln_Z = nn.LayerNorm(output_dim)
-        self.ln_G = nn.LayerNorm(output_dim)
-        self.ln_R = nn.LayerNorm(output_dim)
-        self.ln_H = nn.LayerNorm(output_dim)
+        self.ln = ln
+        if ln:
+
+            self.ln_Z = nn.LayerNorm(output_dim)
+            self.ln_G = nn.LayerNorm(output_dim)
+            self.ln_R = nn.LayerNorm(output_dim)
+            self.ln_H = nn.LayerNorm(output_dim)
 
 
         # Initialize parameters
@@ -80,11 +83,18 @@ class LSTMLayer(nn.Module):
         Returns: customized PyTorch layer output
         '''
         # Compute components of LSTM layer output
-        Z = self.trans1(self.ln_Z(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)) + self.bz))
-        G = self.trans1(self.ln_G(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)) + self.bg))
-        R = self.trans1(self.ln_R(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)) + self.br))
+        if self.ln:
+            Z = self.trans1(self.ln_Z(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)) + self.bz))
+            G = self.trans1(self.ln_G(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)) + self.bg))
+            R = self.trans1(self.ln_R(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)) + self.br))
 
-        H = self.trans2(self.ln_H(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)) + self.bh))
+            H = self.trans2(self.ln_H(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)) + self.bh))
+        else:
+            Z = self.trans1(torch.add(torch.matmul(X, self.Uz), torch.matmul(S, self.Wz)) + self.bz)
+            G = self.trans1(torch.add(torch.matmul(X, self.Ug), torch.matmul(S, self.Wg)) + self.bg)
+            R = self.trans1(torch.add(torch.matmul(X, self.Ur), torch.matmul(S, self.Wr)) + self.br)
+
+            H = self.trans2(torch.add(torch.matmul(X, self.Uh), torch.matmul(torch.mul(S, R), self.Wh)) + self.bh)
 
         # Compute LSTM layer output
         S_new = torch.add(torch.mul(torch.sub(torch.ones_like(G), G), H), torch.mul(Z, S))
@@ -234,7 +244,7 @@ class DGMNet(nn.Module):
         self.final_trans = final_trans
         if typeNN == 'LSTM':
             self.LayerList = nn.ModuleList([
-                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2='tanh') for _ in range(self.n_layers)
+                LSTMLayer(layer_width, input_dim+1, trans1=hidden_activation, trans2='tanh', ln= False) for _ in range(self.n_layers)
             ])
         elif typeNN == 'Dense':
             self.LayerList = nn.ModuleList([
