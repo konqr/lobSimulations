@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import os
 import numpy as np
 from HawkesRLTrading.src.Stochastic_Processes.Stochastic_Models import StochasticModel
 from typing import Any, List, Dict, Optional, Tuple, ClassVar
@@ -343,11 +344,7 @@ class HawkesArrival(ArrivalModel):
                 pointcount+=1
                 self.current_intensity = decays.copy()
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
-                k=0
-                total=decays[k]
-                while D*lamb_bar >= total:
-                    k+=1
-                    total+=decays[k]
+                k=sample_dimension(decays, self.lamb, D*lamb_bar)
                 """dimension is cols[k]"""   
                 """Update values of lambda for next simulation loop and append point to Ts"""
                 
@@ -377,6 +374,12 @@ class HawkesArrival(ArrivalModel):
                 self.timeseries.append((self.s, k)) #(time, event)
                 if self.timeseries[-1][0] - self.timeseries[0][0] > self.TAU: # purge too big timeseries
                     self.timeseries = self.timeseries[self.left:] # retain only past 500 seconds
+                    # The slice re-bases the list: what was at index self.left is now
+                    # index 0. self.left must be reset to match, or the next window
+                    # advance starts self.left points too far in and silently drops
+                    # the kernel contributions of points that are still inside TAU.
+                    # The effective window then shrinks with every purge.
+                    self.left = 0
                 self.pointcount+=pointcount
                 return pointcount
         return pointcount
@@ -507,6 +510,59 @@ class HawkesArrival(ArrivalModel):
     
     def seed(self):
         return super().seed()
+
+# Set HAWKES_LEGACY_DIMENSION_RULE=1 to restore the pre-6e94941 assignment rule.
+# This exists so the buggy arm of a controlled comparison can be run from the
+# CURRENT code at matched seeds, instead of cloning an old commit -- the drift
+# study's own lesson was that a buggy-code control arm is mandatory, and its
+# round-1 null would have read as "the market is symmetric" without one.
+# Read once at import. Default off, and when off the code path below is
+# byte-for-byte what it was, including the number of RNG draws.
+_LEGACY_DIMENSION_RULE = os.environ.get(
+    "HAWKES_LEGACY_DIMENSION_RULE", "0").strip().lower() in ("1", "true", "yes")
+
+
+def sample_dimension(decays, lamb, thinning_variate=None):
+    """Draw which of the 12 dimensions fired, proportional to `decays`.
+
+    Uses a FRESH uniform over the realised total intensity `lamb`, rather than
+    reusing the thinning variate `D*lamb_bar` from the acceptance test.
+
+    Reusing the thinning variate is the standard Ogata trick and is valid only
+    while `lamb_bar` is a genuine upper bound on the intensity. It is not one
+    here: `lamb_bar` is the intensity at the last accepted event plus a
+    one-event bump, which would bound a purely self-exciting process (whose
+    intensity decays monotonically between events) but not this one -- 36 of
+    the 144 kernel entries are inhibitory, so intensity RISES between events as
+    inhibition decays away.
+
+    When the bound is breached (`lamb > lamb_bar`) the point is accepted with
+    probability 1 and `D*lamb_bar` is drawn from U[0, lamb_bar], truncated
+    strictly below sum(decays). The walk starts at index 0, so the mass above
+    `lamb_bar` is unreachable and every dimension below it is over-sampled by
+    lamb/lamb_bar. Since `cols` is Ask-first (0-5 Ask, 6-11 Bid), the
+    unreachable tail is always Bid, which produced a systematic Ask excess and
+    a downward midprice drift. See PLAN_drift_study.md.
+    """
+    d = np.asarray(decays, dtype=float).reshape(-1)
+    if _LEGACY_DIMENSION_RULE and thinning_variate is not None:
+        # Reproduce the pre-6e94941 rule exactly, for controlled comparisons.
+        # It reuses the thinning variate and walks WITHOUT the len-1 cap, which
+        # is what made the tail unreachable when the bound was breached. Draws
+        # no random number, so the RNG stream also matches the old code.
+        k = 0
+        total = d[0]
+        while thinning_variate >= total:
+            k += 1
+            total += d[k]
+        return k
+    V = np.random.uniform(0, 1) * lamb
+    k = 0
+    total = d[0]
+    while k < len(d) - 1 and V >= total:
+        k += 1
+        total += d[k]
+    return k
 
 def powerLawCutoff(time, alpha, beta, gamma):
     # alpha = a*beta*(gamma - 1)

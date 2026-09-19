@@ -947,6 +947,44 @@ class ActorMLP(BaseNet):
 
         return output
 
+    def forward_sequence(self, x_seq, hidden_state=None):
+        '''
+        Forward pass for a sequence of timesteps, preserving temporal order for LSTM.
+
+        Args:
+            x_seq: (batch, seq_len, features) tensor
+            hidden_state: tuple of (h, c) each (n_layers, batch, hidden_dim), or None
+
+        Returns:
+            output: (batch, seq_len, output_dim) tensor
+            final_hidden: tuple of (h_n, c_n) or None for dense
+        '''
+        if self.typeNN == "dense":
+            batch, seq_len, features = x_seq.shape
+            x_flat = x_seq.reshape(batch * seq_len, features)
+            x_flat = self.initial_layer(x_flat)
+            x_flat = self.hidden_layers(x_flat)
+            output = self.output_layer(x_flat)
+            output = output.reshape(batch, seq_len, -1)
+            return output, None
+
+        elif self.typeNN == "LSTM":
+            if hidden_state is None:
+                batch = x_seq.size(0)
+                device = x_seq.device
+                h = torch.zeros(self.n_layers, batch, self.hidden_dim, device=device)
+                c = torch.zeros(self.n_layers, batch, self.hidden_dim, device=device)
+                hidden_state = (h, c)
+
+            with torch.backends.cudnn.flags(enabled=False):
+                lstm_out, (h_n, c_n) = self.lstm(x_seq, hidden_state)
+
+            batch, seq_len, hidden_dim = lstm_out.shape
+            lstm_flat = lstm_out.reshape(batch * seq_len, hidden_dim)
+            output = self.output_layer(lstm_flat)
+            output = output.reshape(batch, seq_len, -1)
+            return output, (h_n, c_n)
+
 
 class CriticMLP(BaseNet):
     def __init__(self, input_dim, layer_width, n_layers,
@@ -1059,6 +1097,44 @@ class CriticMLP(BaseNet):
 
         return output
 
+    def forward_sequence(self, x_seq, hidden_state=None):
+        '''
+        Forward pass for a sequence of timesteps, preserving temporal order for LSTM.
+
+        Args:
+            x_seq: (batch, seq_len, features) tensor
+            hidden_state: tuple of (h, c) each (n_layers, batch, hidden_dim), or None
+
+        Returns:
+            output: (batch, seq_len, output_dim) tensor
+            final_hidden: tuple of (h_n, c_n) or None for dense
+        '''
+        if self.typeNN == "dense":
+            batch, seq_len, features = x_seq.shape
+            x_flat = x_seq.reshape(batch * seq_len, features)
+            x_flat = self.initial_layer(x_flat)
+            x_flat = self.hidden_layers(x_flat)
+            output = self.output_layer(x_flat)
+            output = output.reshape(batch, seq_len, -1)
+            return output, None
+
+        elif self.typeNN == "LSTM":
+            if hidden_state is None:
+                batch = x_seq.size(0)
+                device = x_seq.device
+                h = torch.zeros(self.n_layers, batch, self.hidden_dim, device=device)
+                c = torch.zeros(self.n_layers, batch, self.hidden_dim, device=device)
+                hidden_state = (h, c)
+
+            with torch.backends.cudnn.flags(enabled=False):
+                lstm_out, (h_n, c_n) = self.lstm(x_seq, hidden_state)
+
+            batch, seq_len, hidden_dim = lstm_out.shape
+            lstm_flat = lstm_out.reshape(batch * seq_len, hidden_dim)
+            output = self.output_layer(lstm_flat)
+            output = output.reshape(batch, seq_len, -1)
+            return output, (h_n, c_n)
+
 
 class ActorCriticSeparate(nn.Module):
     def __init__(self, input_dim, layer_width, n_layers,
@@ -1140,6 +1216,26 @@ class ActorCriticSeparate(nn.Module):
     def critic_forward(self, x):
         '''Forward pass through critic only'''
         return self.critic(x)
+
+    def forward_sequence(self, x_seq, actor_hidden=None, critic_hidden=None):
+        '''
+        Forward pass for a sequence of timesteps through both actor and critic,
+        preserving temporal order for LSTM.
+
+        Args:
+            x_seq: (batch, seq_len, features) tensor
+            actor_hidden: tuple of (h, c) for actor LSTM, or None
+            critic_hidden: tuple of (h, c) for critic LSTM, or None
+
+        Returns:
+            actor_output: (batch, seq_len, actor_output_dim) tensor
+            critic_output: (batch, seq_len, critic_output_dim) tensor
+            actor_final_hidden: tuple of (h_n, c_n) or None for dense
+            critic_final_hidden: tuple of (h_n, c_n) or None for dense
+        '''
+        actor_out, actor_h = self.actor.forward_sequence(x_seq, actor_hidden)
+        critic_out, critic_h = self.critic.forward_sequence(x_seq, critic_hidden)
+        return actor_out, critic_out, actor_h, critic_h
 
     def reset_hidden_state(self, batch_size=1):
         """

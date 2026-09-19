@@ -1,18 +1,34 @@
 import sys
 import os
 sys.path.append(os.path.abspath('/home/ajafree/lobSimulations'))
-# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations'))
+# sys.path.append(os.path.abspath('/Users/alirazajafree/Documents/GitHub/lobSimulations1'))
 from HawkesRLTrading.src.Envs.HawkesRLTradingEnv import *
 
 import torch
 import random
 
-# log_dir = '/home/ajafree/untrained_rl_testing/outputs'
-# log_dir = '/Users/alirazajafree/researchprojects/uRL_testing_scaledTWAP/outputs/'
-# model_dir = '/home/ajafree/testing_adversarial/models'
-# model_dir = '/Users/alirazajafree/researchprojects/uRL_testing_scaledTWAP/models/'
-log_dir = '/home/ajafree/LSTM_fRL/wout_expo/testing/logs/'
-model_dir = '/home/ajafree/LSTM_fRL/wout_expo/testing/model'
+# model_dir = '/Users/alirazajafree/researchprojects/LSTM_fRL/without_expo/testing/self_imitation/newlogs/model'
+# log_dir = '/Users/alirazajafree/researchprojects/LSTM_fRL/without_expo/testing/self_imitation/newlogs/logs/'
+# Run config. Every value below can be overridden by an environment variable so
+# that a single commit can serve several concurrently-queued eval jobs: each
+# run's runner.sh exports its own settings. Without this, the config is whatever
+# ~/lobSimulations happens to be checked out to when a job *starts*, so only one
+# config could safely be queued at a time.
+_RUN_DIR = os.environ.get('EVAL_RUN_DIR',
+                          '/home/ajafree/LSTM_fRL/wout_expo/new_value_function/explo_gae/eval/twap/sell')
+log_dir = _RUN_DIR.rstrip('/') + '/logs/'
+model_dir = _RUN_DIR.rstrip('/') + '/model'
+
+# Eval-run toggles: whether a TWAP meta-order agent trades alongside the RL
+# agent, and which side the RL agent (and TWAP, if present) trades.
+TWAP_PRESENT = os.environ.get('EVAL_TWAP_PRESENT', '1') == '1'
+twap_side = os.environ.get('EVAL_TWAP_SIDE', 'sell')
+
+# Evaluation must be able to run on the SAME seed list as its matched
+# TWAP-alone baseline, which turns the slippage comparison into a paired test.
+# Defaults reproduce today's behaviour (tradingEnv's default seed=1).
+SEED_MODE = os.environ.get("SEED_MODE", "fixed")
+SEED_BASE = int(os.environ.get("SEED_BASE", 1000))
 
 start_trading_lag = 100
 twap_off_time = 400
@@ -21,10 +37,12 @@ twap_starting_inventory = 500
 # Network architecture parameters - MUST match training
 layer_widths=100
 n_layers=3
+eta = 5
 
-label = f'test_LSTM_TWAP'
+label = os.environ.get('EVAL_LABEL', 'test_explo_gae_sell_twap')
 
-checkpoint_params = ("20260202_114437_train_LSTM_TWAP", 20)
+checkpoint_params = (os.environ.get('EVAL_CKPT_TS', '20260630_214031_train_new_vf_explo_gae_sell'),
+                     int(os.environ.get('EVAL_CKPT_EPOCH', '76')))
 
 # with open("/Users/alirazajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
 with open("/home/ajafree/researchprojects/otherdata/Symmetric_INTC.OQ_ParamsInferredWCutoffEyeMu_sparseInfer_2019-01-02_2019-12-31_CLSLogLin_10", 'rb') as f: # INTC.OQ_ParamsInferredWCutoff_2019-01-02_2019-03-31_poisson
@@ -64,21 +82,21 @@ Pi_Q0= {'Ask_L1': [0.,
         'Bid_L2': [0.,
                    [(400, 1.)]]}
 
-kwargs={
-    "TradingAgent": [],
-    "GymTradingAgent": [
+gym_trading_agents = [
                         {"cash": 2500,
                          "strategy": "ICRL",
                          "action_freq": 0.213,
-                         "rewardpenalty": 50,
+                         "rewardpenalty": eta,
                          "Inventory": {"INTC": 0},
                          "log_to_file": True,
                          "cashlimit": 5000000,
-                         "inventorylimit": 25,
+                         "inventorylimit": int(os.environ.get("EVAL_INV_LIMIT", "25")),
                          'start_trading_lag': start_trading_lag,
                          "wake_on_MO": True,
                          "wake_on_Spread": True}
-                         ,
+                         ]
+if TWAP_PRESENT:
+    gym_trading_agents.append(
                          {"cash":1000000,
                           "cashlimit": 100000000000,
                           "strategy": "TWAP",
@@ -92,8 +110,11 @@ kwargs={
                           'start_trading_lag': start_trading_lag,
                           "wake_on_MO": False,
                           "wake_on_Spread": False,
-                          "off_time": twap_off_time}
-                          ],
+                          "off_time": twap_off_time})
+
+kwargs={
+    "TradingAgent": [],
+    "GymTradingAgent": gym_trading_agents,
     "Exchange": {"symbol": "INTC",
                  "ticksize":0.01,
                  "LOBlevels": 2,
@@ -116,7 +137,8 @@ tc = 0.0001
 RLagentInstance = AdversarialPPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
                           wake_on_MO=j["wake_on_MO"], wake_on_Spread=j["wake_on_Spread"], cashlimit=j["cashlimit"],inventorylimit=j['inventorylimit'], batch_size=512,
                           layer_widths=layer_widths, n_layers =n_layers, buffer_capacity = 100000, rewardpenalty = j["rewardpenalty"], epochs = 100, transaction_cost=1e-4, start_trading_lag = j['start_trading_lag'],
-                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=True, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, hidden_activation='sigmoid', typeNN = "LSTM", lr = 3e-4, TWAPPresent=0)
+                          gae_lambda=0.5, truncation_enabled=False, action_space_config = 1, alt_state=True, enhance_state=True, include_time=True, optim_type='ADAM',entropy_coef=0, exploration_bonus = 0, hidden_activation='sigmoid', 
+                          typeNN = "LSTM", lr = 3e-4, chunk_length=64, TWAPPresent=0, two_sided_reward=False)#, terminal_invpenalty=5*eta)
 
 
 # RLagentInstance = PPOAgent( seed=1, log_events=True, log_to_file=True, strategy=j["strategy"], Inventory=j["Inventory"], cash=j["cash"], action_freq=j["action_freq"],
@@ -165,6 +187,7 @@ total_executeds = []
 all_episode_inventories = []
 all_episode_times = []
 all_episode_sides = []  # Track which side each episode was (buy/sell)
+all_episode_cashs = []
 
 # Data structures for slippage tracking
 sell_slippage_by_episode = []  # Store (episode_num, slippage) for sell episodes
@@ -216,8 +239,6 @@ def plot_inventory_timeseries(all_inventories, all_times, all_sides, twap_start,
     buy_label_added = False
     sell_label_added = False
     for i, (times, inventories, side) in enumerate(zip(all_times, all_inventories, all_sides)):
-        sign_multiplier = -1 if side == 'sell' else 1
-        adjusted_inventory = np.array(inventories) * sign_multiplier
         color = 'tab:red' if side == 'buy' else 'tab:green'
         label = None
         if side == 'buy' and not buy_label_added:
@@ -226,7 +247,7 @@ def plot_inventory_timeseries(all_inventories, all_times, all_sides, twap_start,
         elif side == 'sell' and not sell_label_added:
             label = 'Sell episodes'
             sell_label_added = True
-        plt.plot(times, adjusted_inventory, alpha=0.15, color=color, linewidth=0.8, label=label)
+        plt.plot(times, np.array(inventories), alpha=0.15, color=color, linewidth=0.8, label=label)
 
     # Compute and plot average trajectory per regime and overall
     max_len = max(len(t) for t in all_times)
@@ -236,9 +257,7 @@ def plot_inventory_timeseries(all_inventories, all_times, all_sides, twap_start,
     buy_interp = []
     sell_interp = []
     for times, inventories, side in zip(all_times, all_inventories, all_sides):
-        sign_multiplier = -1 if side == 'sell' else 1
-        adjusted_inventory = np.array(inventories) * sign_multiplier
-        interp_inv = np.interp(common_times, times, adjusted_inventory)
+        interp_inv = np.interp(common_times, times, np.array(inventories))
         if side == 'buy':
             buy_interp.append(interp_inv)
         else:
@@ -256,8 +275,8 @@ def plot_inventory_timeseries(all_inventories, all_times, all_sides, twap_start,
     plt.plot(common_times, avg_inventory, alpha=1.0, color='darkblue', linewidth=2.5, linestyle='--', label=f'Avg Overall (n={len(all_interp)})')
     
     plt.xlabel('Time (seconds)', fontsize=12)
-    plt.ylabel('Inventory (sign-adjusted)', fontsize=12)
-    plt.title(f'RL Agent Inventory Time Series - All {len(all_inventories)} Episodes (Buy & Sell)', fontsize=14)
+    plt.ylabel('Inventory', fontsize=12)
+    plt.title(f'RL Agent Inventory Time Series - All {len(all_inventories)} Episodes', fontsize=14)
     plt.legend(loc='best', fontsize=10)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -332,27 +351,31 @@ def plot_twap_execution_prices(episode_num, all_prices, all_times, all_start_pri
     plt.close()
     print(f"Saved TWAP execution price plot to {save_path}")
 
-for episode in range(36):
+episode_seeds = []
+for episode in range(17):
     RL_agent_obsv = []
     TWAP_agent_obsv = []
     total_executed = 0
     final_cash = 0
-    twap_side = np.random.choice(["buy", "sell"])
-    kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
-    kwargs["GymTradingAgent"][1]["cash"] = 1000000
-    kwargs["GymTradingAgent"][1]["side"] = twap_side
     starting_midprice = 0
     new_midprice = True
 
     twap_time = 250
-    kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
+    if TWAP_PRESENT:
+        kwargs["GymTradingAgent"][1]["Inventory"] = {"INTC": 500}
+        kwargs["GymTradingAgent"][1]["cash"] = 1000000
+        kwargs["GymTradingAgent"][1]["side"] = twap_side
+        kwargs["GymTradingAgent"][1]["start_trading_lag"] = twap_time
 
     twap_agent_executions_by_episode[episode] = []
     episode_twap_exec_prices = []  # Track execution prices for this episode
     episode_twap_exec_times = []   # Track execution times for this episode
     i = 0
     action_num = 0
-    env=tradingEnv(stop_time=550, wall_time_limit=23400, **kwargs)
+    episode_seed = (SEED_BASE + episode) if SEED_MODE == "vary" else 1
+    episode_seeds.append(episode_seed)
+    print(f"Episode {episode}: seed {episode_seed}, TWAP present {TWAP_PRESENT}, side {twap_side}")
+    env=tradingEnv(stop_time=550, wall_time_limit=23400, seed=episode_seed, **kwargs)
     print("Initial Observations"+ str(env.getobservations()))
     Simstate, observations, termination, truncation =env.step(action=None) 
     AgentsIDs=[k for k,v in Simstate["Infos"].items() if v==True]
@@ -378,7 +401,7 @@ for episode in range(36):
         agents:List[GymTradingAgent] = [env.getAgent(ID=agentid) for agentid in AgentsIDs]
         
         # Update TWAPPresent based on time window (matches trainer logic)
-        if isinstance(RLagentInstance, AdversarialPPOAgent):
+        if TWAP_PRESENT and isinstance(RLagentInstance, AdversarialPPOAgent):
             if twap_off_time >= Simstate['TimeCode'] >= twap_time:
                 if not RLagentInstance.TWAPPresent:
                     RLagentInstance.TWAPPresent = -1 if twap_side == 'sell' else 1
@@ -436,11 +459,12 @@ for episode in range(36):
                 action_num+=1
                 RLagentID = agent.id
                 agentAction:Tuple[int, int] = agent.get_action(data=env.getobservations(agentID=agent.id), epsilon = 0.5 if i_eps < 100 else 0.1)
+                # Snapshot the state the action was actually chosen from (set inside get_action).
+                state_at_action = agent.last_state.clone() if agent.last_state is not None else None
                 action = (agent.id, (agentAction[0],1))
                 print(f"RL Action: {action}")
                 print(f"Limit Order Book: {observationsDict.get(agent.id, {}).get('LOB0', '')}")
                 print(f"RL Inventory: {observationsDict.get(agent.id, {}).get('Inventory', '')}")
-                observations_prev = observationsDict[agent.id].copy() if i != 0 else observations.copy()
                 Simstate, observations, termination, truncation=env.step(action=action) #do not try and use this data before this line in the loop
                 if Simstate["TimeCode"] < twap_time:
                     # Before TWAP phase (0-249)
@@ -463,15 +487,16 @@ for episode in range(36):
                 inventories.update({agent.id:inventories.get(agent.id, []) + [observations['Inventory']]})
                 actionss.update({agent.id: actionss.get(agent.id, []) + [action[1][0]]})
                 t += [Simstate['TimeCode']]
-                # agent.appendER((agent.readData(observations_prev), agentAction, agent.calculaterewards(termination), agent.readData(observations_prev), (termination or truncation)))
-                agent.store_transition(episode, agent.readData(observations_prev), agentAction[1], agent.calculaterewards(termination), agent.readData(observations), (termination or truncation))
+                current_readData = agent.readData(observations)
+                if state_at_action is not None:
+                    agent.store_transition(episode, state_at_action, agentAction[1], agent.calculaterewards(termination), current_readData, (termination or truncation))
                 print(f'Current reward: {agent.calculaterewards(termination):0.4f}')
                 # print(f'Prev avg reward: {np.mean([r[2] for r in agent.experience_replay[-100:]]):0.4f}')
                 i_eps+=1
                 logger.debug(f"\nSimstate: {Simstate}\nObservations: {observations}\nTermination: {termination}\nTruncation: {truncation}")
-                if len(t) > 0 and Simstate['TimeCode'] < t[-1]:
-                    # Episode has reset - mark boundary
-                    episode_boundaries.append(len(cashs[agent.id]))
+                if len(t) > 1 and t[-1] < t[-2]:
+                    # Episode has reset - mark boundary (index of new episode's first data point)
+                    episode_boundaries.append(len(cashs[agent.id]) - 1)
                 # Calculate current PnL (cash + inventory value)
                 current_pnl = cashs[agent.id][-1] + inventories[agent.id][-1] * agent.mid * (1 - tc*np.sign(inventories[agent.id][-1]))
                 finalcash2.append(current_pnl)
@@ -552,6 +577,7 @@ for episode in range(36):
                     plt.close()
 
                 # Save data every step
+                np.save(log_dir + label + '_episode_seeds', np.array(episode_seeds))
                 np.save(log_dir + label + '_profit', np.array([t, finalcash2]))
                 # Save profits by phase with their respective time arrays
                 np.save(log_dir+label+"_profit_before_twap", np.array([t_before_twap, profit_before_twap]))
@@ -570,21 +596,22 @@ for episode in range(36):
     total_RL_obsv.append(RL_agent_obsv)
     total_TWAP_obsv.append(TWAP_agent_obsv)
 
-    # Get TWAP agent's final cash (not RL agent's cash)
-    twap_agent = env.getAgent(ID=TWAPagentid)
+    if TWAP_PRESENT:
+        # Get TWAP agent's final cash (not RL agent's cash)
+        twap_agent = env.getAgent(ID=TWAPagentid)
 
-    total_executed = abs(500 - twap_agent.Inventory["INTC"])
-    
-    if(twap_side == "sell"):
-        cash_earned = twap_agent.cash - 1000000
-        benchmark_earned = starting_midprice * total_executed
-        slip = (benchmark_earned - cash_earned)*10000/benchmark_earned
-        sell_slippage_by_episode.append((episode, slip))
-    else:
-        cash_spent = 1000000 - twap_agent.cash 
-        benchmark_spent = starting_midprice * total_executed
-        slip = (cash_spent - benchmark_spent)*10000/benchmark_spent
-        buy_slippage_by_episode.append((episode, slip))
+        total_executed = abs(500 - twap_agent.Inventory["INTC"])
+
+        if(twap_side == "sell"):
+            cash_earned = twap_agent.cash - 1000000
+            benchmark_earned = starting_midprice * total_executed
+            slip = (benchmark_earned - cash_earned)*10000/benchmark_earned
+            sell_slippage_by_episode.append((episode, slip))
+        else:
+            cash_spent = 1000000 - twap_agent.cash
+            benchmark_spent = starting_midprice * total_executed
+            slip = (cash_spent - benchmark_spent)*10000/benchmark_spent
+            buy_slippage_by_episode.append((episode, slip))
 
     inventory_and_cash = ()
     final_cashs.append(final_cash)
@@ -688,10 +715,13 @@ for episode in range(36):
     episode_times = t[start_idx:end_idx]
     
     # Store for cumulative plotting
+    episode_cash = cashs[RLagentID][start_idx:end_idx]
+
     if len(episode_inventory) > 0:
         all_episode_inventories.append(episode_inventory)
         all_episode_times.append(episode_times)
         all_episode_sides.append(twap_side)  # Store which side this episode was
+        all_episode_cashs.append(episode_cash)
         
         # Plot inventory time series with all episodes so far (updated after each episode)
         plot_inventory_timeseries(
@@ -793,7 +823,7 @@ for episode in range(36):
     if ((episode) % 4 == 0):
         if ('test' not in label) and ((checkpoint_params is None) or (episode >= 0)):
             for epoch in range(1):
-                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger) #, use_CEM = bool((episode+1) % 4))
+                d_policy_loss, d_value_loss, d_entropy_loss, u_policy_loss, u_value_loss, u_entropy_loss = agent.train(train_logger, use_CEM = bool(episode % 8))
                 train_logger.save_logs()
             train_logger.plot_losses(show=False, save=True)
 
@@ -805,6 +835,9 @@ for episode in range(36):
             agent.cash = j['cash']
             agent.Inventory = {"INTC": 0}
             agent.positions = {'INTC':{}}
+            agent.last_state = None  # Triggers LSTM reset on next get_action()
+            agent.profit = 0
+            agent.statelog = [(0, agent.cash, agent.profit, agent.Inventory.copy(), agent.positions.copy(), agent.mid)]
             j['agent_instance'] = agent
             kwargs['GymTradingAgent'][0] = j
 
@@ -852,75 +885,97 @@ for episode in range(36):
     plt.title('Final Profit Raw')
 
     plt.savefig(log_dir + label+'_avgepisodicreward.png')
+    plt.close()
+
+    # ---- Policy Plot (episode aware, 3 subplots, time on x-axis) ----
+    buy_times, buy_cash, buy_inv, buy_profit = [], [], [], []
+    sell_times, sell_cash, sell_inv, sell_profit = [], [], [], []
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10))
+
+    for i in range(len(all_episode_inventories)):
+        ep_times = np.array(all_episode_times[i])
+        ep_cash = np.array(all_episode_cashs[i])
+        ep_inv = np.array(all_episode_inventories[i])
+        ep_profit = ep_cash - j["cash"]
+
+        side = all_episode_sides[i]
+        if side == "buy":
+            buy_times.append(ep_times)
+            buy_cash.append(ep_cash)
+            buy_inv.append(ep_inv)
+            buy_profit.append(ep_profit)
+            color_trace = "lightskyblue"
+        else:
+            sell_times.append(ep_times)
+            sell_cash.append(ep_cash)
+            sell_inv.append(ep_inv)
+            sell_profit.append(ep_profit)
+            color_trace = "lightsalmon"
+
+        ax1.plot(ep_times, ep_cash, color=color_trace, alpha=0.15, linewidth=0.8)
+        ax2.plot(ep_times, ep_inv, color=color_trace, alpha=0.15, linewidth=0.8)
+        ax3.plot(ep_times, ep_profit, color=color_trace, alpha=0.15, linewidth=0.8)
+
+    # Interpolate onto common time grid for means
+    all_ep_times = buy_times + sell_times
+    if all_ep_times:
+        max_time = max(et[-1] for et in all_ep_times)
+        common_t = np.linspace(0, max_time, 500)
+
+        def interp_mean(times_list, values_list):
+            interped = [np.interp(common_t, ts, vs) for ts, vs in zip(times_list, values_list)]
+            return np.mean(interped, axis=0)
+
+        if buy_cash:
+            ax1.plot(common_t, interp_mean(buy_times, buy_cash), color="blue", linewidth=2.5, zorder=5, label="Mean (Buy)")
+            ax2.plot(common_t, interp_mean(buy_times, buy_inv), color="blue", linewidth=2.5, zorder=5, label="Mean (Buy)")
+            ax3.plot(common_t, interp_mean(buy_times, buy_profit), color="blue", linewidth=2.5, zorder=5, label="Mean (Buy)")
+
+        if sell_cash:
+            ax1.plot(common_t, interp_mean(sell_times, sell_cash), color="red", linewidth=2.5, zorder=5, label="Mean (Sell)")
+            ax2.plot(common_t, interp_mean(sell_times, sell_inv), color="red", linewidth=2.5, zorder=5, label="Mean (Sell)")
+            ax3.plot(common_t, interp_mean(sell_times, sell_profit), color="red", linewidth=2.5, zorder=5, label="Mean (Sell)")
+
+    # --- TWAP start/end vertical lines ---
+    for ax in (ax1, ax2, ax3):
+        ax.axvline(twap_time, color="orange", linestyle="--", linewidth=1.5, alpha=0.8, label="TWAP Start" if ax is ax1 else None)
+        ax.axvline(twap_off_time, color="purple", linestyle="--", linewidth=1.5, alpha=0.8, label="TWAP End" if ax is ax1 else None)
+
+    # --- Styling ---
+    ax1.set_title(f"Cash (episodes 1-{episode+1})")
+    ax1.set_ylabel("Cash")
+    ax1.legend()
+    ax2.set_title("Inventory")
+    ax2.set_ylabel("Inventory")
+    ax2.legend()
+    ax3.set_title("Profit")
+    ax3.set_ylabel("Profit")
+    ax3.legend()
+
+    for ax in (ax1, ax2, ax3):
+        ax.set_xlabel("Time (seconds)")
+        ax.grid(True, linestyle="--", alpha=0.4)
+
+    plt.tight_layout()
+    plt.savefig(log_dir + label + "_policy_byepisode.png")
+    plt.close()
+
+    # Verify inventory data matches between the two plots
+    buy_idx, sell_idx = 0, 0
+    for idx in range(len(all_episode_inventories)):
+        if all_episode_sides[idx] == "buy":
+            assert np.array_equal(np.array(all_episode_inventories[idx]), buy_inv[buy_idx]), \
+                f"Inventory data mismatch at episode {idx} (buy {buy_idx})"
+            buy_idx += 1
+        else:
+            assert np.array_equal(np.array(all_episode_inventories[idx]), sell_inv[sell_idx]), \
+                f"Inventory data mismatch at episode {idx} (sell {sell_idx})"
+            sell_idx += 1
+    print(f"[VERIFY] Inventory data matches across both plots ({len(all_episode_inventories)} episodes)")
+
     torch.cuda.empty_cache()
     # torch.mps.empty_cache()
-
-# ---- Policy Plot (episode aware, 3 subplots, time resets per episode) ----
-plt.figure(figsize=(12, 10))
-
-cash_arr = np.array(cashs[RLagentID])
-inv_arr = np.array(inventories[RLagentID])
-act_arr = np.array(actionss[RLagentID])
-
-all_cash, all_inv = [], []
-
-# Prepare subplots
-ax1 = plt.subplot(311)  # Cash
-ax2 = plt.subplot(312)  # Inventory
-ax3 = plt.subplot(313)  # Actions
-
-for i in range(len(episode_boundaries)):
-    start_idx = episode_boundaries[i]
-    end_idx = episode_boundaries[i + 1] if i + 1 < len(episode_boundaries) else len(cash_arr)
-
-    if end_idx > start_idx:
-        ep_cash = cash_arr[start_idx:end_idx]
-        ep_inv = inv_arr[start_idx:end_idx]
-        ep_act = act_arr[start_idx:end_idx]
-        ep_t = np.arange(len(ep_cash))  # <-- reset time per episode
-
-        # Store for mean calculation (align by episode step count)
-        all_cash.append(ep_cash)
-        all_inv.append(ep_inv)
-
-        # Faint episode traces
-        ax1.plot(ep_t, ep_cash, color="blue", alpha=0.1)
-        ax2.plot(ep_t, ep_inv, color="red", alpha=0.1)
-
-        # Actions
-        ax3.scatter(ep_t, ep_act, s=8, c="black", alpha=0.6)
-
-# --- Mean calculation across episodes ---
-from itertools import zip_longest
-def pad(list_of_arrays):
-    return np.array(list(zip_longest(*list_of_arrays, fillvalue=np.nan))).T
-
-all_cash = pad(all_cash)
-all_inv = pad(all_inv)
-
-mean_cash = np.nanmean(all_cash, axis=0)
-mean_inv = np.nanmean(all_inv, axis=0)
-steps = np.arange(len(mean_cash))  # common x-axis for mean lines
-
-# --- Mean lines ---
-ax1.plot(steps, mean_cash, color="blue", linewidth=2, label="Cash (mean)")
-ax2.plot(steps, mean_inv, color="red", linewidth=2, label="Inventory (mean)")
-
-# --- Styling ---
-ax1.set_title("Cash")
-ax1.legend()
-ax2.set_title("Inventory")
-ax2.legend()
-ax3.set_title("Actions")
-ax3.set_yticks(np.arange(0, len(agent.actions)))
-ax3.set_yticklabels(agent.actions)
-
-for ax in (ax1, ax2, ax3):
-    ax.set_xlabel("Time steps (per episode)")
-    ax.grid(True, linestyle="--", alpha=0.6)
-
-plt.tight_layout()
-plt.savefig(log_dir + label + "_policy.png")
 
 start_midprices_array = np.array(start_midprices)
 

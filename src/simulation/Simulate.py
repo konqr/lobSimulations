@@ -477,11 +477,17 @@ class Simulate:
             #print("Candidate D: ", D)
             if D*lamb_bar<=lamb:
                 """Accepted so assign candidate point to a process by a ratio of intensities"""
+                # Fresh uniform over the realised intensity: reusing D*lamb_bar is
+                # only valid while lamb_bar bounds lamb, which inhibitory kernels
+                # break. See sample_dimension() in Arrival_Models.py and
+                # PLAN_drift_study.md.
+                _d = np.asarray(decays, dtype=float).reshape(-1)
+                V = np.random.uniform(0, 1) * lamb
                 k=0
-                total=decays[k]
-                while D*lamb_bar >= total:
+                total=_d[0]
+                while k < len(_d) - 1 and V >= total:
                     k+=1
-                    total+=decays[k]
+                    total+=_d[k]
                 """dimension is cols[k]"""
                 """Update values of lambda for next simulation loop and append point to Ts"""
                 if k in [5, 6]:

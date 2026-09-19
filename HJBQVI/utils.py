@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import json
+import re
 from datetime import datetime
 import os
 from collections import OrderedDict
@@ -238,23 +239,46 @@ class ModelManager:
         """
         # Find latest model if timestamp not provided
         if timestamp is None:
-            # List all metadata files and find the latest one
-            meta_files = [f for f in os.listdir(self.model_dir) if f.startswith("model_metadata")]
+            # Only this label's checkpoints, or a shared model_dir returns
+            # another run's weights.
+            # Exact label match. `endswith(f"_{label}.json")` is a SUFFIX test,
+            # so label "base" also matches "..._sell_base.json".
+            pat = re.compile(r"^model_metadata_(?:epoch_(\d+)|final)_(\d{8}_\d{6})_"
+                             + re.escape(self.label) + r"\.json$")
+            meta_files = [f for f in os.listdir(self.model_dir) if pat.match(f)]
             if not meta_files:
-                print("No saved models found.")
-                return [None]*len(models.keys())
+                print(f"No saved models found for label {self.label!r} in {self.model_dir}.")
+                return {k: None for k in models}
 
-            # Get the latest timestamp
-            meta_files.sort(reverse=True)
-            latest_meta = meta_files[0]
+            def _key(fname):
+                """Order by (epoch, timestamp), both NUMERICALLY. A reverse
+                string sort puts `_epoch_8_` ahead of `_epoch_76_`, so the old
+                code silently loaded epoch 8 of an 80-episode run."""
+                m = pat.match(fname)
+                ep = float("inf") if m.group(1) is None else int(m.group(1))
+                return (ep, m.group(2))
+
+            if epoch >= 0:
+                wanted = [f for f in meta_files if _key(f)[0] == epoch]
+                if not wanted:
+                    print(f"No saved model for epoch {epoch} of label "
+                          f"{self.label!r} in {self.model_dir}.")
+                    return {k: None for k in models}
+                # newest RUN at that epoch, not an arbitrary listdir order
+                latest_meta = max(wanted, key=_key)
+            else:
+                latest_meta = max(meta_files, key=_key)
             meta_path = os.path.join(self.model_dir, latest_meta)
         else:
-            # Use specified timestamp
+            # Use specified timestamp. By convention the caller passes the
+            # timestamp WITH the label already appended -- AR_RL_runner.py:44
+            # passes '20260630_214031_train_new_vf_explo_gae_sell' -- which
+            # matches what save_models writes. Do not append self.label here;
+            # that produces a double label and breaks every existing call.
             suffix = f"_epoch_{epoch}" if epoch >= 0 else "_final"
             meta_path = os.path.join(
                 self.model_dir,
                 f"model_metadata{suffix}_{timestamp}.json"
-                # f"models\\model_metadata{suffix}_{timestamp}.json"
             )
 
         # Load metadata
@@ -263,7 +287,12 @@ class ModelManager:
                 metadata = json.load(f)
 
             loaded_models = {}
-            device = 'cpu' if not torch.cuda.is_available() else 'cuda'
+            if torch.cuda.is_available():
+                device = 'cuda'
+            elif torch.backends.mps.is_available():
+                device = 'mps'
+            else:
+                device = 'cpu'
 
             # Load each model if provided and available in metadata
             for model_name, model in models.items():
@@ -275,7 +304,6 @@ class ModelManager:
                     state_dict = torch.load(
                         os.path.join(self.model_dir, metadata['models'][model_name]),
                         map_location=torch.device(device)
-                        # map_location='mps' #for mac
                     )
 
                     # Handle potential module prefix differences
@@ -305,10 +333,10 @@ class ModelManager:
 
         except FileNotFoundError:
             print(f"Model files not found at {meta_path}")
-            return [None]*len(models.keys())
+            return {k: None for k in models}
         except Exception as e:
             print(f"Error loading models: {e}")
-            return [None]*len(models.keys())
+            return {k: None for k in models}
 
 def get_gpu_specs():
     """Print detailed information about available CUDA devices in PyTorch."""

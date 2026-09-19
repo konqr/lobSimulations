@@ -47,7 +47,11 @@ class TradingAgent(Entity):
         super().__init__(type="TradingAgent", seed=seed, log_events=log_events, log_to_file=log_to_file)
         self.strategy=strategy #string that describes what strategy the agent has
         assert Inventory is not None, f"Agent needs inventory for initialisation"
-        self.Inventory=Inventory #Dictionary of how many shares the agent is holding
+        # Defensive copy: Inventory is mutated in place as the agent trades
+        # (see receivemessage), so storing the caller's dict by reference leaks
+        # one episode's final inventory into the next whenever the caller reuses
+        # its kwargs -- which defeats seeding and makes runs irreproducible.
+        self.Inventory=dict(Inventory) #Dictionary of how many shares the agent is holding
         self.action_freq=action_freq
         #What trades is this agent notified to wakeup to
         self.wake_on_MO=wake_on_MO #Does this agent get notified to make a trade whenever a trade happens
@@ -207,6 +211,8 @@ class TradingAgent(Entity):
             #update agent state
             order=message.order
             if isinstance(order, MarketOrder):
+                if order.size < 0:
+                    raise ValueError(f"Negative market execution quantity for order {order.order_id}: {order.size}")
                 if order.side=="Ask":
                     self.cash+=order.total_value
                     self.Inventory[order.symbol]-=order.size
@@ -236,8 +242,10 @@ class TradingAgent(Entity):
                 rtn=[j for j in self.positions[order.symbol][level] if j.order_id!=order.cancelID]
                 self.positions[order.symbol][level]=rtn
             self.profit=self.cash-self.statelog[0][1]
-            self.updatestatelog()
-            print(f"Statelog: {self.statelog[-1]}")
+            # NOTE: do NOT append to statelog here. statelog is only advanced by
+            # the agent's own calculaterewards calls so that deltaPNL captures
+            # the full PnL change between two RL action steps, not just the
+            # sliver since the most recent fill.
         elif isinstance(message, LimitOrderAcceptedMsg):
                 level=self.exchange.getlevel(price=message.order.price)
                 print(f"Level of limit Order is: {level} ")
@@ -259,7 +267,8 @@ class TradingAgent(Entity):
                 self.cash-=order.price*(consumed)
                 self.Inventory[order.symbol]+=(consumed)
             self.profit=self.cash-self.statelog[0][1]
-            self.updatestatelog()
+            # NOTE: do NOT append to statelog here. See note above; statelog
+            # advances only on the agent's own calculaterewards.
         elif isinstance(message, OrderAutoCancelledMsg):
             order=message.order
             if order.side=="Ask":

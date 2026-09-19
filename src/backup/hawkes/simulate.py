@@ -623,8 +623,7 @@ def simBacry(paramsPath = "/SAN/fca/Konark_PhD_Experiments/extracted/AAPL.OQ_Par
     hawkes.simulate()
     return hawkes.timestamps
 
-def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260,
-                              metaQ = 2000, metaSide = "Buy", metaTime = 1800, metaStrategy = ("TWAP", "MO"), chilOrderFreq = 150, orderInitTime = None):
+def simulateMarketImpactStudy(T , paramsPath , todPath, Pis = None, Pi_Q0 = None, beta = 0.7479, avgSpread = 0.0169, spread0 = 3, price0 = 260, metaQ = 2000, metaSide = "Buy", metaTime = 1800, metaStrategy = ("TWAP", "MO"), chilOrderFreq = 150, orderInitTime = None):
     """
     :param T: time limit of simulations
     :param paramsPath: path of fitted params

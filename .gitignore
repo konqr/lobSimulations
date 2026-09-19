@@ -175,3 +175,16 @@ cython_debug/
 #.idea/
 /HJBQVI/logs/
 /HJBQVI/models/
+.vscode/launch.json
+
+
+# personal notes, not for sharing
+/.claude/skills/
+/HawkesRLTrading/twap_alone_out
+/HawkesRLTrading/twap_baseline_obs_out
+
+# Local research diagnostics and shell scripts
+/HawkesRLTrading/analysis_twap_mechanism/
+/HawkesRLTrading/episode_metrics_snapshots/
+/HawkesRLTrading/twap_alone*
+*.sh

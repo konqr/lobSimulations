@@ -98,6 +98,8 @@ class TWAPGymTradingAgent(GymTradingAgent):
             self.urgent = True
         
         if not self.urgent: #place limit orders like usual 
+            if individual_order_size <= 0:
+                return (12, 0)
             return (9, individual_order_size) if self.side == "buy" else (2, individual_order_size)
         #otherwise, place market orders
         else:
@@ -106,6 +108,12 @@ class TWAPGymTradingAgent(GymTradingAgent):
             num_actions_left_this_window:int = round(time_left * self.actions_per_second)
             if num_actions_left_this_window <= 0 : return(12, 0)
             self.market_order_size = round((self.total_volume_window - self.volume_traded_in_window)/num_actions_left_this_window)
+            # Passive fills can arrive after urgency was set and exhaust this
+            # window's target. A negative market order executes no cash but
+            # reverses inventory in the execution notification, corrupting
+            # both subsequent scheduling and measured execution quantity.
+            if self.market_order_size <= 0:
+                return (12, 0)
             return(7, self.market_order_size) if self.side == "buy" else (4, self.market_order_size)
 
 

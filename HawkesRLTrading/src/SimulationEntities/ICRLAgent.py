@@ -226,7 +226,7 @@ class ICRLAgent(GymTradingAgent):
                          wake_on_Spread=wake_on_Spread, cashlimit=cashlimit)
 
         self.resetseed(seed)
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
         # Hyperparameters
         self.rewardpenalty = 0.1  # inventory penalty
@@ -698,7 +698,8 @@ class ICRLAgent(GymTradingAgent):
 
 
     def calculaterewards(self, termination) -> Any:
-        penalty = self.rewardpenalty * (self.countInventory()**2)
+        penalty = 0
+        # penalty = self.rewardpenalty * (self.countInventory()**2)
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
@@ -1292,14 +1293,16 @@ class ICRLSG(ICRL2):
             self.scheduler_u.step()
 
 class StateActionVisitCounter:
-    def __init__(self, lambda_exploration=1.0):
+    def __init__(self, lambda_exploration=1.0, first_visit_bonus=0.2):
         """
         Efficient state-action visit counter with fast exploration bonus computation.
 
         Args:
             lambda_exploration: Exploration bonus coefficient
+            first_visit_bonus: Bonus returned for a never-before-seen (s,a) pair
         """
         self.lambda_exploration = lambda_exploration
+        self.first_visit_bonus = first_visit_bonus
 
         # Use defaultdict for O(1) access and automatic initialization
         self.visit_counts = defaultdict(int)
@@ -1321,14 +1324,23 @@ class StateActionVisitCounter:
         Handles floating point precision issues by rounding.
 
         Args:
-            state: (inventory_intc, price_diff, n_a_over_q_a, n_b_over_q_b)
+            state: (inventory_intc, price_diff, n_a_over_q_a, n_b_over_q_b,
+                    twap_side, intensity_bucket, twap_phase)
         """
-        # Round to avoid floating point precision issues
+        # Round to avoid floating point precision issues. The queue ratios
+        # (n_a/q_a, n_b/q_b) are heavy-tailed near-continuous, so bucket them
+        # into 3 bins (edges at 1.0, 2.0): <1 = ahead of the visible queue
+        # (likely to fill), 1-2 = front-ish, >2 = buried. Rounding them instead
+        # shatters the count table (~71% of pairs globally unique), pinning the
+        # exploration bonus at the first-visit floor.
         return (
             round(state[0], 0),  # inventory_intc
             round(state[1], 2),  # p_a - p_b
-            round(state[2], 3),  # n_a/q_a
-            round(state[3], 3)   # n_b/q_b
+            int(np.digitize(state[2], [1.0, 2.0])),  # n_a/q_a bucket (0/1/2)
+            int(np.digitize(state[3], [1.0, 2.0])),  # n_b/q_b bucket (0/1/2)
+            round(state[4], 0),  # twap_side: TWAPPresent (-1/0/+1)
+            int(state[5]),       # Hawkes net-flow-imbalance bucket (-1/0/+1)
+            int(state[6])        # twap_phase: -1 before / 0 during / +1 after
         )
 
     def update_visit_count(self, state, action):
@@ -1367,8 +1379,8 @@ class StateActionVisitCounter:
         count = self.visit_counts[key]
 
         if count == 0:
-            # First visit - return large bonus or handle as needed
-            return 0.2 #float('inf')  # or some large value like 1000
+            # First visit - return configurable bonus
+            return self.first_visit_bonus
 
         # Use cached sqrt if available, otherwise compute
         if count in self.sqrt_cache:
@@ -1399,9 +1411,9 @@ class PPOAgent(GymTradingAgent):
                  Inventory: Optional[Dict[str, Any]]=None, cash: int=5000, action_freq: float =0.5,
                  wake_on_MO: bool=True, wake_on_Spread: bool=True, cashlimit=1000000, inventorylimit=100,
                  buffer_capacity=10000, batch_size=64, epochs=1000, layer_widths = 128, n_layers = 3, clip_ratio=0.2,
-                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, rewardpenalty = 0.1, hidden_activation='leaky_relu',
+                 value_loss_coef=0.5, entropy_coef=10, max_grad_norm=0.5, gae_lambda=0.95, gamma=0.99, rewardpenalty = 0.1, hidden_activation='leaky_relu',
                  transaction_cost = 0.01, start_trading_lag=0, truncation_enabled=True, action_space_config = 0, include_time = False, alt_state=False, enhance_state=False,
-                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, two_sided_reward = True, ablation_params= {}, typeNN = "dense"):
+                 policy_loss_coef = 1, optim_type = 'ADAM',lr=1e-3, exploration_bonus = 0, first_visit_bonus = 0.2, two_sided_reward = True, ablation_params= {}, typeNN = "dense", chunk_length=64, terminal_invpenalty=0, cem_full_episode=False, phase_a_refresh_every=25, action_bonus=0.5, running_invpenalty=0.0, symmetric_mo_gating=False, cem_elite_floor=0.0, cem_n_elites=None):
         """
         PPO Agent with Generalized Advantage Estimation (GAE)
         Maintains two networks: one for decision (d) and one for utility (u)
@@ -1431,9 +1443,7 @@ class PPOAgent(GymTradingAgent):
                          truncation_enabled=truncation_enabled)
 
         self.resetseed(seed)
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-        # self.device = torch.device("cuda:0" if torch.cuda.is_available() else "mps")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))
 
         #allowed actions:
 
@@ -1465,7 +1475,7 @@ class PPOAgent(GymTradingAgent):
         self.n_layers = n_layers
         self.hidden_activation = hidden_activation
         self.lr = lr
-        self.gamma = 0.99  # discount factor
+        self.gamma = gamma  # discount factor
         self.rewardpenalty = rewardpenalty  # inventory penalty
         self.last_state, self.last_action = None, None
         self.transaction_cost = transaction_cost
@@ -1474,13 +1484,57 @@ class PPOAgent(GymTradingAgent):
         self.trajectory_buffer = []
         self.buffer_capacity = buffer_capacity
         self.exploration_bonus = bool(exploration_bonus)
-        self.visit_counter = StateActionVisitCounter(lambda_exploration=exploration_bonus)
+        self.visit_counter = StateActionVisitCounter(lambda_exploration=exploration_bonus, first_visit_bonus=first_visit_bonus)
+        self._twap_seen = False          # before/during/after-TWAP state machine (exploration key)
+        self.last_intensity_bucket = 0   # cached Hawkes net-flow-imbalance bucket (exploration key)
         self.two_sided_reward = two_sided_reward
+        # Flat per-step bonus for taking any non-no-op action. Measured against
+        # the thing it competes with: on the 2026-09-07 runs the per-step PnL
+        # change had median EXACTLY 0 (85-88% of steps move no money) and mean
+        # |dW| of 0.006-0.018 dollars, so the default 0.5 is 30-90x the typical
+        # PnL signal and, unlike PnL, it is deterministic and always positive.
+        # Summed over ~2,480 steps/episode it is worth hundreds against a
+        # terminal PnL of +-0.2. Kept at 0.5 by default so existing runs are
+        # unchanged; lower it to make PnL the dominant term.
+        self.action_bonus = action_bonus
+        # Per-step inventory penalty, lambda*inv**2. Off by default, which is
+        # the status quo -- the running penalty is commented out in
+        # calculaterewards and the only inventory control is the TERMINAL
+        # penalty, one event ~2,480 steps away through 64-step LSTM chunks.
+        # With nothing opposing it, inventory drifts to a per-run direction that
+        # does not depend on the TWAP side at all.
+        self.running_invpenalty = running_invpenalty
+        # Market-order gating. The legacy gates (symmetric_mo_gating=False, the
+        # default, which every run to date is on) are:
+        #   mo_Ask (SELL) blocked when inv < 1  OR  inv >= inventorylimit - 2
+        #   mo_Bid (BUY)  blocked when inv <= 2 - inventorylimit
+        # At inventorylimit=25 that permits SELLING only on inv in [1, 22] but
+        # BUYING on inv in [-22, +inf). The `inv >= limit - 2` clause blocks
+        # selling while very long, which is backwards for a position limit, and
+        # its mirror -- block buying while very long -- is simply absent, so the
+        # aggressive action set is long-biased. This is DORMANT in every run to
+        # date because action_space_config=1 never emits u=4 or u=7, but it
+        # would corrupt any action_space_config=0 run.
+        # True makes the two gates mirror images. The separate "no shorting via
+        # market order" rule (inv < 1) is a modelling choice, not a bug, and is
+        # left in place in both modes.
+        self.symmetric_mo_gating = symmetric_mo_gating
+        self.cem_elite_floor = cem_elite_floor  # see get_max_contiguous_rewards
+        self.cem_n_elites = cem_n_elites        # total elites, held constant across arms
         # State scaler
         self.mmscaler = MinMaxScaler()
         self.ablation_params = ablation_params
         # NN Type
         self.typeNN = typeNN
+        self.chunk_length = chunk_length
+        #Optional kappa, inventory penalty at termination
+        self.terminal_invpenalty = terminal_invpenalty
+        self.cem_full_episode = cem_full_episode
+        self.episode_sides = {}  # ep -> TWAPPresent at storage time, used for side-balanced CEM
+        # How often (in Phase B PPO epochs) to refresh Phase A (recompute old log probs,
+        # GAE, and saved hidden states with current network weights). The saved hidden
+        # states would otherwise grow stale as PPO updates move the LSTM weights.
+        self.phase_a_refresh_every = phase_a_refresh_every
         # Enable anomaly detection for debugging
         torch.autograd.set_detect_anomaly(True)
 
@@ -1507,6 +1561,7 @@ class PPOAgent(GymTradingAgent):
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
         lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
+        self.last_intensity_bucket = self._intensity_bucket(lambdas_norm)
         past_times = data['past_times']
         if self.Inventory['INTC'] ==0: self.init_cash = self.cash
         skew = (n_a - n_b)/(0.5*(q_a + q_b))
@@ -1604,9 +1659,58 @@ class PPOAgent(GymTradingAgent):
         self.Actor_Critic_u.load_state_dict(new_weights['u'])
         return 0
 
+    def _twap_phase(self):
+        # -1 = before TWAP, 0 = during, +1 = after.
+        # before and after both have TWAPPresent == 0, so _twap_seen disambiguates them.
+        if getattr(self, 'TWAPPresent', 0) != 0:
+            self._twap_seen = True
+            return 0
+        return 1 if self._twap_seen else -1
+
+    def _intensity_bucket(self, lambdas_norm, deadzone=0.05):
+        # net background-flow imbalance: ask group (idx 0:6) vs bid group (idx 6:12).
+        # lambdas_norm sums to 1, so imb is in [-1, 1].
+        imb = float(np.sum(lambdas_norm[:6]) - np.sum(lambdas_norm[6:12]))
+        if imb > deadzone:
+            return 1
+        if imb < -deadzone:
+            return -1
+        return 0
+
+    def _mo_ask_blocked(self, exploration=False):
+        """Should a SELL market order be suppressed at the current inventory?
+
+        Legacy (symmetric_mo_gating=False) reproduces the historical gates
+        exactly, including the exploration branch's missing position-limit
+        clause. See __init__ for why the legacy form is long-biased."""
+        inv = self.countInventory()
+        if inv < 1:                      # no shorting via market order
+            return True
+        if self.symmetric_mo_gating:     # selling reduces a long: the long limit must not block it
+            return inv <= 2 - self.inventorylimit
+        if exploration:
+            return False                 # legacy exploration branch had no limit clause
+        return inv >= self.inventorylimit - 2
+
+    def _mo_bid_blocked(self, exploration=False):
+        """Should a BUY market order be suppressed at the current inventory?"""
+        inv = self.countInventory()
+        if self.symmetric_mo_gating:     # mirror of the sell gate: stop at the long limit
+            return inv >= self.inventorylimit - 2
+        if exploration:
+            return False                 # legacy exploration branch had no bid clause at all
+        return inv <= 2 - self.inventorylimit
+
+    def _exploration_key_state(self):
+        # [inventory, spread, n_a/q_a, n_b/q_b] + [twap_side, intensity bucket, twap phase]
+        base = self.last_state.cpu().numpy()[0][1:5]
+        return [base[0], base[1], base[2], base[3],
+                getattr(self, 'TWAPPresent', 0), self.last_intensity_bucket, self._twap_phase()]
+
 
     def calculaterewards(self, termination) -> Any:
-        penalty = self.rewardpenalty * (self.countInventory()**2)
+        penalty = 0
+        # penalty = self.rewardpenalty * (self.countInventory()**2)
         self.profit = self.cash - self.statelog[0][1]
         self.updatestatelog()
         deltaPNL = self.statelog[-1][2] - self.statelog[-2][2]
@@ -1617,30 +1721,64 @@ class PPOAgent(GymTradingAgent):
         if self.istruncated:
             penalty += 100
         if self.last_action != 12:
-            penalty -= self.rewardpenalty *10 # custom reward for incentivising actions rather than inaction for learning
+            penalty -= self.action_bonus # flat bonus for acting vs no-op (see __init__ for the scale it competes with)
+        if self.running_invpenalty:
+            penalty += self.running_invpenalty * (self.countInventory()**2)
+        if self.terminal_invpenalty and termination: 
+            penalty += self.terminal_invpenalty * (self.countInventory()**2) # terminal inventory penalty (kappa)
 
-        if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
-            penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
-        if self.alt_state:
-            if self.two_sided_reward:
-                if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
-                    penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
-            if self.exploration_bonus:
-                penalty -= self.visit_counter.get_exploration_bonus(self.last_state.cpu().numpy()[0][1:5], self.last_action)
+        # last_state can be None when an episode opens with an inventory breach: get_action
+        # returns the forced market order early without ever calling readData/setting last_state.
+        # All the state-dependent shaping terms below would crash on None, so skip them.
+        if self.last_state is not None:
+            if (not self.alt_state) and (self.last_state.cpu().numpy()[0][8] < self.last_state.cpu().numpy()[0][4] + self.last_state.cpu().numpy()[0][6]) and (self.last_state.cpu().numpy()[0][9] < self.last_state.cpu().numpy()[0][5] + self.last_state.cpu().numpy()[0][7]):
+                penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+            if self.alt_state:
+                if self.two_sided_reward:
+                    if (self.last_state.cpu().numpy()[0][3] <= 1) and (self.last_state.cpu().numpy()[0][4] <= 1):
+                        penalty -= self.rewardpenalty *20 # custom reward for double sided quoting
+                if self.exploration_bonus:
+                    penalty -= self.visit_counter.get_exploration_bonus(self._exploration_key_state(), self.last_action)
         return deltaPNL + deltaInv - penalty
 
-    def get_action(self, data, epsilon=0.1):
+    def get_action(self, data, epsilon=0.1, evaluation=False):
         """
         Get action using current policy with epsilon-greedy exploration
 
         :param data: Input trading data
         :param epsilon: Exploration probability
-        :return: Chosen action and its log probabilities
+        :return: Executed action, sampled (d, u), policy log probabilities, values.
+
+        Gating changes execution, not the sampled utility used by PPO. A blocked
+        proposal must retain its utility index: index 0 is a real quote action,
+        not a no-op sentinel. last_action retains the existing execution/shaping
+        convention. For d=0 the utility index is a placeholder and is masked out
+        of the utility actor loss.
         """
+        # Reset per-episode TWAP-phase tracker at episode start
+        if self.last_state is None:
+            self._twap_seen = False
         # Reset LSTM hidden state at episode start (when last_state is None)
         if self.typeNN == "LSTM" and self.last_state is None:
             self.Actor_Critic_d.reset_hidden_state(batch_size=1)
             self.Actor_Critic_u.reset_hidden_state(batch_size=1)
+
+        on_policy = getattr(self, 'on_policy', False)
+        self._behavior_epsilon = (0.0 if evaluation else
+            (1.0 if getattr(self, '_on_policy_steps', 0) < 10 else epsilon)) if on_policy else 0.0
+        if on_policy:
+            from HawkesRLTrading.src.Utils.on_policy import mixture_log_probs
+            self._on_policy_steps = getattr(self, '_on_policy_steps', 0) + 1
+            if self.breach:
+                # Forced liquidation is actor-masked, but retains reward and
+                # recurrent/critic context in the rollout.
+                state = self.readData(data)
+                self.last_state = state
+                with torch.no_grad():
+                    _, value_d = self.Actor_Critic_d(state)
+                    _, value_u = self.Actor_Critic_u(state)
+                mo = 4 if self.countInventory() > 0 else 7
+                return mo, (None, None), 0, 0, value_d.item(), value_u.item()
 
         if self.action_space_config <2:
             if self.breach:
@@ -1650,19 +1788,26 @@ class PPOAgent(GymTradingAgent):
             state = self.readData(data)
             self.last_state = state
             # Exploration
-            if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
+            if not on_policy and not evaluation and ((random.random() < epsilon) or (len(self.trajectory_buffer) < 10)):
                 # Random decision
                 d = random.randint(0, 1)
                 u = random.randint(0, len(self.allowed_actions) - 1)
                 _u = copy.deepcopy(u)
                 u = self.convert_dict.get(u, u)
-                # Compute dummy logits for logging
-                d_logits, d_value = self.Actor_Critic_d(state)
-                u_logits, u_value = self.Actor_Critic_u(state)
+                # Compute dummy logits for logging — no_grad: exploration action is random,
+                # we don't need gradients here. Without this the LSTM forward leaks autograd
+                # graph (esp. with set_detect_anomaly=True).
+                with torch.no_grad():
+                    d_logits, d_value = self.Actor_Critic_d(state)
+                    u_logits, u_value = self.Actor_Critic_u(state)
+                    d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
+                    u_log_prob = torch.log_softmax(u_logits, dim=1)[0, _u]
 
-                # Get log probabilities
-                d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
-                u_log_prob = torch.log_softmax(u_logits, dim=1)[0, _u]
+                # Both branches implement the same hierarchical decision: d=0
+                # submits no order. Still forward both LSTMs above on every step.
+                if d == 0:
+                    self.last_action = 12
+                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
                 # Validation checks (similar to original implementation)
                 if int(u) in [1, 3, 8, 10]:  # cancels
@@ -1670,18 +1815,22 @@ class PPOAgent(GymTradingAgent):
                     lvl = self.actionsToLevels[a]
                     if len(origData['Positions'][lvl]) == 0:  # no position to cancel
                         self.last_action = 12
-                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                        return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
                 if int(u) in [5, 6]:
                     p_a, q_a = origData['LOB0']['Ask_L1']
                     p_b, q_b = origData['LOB0']['Bid_L1']
                     if p_a - p_b < 0.015:  # reject if inspread not possible
                         self.last_action = 12
-                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                        return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-                if (int(u) == 4) and (self.countInventory() < 1):  # ask mo -> since it hits the bid
+                if (int(u) == 4) and self._mo_ask_blocked(exploration=True):  # ask mo -> since it hits the bid
                     self.last_action = 12
-                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                    return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
+
+                if (int(u) == 7) and self._mo_bid_blocked(exploration=True):  # bid mo
+                    self.last_action = 12
+                    return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
                 self.last_action = u
                 return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
@@ -1690,18 +1839,22 @@ class PPOAgent(GymTradingAgent):
             with torch.no_grad():
                 # Decision network
                 d_logits, d_value = self.Actor_Critic_d(state)
-                d_probs = torch.softmax(d_logits, dim=1).squeeze()
+                d_probs = (mixture_log_probs(d_logits, self._behavior_epsilon).exp() if on_policy else torch.softmax(d_logits, dim=1)).squeeze()
                 d = torch.multinomial(d_probs, 1).item()
                 d_log_prob = torch.log(d_probs[d])
+
+                # Always forward u-network here (even when d will turn out to be 0) so its
+                # LSTM hidden state advances on every step. Training's Phase A re-runs the
+                # u-LSTM on every stored state regardless of d, so rollout must do the same
+                # to keep `u_log_probs_old` valid as a PPO importance-sampling baseline.
+                u_logits, u_value = self.Actor_Critic_u(state)
+                u_probs = (mixture_log_probs(u_logits, self._behavior_epsilon).exp() if on_policy else torch.softmax(u_logits, dim=1)).squeeze()
 
                 # If no decision to act (d=0)
                 if d == 0:
                     self.last_action = 12
                     return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-                # Utility network
-                u_logits, u_value = self.Actor_Critic_u(state)
-                u_probs = torch.softmax(u_logits, dim=1).squeeze()
                 u = torch.multinomial(u_probs, 1).item()
                 _u = copy.deepcopy(u)
                 u = self.convert_dict.get(u, u)
@@ -1719,22 +1872,22 @@ class PPOAgent(GymTradingAgent):
                     lvl = self.actionsToLevels[a]
                     if len(origData['Positions'][lvl]) == 0:  # no position to cancel
                         self.last_action = 12
-                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                        return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
                 if int(u) in [5, 6]:
                     p_a, q_a = origData['LOB0']['Ask_L1']
                     p_b, q_b = origData['LOB0']['Bid_L1']
                     if p_a - p_b < 0.015:  # reject if inspread not possible
                         self.last_action = 12
-                        return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                        return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-                if (int(u) == 4) and ((self.countInventory() < 1) or (self.countInventory() >= self.inventorylimit - 2)):  # ask mo -> hits the bid
+                if (int(u) == 4) and self._mo_ask_blocked():  # ask mo -> hits the bid
                     self.last_action = 12
-                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                    return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-                if (int(u)==7) and (self.countInventory() <= 2 - self.inventorylimit): # bid mo
+                if (int(u)==7) and self._mo_bid_blocked(): # bid mo
                     self.last_action = 12
-                    return 12, (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                    return 12, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
                 self.last_action = u
                 return u, (d, _u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
@@ -1756,16 +1909,16 @@ class PPOAgent(GymTradingAgent):
             }
 
             # Exploration
-            if (random.random() < epsilon) or (len(self.trajectory_buffer) < 10):
+            if not on_policy and not evaluation and ((random.random() < epsilon) or (len(self.trajectory_buffer) < 10)):
                 d = random.randint(0, 1)
                 u = random.randint(0, 2)  # because u in {0, 1, 2}
 
-                # Dummy logits for logging
-                d_logits, d_value = self.Actor_Critic_d(state)
-                u_logits, u_value = self.Actor_Critic_u(state)
-
-                d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
-                u_log_prob = torch.log_softmax(u_logits, dim=1)[0, u]
+                # Dummy logits for logging — no_grad: action is random, no gradient needed.
+                with torch.no_grad():
+                    d_logits, d_value = self.Actor_Critic_d(state)
+                    u_logits, u_value = self.Actor_Critic_u(state)
+                    d_log_prob = torch.log_softmax(d_logits, dim=1)[0, d]
+                    u_log_prob = torch.log_softmax(u_logits, dim=1)[0, u]
 
                 if d == 0:
                     self.last_action = 12
@@ -1779,22 +1932,25 @@ class PPOAgent(GymTradingAgent):
                     lvl = self.actionsToLevels[a]
                     if len(origData['Positions'][lvl]) == 0:  # no position to cancel
                         self.last_action = 12
-                        return ((12,1),lo), (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                        return ((12,1),lo), (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
                 return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
             # Exploitation
             with torch.no_grad():
                 d_logits, d_value = self.Actor_Critic_d(state)
-                d_probs = torch.softmax(d_logits, dim=1).squeeze()
+                d_probs = (mixture_log_probs(d_logits, self._behavior_epsilon).exp() if on_policy else torch.softmax(d_logits, dim=1)).squeeze()
                 d = torch.multinomial(d_probs, 1).item()
                 d_log_prob = torch.log(d_probs[d])
+
+                # Always forward u-network so its LSTM hidden state stays in sync with
+                # training Phase A (which sees every state regardless of d).
+                u_logits, u_value = self.Actor_Critic_u(state)
+                u_probs = (mixture_log_probs(u_logits, self._behavior_epsilon).exp() if on_policy else torch.softmax(u_logits, dim=1)).squeeze()
 
                 if d == 0:
                     self.last_action = 12
                     return ((12, 1), (12, 1)), (d, 0), d_log_prob.item(), 0, d_value.item(), 0
 
-                u_logits, u_value = self.Actor_Critic_u(state)
-                u_probs = torch.softmax(u_logits, dim=1).squeeze()
                 u = torch.multinomial(u_probs, 1).item()
                 u_log_prob = torch.log(u_probs[u])
 
@@ -1807,10 +1963,10 @@ class PPOAgent(GymTradingAgent):
                 lvl = self.actionsToLevels[a]
                 if len(origData['Positions'][lvl]) == 0:  # no position to cancel
                     self.last_action = 12
-                    return ((12,1),lo), (d, 0), d_log_prob.item(), 0, d_value.item(), 0
+                    return ((12,1),lo), (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
             return action, (d, u), d_log_prob.item(), u_log_prob.item(), d_value.item(), u_value.item()
 
-    def store_transition(self, ep, state, action, reward, next_state, done):
+    def store_transition(self, ep, state, action, reward, next_state, done, rollout=None):
         """
         Store transition in trajectory buffer
 
@@ -1822,7 +1978,15 @@ class PPOAgent(GymTradingAgent):
         """
         # Unpack action components
         d, u = action
-        if d is None: return
+        on_policy = getattr(self, 'on_policy', False)
+        actor_valid = d is not None
+        if d is None and not on_policy: return
+        if on_policy:
+            if rollout is None:
+                raise ValueError('On-policy transitions require rollout likelihood/value')
+            d, u = (d, u) if actor_valid else (0, 0)
+            state = state.detach().clone()
+            next_state = next_state.detach().clone()
         # Store additional trajectory information
         transition = (
             state,       # Current state
@@ -1832,9 +1996,18 @@ class PPOAgent(GymTradingAgent):
             next_state,  # Next state
             int(done)         # Done flag
         )
+        if on_policy:
+            self._on_policy_last_account = (self.cash, self.countInventory(), self.mid)
+            transition += ({'actor': actor_valid, 'epsilon': self._behavior_epsilon,
+                            'log_prob': float(rollout[2] + (rollout[3] if d == 1 else 0)),
+                            'value': float(rollout[4])},)
         self.trajectory_buffer.append((ep, transition))
+        side = getattr(self, 'TWAPPresent', 0)
+        # Keep any nonzero side once seen — TWAPPresent flips 0→±1→0 across an episode
+        if side != 0 or ep not in self.episode_sides:
+            self.episode_sides[ep] = side
         if self.exploration_bonus:
-            self.visit_counter.update_visit_count(self.last_state.cpu().numpy()[0][1:5], self.last_action)
+            self.visit_counter.update_visit_count(self._exploration_key_state(), self.last_action)
 
     def compute_gae(self, rewards, values_d, values_u, dones):
         """
@@ -1889,34 +2062,50 @@ class PPOAgent(GymTradingAgent):
 
     def train(self, train_logger, use_CEM = False):
         """
-        PPO training method using entire episode trajectory
+        PPO training method using entire episode trajectory.
+        Dense branch: random timestep sampling (stateless networks).
+        LSTM branch: chunk-based PPO with preserved temporal context.
         """
         # Ensure we have a full trajectory
         if len(self.trajectory_buffer) < 2:
             return
+
+        if getattr(self, 'on_policy', False):
+            if use_CEM or self.typeNN != 'LSTM':
+                raise ValueError('Fresh PPO requires recurrent mode and CEM disabled')
+            from HawkesRLTrading.src.Utils.on_policy import train_fresh
+            return train_fresh(self, train_logger)
+        if self.typeNN == "LSTM":
+            self._train_lstm(train_logger, use_CEM)
+        else:
+            self._train_dense(train_logger, use_CEM)
+
+        # Clear trajectory buffer after training
+        while len(self.trajectory_buffer) > self.buffer_capacity:
+            eID = self.trajectory_buffer[0][0]
+            end_idx = np.max([i for i in range(len(self.trajectory_buffer)) if self.trajectory_buffer[i][0] == eID]) + 1
+            self.trajectory_buffer = self.trajectory_buffer[end_idx:]
+            self.episode_sides.pop(eID, None)
+            gc.collect()
+        return [0]*6
+
+    def _train_dense(self, train_logger, use_CEM=False):
+        """Dense (stateless) PPO training — original random timestep sampling."""
         tmp_buffer = []
         eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
         for eID in eIDs:
-            # Prepare training data
             states = torch.cat([tr[1][0] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
             d_actions = torch.tensor([tr[1][1] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
             u_actions = torch.tensor([tr[1][2] for tr in self.trajectory_buffer if tr[0] == eID]).to(self.device)
             rewards = [tr[1][3] for tr in self.trajectory_buffer if tr[0] == eID]
             dones = [tr[1][5] for tr in self.trajectory_buffer if tr[0] == eID]
 
-            # Compute values and log probabilities
             with torch.no_grad():
-                # Decision network
                 d_logits_old, values_d_old = self.Actor_Critic_d(states)
                 d_log_probs_old = F.log_softmax(d_logits_old, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
-                # values_d_old = torch.stack([self.Critic_d(s)[1] for s in states]).squeeze()
-
-                # Utility network
                 u_logits_old, values_u_old = self.Actor_Critic_u(states)
                 u_log_probs_old = F.log_softmax(u_logits_old, dim=1).gather(1, u_actions.unsqueeze(1)).squeeze()
-                # values_u_old = torch.stack([self.Critic_u(s)[1] for s in states]).squeeze()
 
-            # Compute Generalized Advantage Estimation
             advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
                 rewards,
                 values_d_old.cpu().numpy().flatten().tolist(),
@@ -1930,22 +2119,20 @@ class PPOAgent(GymTradingAgent):
             cem_states_d, cem_d_actions = self.get_CEM_data(type='d')
             cem_states_u, cem_u_actions = self.get_CEM_data(type='u')
         # PPO training for multiple epochs
-        # idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
         for _ in range(self.epochs):
             idxs =np.random.choice(np.arange(len(_states)), self.batch_size)
             states, d_actions, u_actions, d_logits_old, values_d_old, d_log_probs_old, u_logits_old, values_u_old, u_log_probs_old, advantages_d, returns_d, advantages_u, returns_u = _states[idxs,:], _d_actions[idxs], _u_actions[idxs], _d_logits_old[idxs,:], _values_d_old[idxs,:], _d_log_probs_old[idxs], _u_logits_old[idxs,:], _values_u_old[idxs,:], _u_log_probs_old[idxs], _advantages_d[idxs], _returns_d[idxs], _advantages_u[idxs], _returns_u[idxs]
-
-            # Reset LSTM hidden state before minibatch forward pass
-            if self.typeNN == "LSTM":
-                self.Actor_Critic_d.reset_hidden_state(batch_size=len(states))
 
             # Decision Network Training
             # Current policy output
             d_logits, d_values_pred = self.Actor_Critic_d(states)
             if use_CEM:
                 idxs =np.random.choice(np.arange(len(cem_states_d)), self.batch_size)
-                d_logits, _ = self.Actor_Critic_d(torch.cat(cem_states_d)[idxs,:])
-                d_policy_loss = F.cross_entropy(d_logits, torch.tensor(cem_d_actions)[idxs].to(self.device))
+                # Separate variable so d_logits (PPO batch) stays available for entropy loss below.
+                # Previously this overwrote d_logits, so entropy regularisation landed on the
+                # elite batch and directly opposed the CE supervised signal there.
+                d_logits_cem, _ = self.Actor_Critic_d(torch.cat(cem_states_d)[idxs,:])
+                d_policy_loss = F.cross_entropy(d_logits_cem, torch.tensor(cem_d_actions)[idxs].to(self.device))
 
             else:
                 d_log_probs = F.log_softmax(d_logits, dim=1).gather(1, d_actions.unsqueeze(1)).squeeze()
@@ -1959,7 +2146,6 @@ class PPOAgent(GymTradingAgent):
                 d_policy_loss = -torch.min(d_surr1, d_surr2).mean()
 
             # Value loss for Decision Network
-            # d_values_pred, _ = self.Critic_d(states)
             d_value_loss = F.mse_loss(d_values_pred.squeeze(), returns_d)
 
             # Entropy for Decision Network
@@ -1987,16 +2173,13 @@ class PPOAgent(GymTradingAgent):
                 returns_u_filtered = returns_u[d_mask]
                 u_log_probs_old_filtered = u_log_probs_old[d_mask]
 
-                # Reset LSTM hidden state before minibatch forward pass
-                if self.typeNN == "LSTM":
-                    self.Actor_Critic_u.reset_hidden_state(batch_size=len(states_u))
-
                 # Current policy output
                 u_logits, u_values_pred = self.Actor_Critic_u(states_u)
                 if use_CEM:
                     idxs =np.random.choice(np.arange(len(cem_states_u)), self.batch_size)
-                    u_logits, _ = self.Actor_Critic_u(torch.cat(cem_states_u)[idxs,:])
-                    u_policy_loss = F.cross_entropy(u_logits, torch.tensor(cem_u_actions)[idxs].to(self.device))
+                    # Separate variable so u_logits (PPO batch) stays available for entropy loss below.
+                    u_logits_cem, _ = self.Actor_Critic_u(torch.cat(cem_states_u)[idxs,:])
+                    u_policy_loss = F.cross_entropy(u_logits_cem, torch.tensor(cem_u_actions)[idxs].to(self.device))
                 else:
                     u_log_probs = F.log_softmax(u_logits, dim=1).gather(1, u_actions_u.unsqueeze(1)).squeeze()
 
@@ -2035,32 +2218,346 @@ class PPOAgent(GymTradingAgent):
                   f'Entropy Loss: {d_entropy_loss.item():.4f}')
 
             train_logger.log_losses(d_policy_loss  = d_policy_loss.item(), d_value_loss = d_value_loss.item(), d_entropy_loss = d_entropy_loss.item(), u_policy_loss = u_policy_loss.item(), u_value_loss = u_value_loss.item(), u_entropy_loss = u_entropy_loss.item())
-            del d_policy_loss
-            del d_value_loss
-            del d_entropy_loss
-            del u_policy_loss
-            del u_value_loss
-            del u_entropy_loss
-            del u_logits
-            del u_values_pred
-            del d_logits
-            del d_values_pred
-        # Clear trajectory buffer after training
-        while len(self.trajectory_buffer) > self.buffer_capacity:
-            eID = self.trajectory_buffer[0][0]
-            end_idx = np.max([i for i in range(len(self.trajectory_buffer)) if self.trajectory_buffer[i][0] == eID]) + 1
-            self.trajectory_buffer = self.trajectory_buffer[end_idx:]
-            gc.collect()
-        # return d_policy_loss.item(), d_value_loss.item(), d_entropy_loss.item(), u_policy_loss.item(), u_value_loss.item(), u_entropy_loss.item()
-        return [0]*6
+            del d_policy_loss, d_value_loss, d_entropy_loss
+            del u_policy_loss, u_value_loss, u_entropy_loss
+            del u_logits, u_values_pred, d_logits, d_values_pred
+
+    def _build_phase_a_chunks(self, use_CEM):
+        """
+        Phase A of chunk-based PPO-LSTM: replay the trajectory buffer through the
+        current network to (re)compute old log probs, values, GAE, and saved
+        per-chunk hidden states. Returns a list of chunk dicts ready for Phase B.
+
+        Called by `_train_lstm` once at the start and every `phase_a_refresh_every`
+        PPO epochs so the "old policy" baseline tracks the slowly-drifting current
+        network instead of being frozen for all 1000 epochs.
+        """
+        chunk_length = self.chunk_length
+        eIDs = np.unique([tr[0] for tr in self.trajectory_buffer])
+        all_chunks = []
+
+        if use_CEM:
+            elite_segments = self.get_max_contiguous_rewards(K=10)
+
+        for eID in eIDs:
+            ep_data = [(tr[1]) for tr in self.trajectory_buffer if tr[0] == eID]
+            states = torch.cat([t[0] for t in ep_data]).to(self.device)
+            d_actions = torch.tensor([t[1] for t in ep_data]).to(self.device)
+            u_actions = torch.tensor([t[2] for t in ep_data]).to(self.device)
+            rewards = [t[3] for t in ep_data]
+            dones = [t[5] for t in ep_data]
+            T = len(states)
+
+            # Initialize hidden states to zeros (episode boundary)
+            n_layers_d = self.Actor_Critic_d.actor.n_layers
+            hidden_dim_d = self.Actor_Critic_d.actor.hidden_dim
+            n_layers_u = self.Actor_Critic_u.actor.n_layers
+            hidden_dim_u = self.Actor_Critic_u.actor.hidden_dim
+            # Critic may have different dims if architecture differs, but typically same
+            hidden_dim_d_c = self.Actor_Critic_d.critic.hidden_dim
+            hidden_dim_u_c = self.Actor_Critic_u.critic.hidden_dim
+
+            d_actor_h = torch.zeros(n_layers_d, 1, hidden_dim_d, device=self.device)
+            d_actor_c = torch.zeros(n_layers_d, 1, hidden_dim_d, device=self.device)
+            d_critic_h = torch.zeros(n_layers_d, 1, hidden_dim_d_c, device=self.device)
+            d_critic_c = torch.zeros(n_layers_d, 1, hidden_dim_d_c, device=self.device)
+            u_actor_h = torch.zeros(n_layers_u, 1, hidden_dim_u, device=self.device)
+            u_actor_c = torch.zeros(n_layers_u, 1, hidden_dim_u, device=self.device)
+            u_critic_h = torch.zeros(n_layers_u, 1, hidden_dim_u_c, device=self.device)
+            u_critic_c = torch.zeros(n_layers_u, 1, hidden_dim_u_c, device=self.device)
+
+            # Collect per-chunk hidden states and logits/values
+            chunk_boundaries = []  # (chunk_start, chunk_end, saved_hidden_dict)
+            all_d_logits = []
+            all_d_values = []
+            all_u_logits = []
+            all_u_values = []
+
+            with torch.no_grad():
+                for chunk_start in range(0, T, chunk_length):
+                    chunk_end = min(chunk_start + chunk_length, T)
+                    chunk_states = states[chunk_start:chunk_end].unsqueeze(0)  # (1, actual_len, features)
+
+                    # Save hidden states BEFORE processing this chunk
+                    saved_hidden = {
+                        'd_actor_h': d_actor_h.clone(), 'd_actor_c': d_actor_c.clone(),
+                        'd_critic_h': d_critic_h.clone(), 'd_critic_c': d_critic_c.clone(),
+                        'u_actor_h': u_actor_h.clone(), 'u_actor_c': u_actor_c.clone(),
+                        'u_critic_h': u_critic_h.clone(), 'u_critic_c': u_critic_c.clone(),
+                    }
+
+                    # Forward through d-network
+                    d_logits_chunk, d_values_chunk, d_actor_final, d_critic_final = \
+                        self.Actor_Critic_d.forward_sequence(
+                            chunk_states, (d_actor_h, d_actor_c), (d_critic_h, d_critic_c))
+                    d_actor_h, d_actor_c = d_actor_final
+                    d_critic_h, d_critic_c = d_critic_final
+
+                    # Forward through u-network
+                    u_logits_chunk, u_values_chunk, u_actor_final, u_critic_final = \
+                        self.Actor_Critic_u.forward_sequence(
+                            chunk_states, (u_actor_h, u_actor_c), (u_critic_h, u_critic_c))
+                    u_actor_h, u_actor_c = u_actor_final
+                    u_critic_h, u_critic_c = u_critic_final
+
+                    # Remove batch dim: (1, seq_len, dim) -> (seq_len, dim)
+                    all_d_logits.append(d_logits_chunk.squeeze(0))
+                    all_d_values.append(d_values_chunk.squeeze(0))
+                    all_u_logits.append(u_logits_chunk.squeeze(0))
+                    all_u_values.append(u_values_chunk.squeeze(0))
+                    chunk_boundaries.append((chunk_start, chunk_end, saved_hidden))
+
+            # Concatenate for full episode
+            d_logits_all = torch.cat(all_d_logits, dim=0)  # (T, action_dim)
+            d_values_all = torch.cat(all_d_values, dim=0)  # (T, 1)
+            u_logits_all = torch.cat(all_u_logits, dim=0)
+            u_values_all = torch.cat(all_u_values, dim=0)
+
+            # Compute old log probs
+            d_log_probs_old = F.log_softmax(d_logits_all, dim=-1).gather(1, d_actions.unsqueeze(1)).squeeze(1)
+            u_log_probs_old = F.log_softmax(u_logits_all, dim=-1).gather(1, u_actions.unsqueeze(1)).squeeze(1)
+
+            # Compute GAE
+            advantages_d, returns_d, advantages_u, returns_u = self.compute_gae(
+                rewards,
+                d_values_all.cpu().numpy().flatten().tolist(),
+                u_values_all.cpu().numpy().flatten().tolist(),
+                dones
+            )
+
+            # Build CEM mask for this episode
+            if use_CEM and eID in elite_segments and elite_segments[eID] is not None:
+                elite_start, elite_end, _ = elite_segments[eID]
+                cem_mask_ep = torch.zeros(T, device=self.device)
+                cem_mask_ep[elite_start:elite_end+1] = 1.0
+            else:
+                cem_mask_ep = torch.zeros(T, device=self.device)
+
+            # Package each chunk with padded data and validity mask
+            for chunk_start, chunk_end, saved_hidden in chunk_boundaries:
+                actual_len = chunk_end - chunk_start
+                pad_len = chunk_length - actual_len
+
+                cs, ce = chunk_start, chunk_end
+                chunk_s = states[cs:ce]
+                chunk_da = d_actions[cs:ce]
+                chunk_ua = u_actions[cs:ce]
+                chunk_dlp = d_log_probs_old[cs:ce]
+                chunk_ulp = u_log_probs_old[cs:ce]
+                chunk_adv_d = advantages_d[cs:ce]
+                chunk_ret_d = returns_d[cs:ce]
+                chunk_adv_u = advantages_u[cs:ce]
+                chunk_ret_u = returns_u[cs:ce]
+                chunk_cem = cem_mask_ep[cs:ce]
+
+                mask = torch.ones(chunk_length, device=self.device)
+
+                if pad_len > 0:
+                    chunk_s = F.pad(chunk_s, (0, 0, 0, pad_len))
+                    chunk_da = F.pad(chunk_da, (0, pad_len))
+                    chunk_ua = F.pad(chunk_ua, (0, pad_len))
+                    chunk_dlp = F.pad(chunk_dlp, (0, pad_len))
+                    chunk_ulp = F.pad(chunk_ulp, (0, pad_len))
+                    chunk_adv_d = F.pad(chunk_adv_d, (0, pad_len))
+                    chunk_ret_d = F.pad(chunk_ret_d, (0, pad_len))
+                    chunk_adv_u = F.pad(chunk_adv_u, (0, pad_len))
+                    chunk_ret_u = F.pad(chunk_ret_u, (0, pad_len))
+                    chunk_cem = F.pad(chunk_cem, (0, pad_len))
+                    mask[actual_len:] = 0
+
+                all_chunks.append({
+                    'states': chunk_s,           # (chunk_length, features)
+                    'd_actions': chunk_da,       # (chunk_length,)
+                    'u_actions': chunk_ua,
+                    'd_log_probs_old': chunk_dlp,
+                    'u_log_probs_old': chunk_ulp,
+                    'advantages_d': chunk_adv_d,
+                    'returns_d': chunk_ret_d,
+                    'advantages_u': chunk_adv_u,
+                    'returns_u': chunk_ret_u,
+                    'mask': mask,
+                    'cem_mask': chunk_cem,
+                    **saved_hidden,  # d_actor_h/c, d_critic_h/c, u_actor_h/c, u_critic_h/c
+                })
+
+        return all_chunks
+
+    def _train_lstm(self, train_logger, use_CEM=False):
+        """
+        Chunk-based PPO-LSTM training. Splits episodes into sequential chunks,
+        samples chunks randomly, and restores hidden states at chunk boundaries
+        for temporal context. When use_CEM=True, replaces PPO policy loss with
+        cross-entropy on elite (highest-reward) subsequences for self-imitation.
+
+        Phase A (recompute old log probs / GAE / saved hidden states from the
+        current network) is refreshed every self.phase_a_refresh_every Phase B
+        epochs so the old-policy baseline tracks the moving weights instead of
+        being frozen for all `self.epochs` updates.
+        """
+        chunk_length = self.chunk_length
+        refresh_every = max(1, self.phase_a_refresh_every)
+
+        # ---- Phase A: build chunks from current network ----
+        all_chunks = self._build_phase_a_chunks(use_CEM)
+        if not all_chunks:
+            return
+        num_chunks = len(all_chunks)
+        num_chunks_per_batch = max(1, self.batch_size // chunk_length)
+
+        # ---- Phase B: PPO minibatch updates using chunks ----
+        for epoch in range(self.epochs):
+            # Periodically rebuild Phase A so saved hidden states + old log probs
+            # don't drift too far from the current (PPO-updated) network.
+            if epoch > 0 and epoch % refresh_every == 0:
+                all_chunks = self._build_phase_a_chunks(use_CEM)
+                if not all_chunks:
+                    return
+                num_chunks = len(all_chunks)
+
+            chunk_idxs = np.random.choice(num_chunks, min(num_chunks_per_batch, num_chunks), replace=False)
+            B = len(chunk_idxs)
+
+            # Stack sampled chunks into batched tensors
+            batch_states = torch.stack([all_chunks[i]['states'] for i in chunk_idxs])         # (B, chunk_length, features)
+            batch_d_actions = torch.stack([all_chunks[i]['d_actions'] for i in chunk_idxs])   # (B, chunk_length)
+            batch_u_actions = torch.stack([all_chunks[i]['u_actions'] for i in chunk_idxs])
+            batch_d_lp_old = torch.stack([all_chunks[i]['d_log_probs_old'] for i in chunk_idxs])
+            batch_u_lp_old = torch.stack([all_chunks[i]['u_log_probs_old'] for i in chunk_idxs])
+            batch_adv_d = torch.stack([all_chunks[i]['advantages_d'] for i in chunk_idxs])
+            batch_ret_d = torch.stack([all_chunks[i]['returns_d'] for i in chunk_idxs])
+            batch_adv_u = torch.stack([all_chunks[i]['advantages_u'] for i in chunk_idxs])
+            batch_ret_u = torch.stack([all_chunks[i]['returns_u'] for i in chunk_idxs])
+            batch_mask = torch.stack([all_chunks[i]['mask'] for i in chunk_idxs])
+            batch_cem_mask = torch.stack([all_chunks[i]['cem_mask'] for i in chunk_idxs])
+
+            # Stack hidden states along batch dim: (n_layers, 1, hidden_dim) -> (n_layers, B, hidden_dim)
+            batch_d_actor_h = torch.cat([all_chunks[i]['d_actor_h'] for i in chunk_idxs], dim=1)
+            batch_d_actor_c = torch.cat([all_chunks[i]['d_actor_c'] for i in chunk_idxs], dim=1)
+            batch_d_critic_h = torch.cat([all_chunks[i]['d_critic_h'] for i in chunk_idxs], dim=1)
+            batch_d_critic_c = torch.cat([all_chunks[i]['d_critic_c'] for i in chunk_idxs], dim=1)
+            batch_u_actor_h = torch.cat([all_chunks[i]['u_actor_h'] for i in chunk_idxs], dim=1)
+            batch_u_actor_c = torch.cat([all_chunks[i]['u_actor_c'] for i in chunk_idxs], dim=1)
+            batch_u_critic_h = torch.cat([all_chunks[i]['u_critic_h'] for i in chunk_idxs], dim=1)
+            batch_u_critic_c = torch.cat([all_chunks[i]['u_critic_c'] for i in chunk_idxs], dim=1)
+
+            # === Decision Network ===
+            d_logits_seq, d_values_seq, _, _ = self.Actor_Critic_d.forward_sequence(
+                batch_states, (batch_d_actor_h, batch_d_actor_c), (batch_d_critic_h, batch_d_critic_c))
+
+            # Flatten: (B, chunk_length, dim) -> (B*chunk_length, dim)
+            d_logits_flat = d_logits_seq.reshape(B * chunk_length, -1)
+            d_values_flat = d_values_seq.reshape(B * chunk_length, -1)
+            d_actions_flat = batch_d_actions.reshape(B * chunk_length)
+            d_lp_old_flat = batch_d_lp_old.reshape(B * chunk_length)
+            adv_d_flat = batch_adv_d.reshape(B * chunk_length)
+            ret_d_flat = batch_ret_d.reshape(B * chunk_length)
+            mask_flat = batch_mask.reshape(B * chunk_length)
+            cem_flat = batch_cem_mask.reshape(B * chunk_length)
+
+            valid = mask_flat.bool()
+            d_logits_v = d_logits_flat[valid]
+            d_values_v = d_values_flat[valid]
+            d_actions_v = d_actions_flat[valid]
+            d_lp_old_v = d_lp_old_flat[valid]
+            adv_d_v = adv_d_flat[valid]
+            ret_d_v = ret_d_flat[valid]
+
+            cem_d_valid = valid & cem_flat.bool()
+            if use_CEM and cem_d_valid.any():
+                d_logits_cem = d_logits_flat[cem_d_valid]
+                d_actions_cem = d_actions_flat[cem_d_valid]
+                d_policy_loss = F.cross_entropy(d_logits_cem, d_actions_cem)
+            else:
+                d_log_probs = F.log_softmax(d_logits_v, dim=1).gather(1, d_actions_v.unsqueeze(1)).squeeze(1)
+                d_ratios = torch.exp(d_log_probs - d_lp_old_v)
+                d_surr1 = d_ratios * adv_d_v
+                d_surr2 = torch.clamp(d_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * adv_d_v
+                d_policy_loss = -torch.min(d_surr1, d_surr2).mean()
+            d_value_loss = F.mse_loss(d_values_v.squeeze(), ret_d_v)
+            d_entropy_loss = -(torch.softmax(d_logits_v, dim=1) * F.log_softmax(d_logits_v, dim=1)).sum(dim=1).mean()
+
+            d_loss = (self.policy_loss_coef * d_policy_loss +
+                      self.value_loss_coef * d_value_loss -
+                      self.entropy_coef * d_entropy_loss)
+
+            self.optimizer_d.zero_grad()
+            d_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.Actor_Critic_d.parameters(), self.max_grad_norm)
+            self.optimizer_d.step()
+            self.scheduler_d.step()
+
+            # === Utility Network: process full chunks for temporal context, loss only on d==1 ===
+            u_logits_seq, u_values_seq, _, _ = self.Actor_Critic_u.forward_sequence(
+                batch_states, (batch_u_actor_h, batch_u_actor_c), (batch_u_critic_h, batch_u_critic_c))
+
+            u_logits_flat = u_logits_seq.reshape(B * chunk_length, -1)
+            u_values_flat = u_values_seq.reshape(B * chunk_length, -1)
+            u_actions_flat = batch_u_actions.reshape(B * chunk_length)
+            u_lp_old_flat = batch_u_lp_old.reshape(B * chunk_length)
+            adv_u_flat = batch_adv_u.reshape(B * chunk_length)
+            ret_u_flat = batch_ret_u.reshape(B * chunk_length)
+
+            # Mask: valid timesteps AND d_actions == 1
+            u_mask = valid & (d_actions_flat == 1)
+
+            if u_mask.any():
+                u_logits_v = u_logits_flat[u_mask]
+                u_values_v = u_values_flat[u_mask]
+                u_actions_v = u_actions_flat[u_mask]
+                u_lp_old_v = u_lp_old_flat[u_mask]
+                adv_u_v = adv_u_flat[u_mask]
+                ret_u_v = ret_u_flat[u_mask]
+
+                cem_u_valid = u_mask & cem_flat.bool()
+                if use_CEM and cem_u_valid.any():
+                    u_logits_cem = u_logits_flat[cem_u_valid]
+                    u_actions_cem = u_actions_flat[cem_u_valid]
+                    u_policy_loss = F.cross_entropy(u_logits_cem, u_actions_cem)
+                else:
+                    u_log_probs = F.log_softmax(u_logits_v, dim=1).gather(1, u_actions_v.unsqueeze(1)).squeeze(1)
+                    u_ratios = torch.exp(u_log_probs - u_lp_old_v)
+                    u_surr1 = u_ratios * adv_u_v
+                    u_surr2 = torch.clamp(u_ratios, 1 - self.clip_ratio, 1 + self.clip_ratio) * adv_u_v
+                    u_policy_loss = -torch.min(u_surr1, u_surr2).mean()
+                u_value_loss = F.mse_loss(u_values_v.squeeze(), ret_u_v)
+                u_entropy_loss = -(torch.softmax(u_logits_v, dim=1) * F.log_softmax(u_logits_v, dim=1)).sum(dim=1).mean()
+
+                u_loss = (u_policy_loss +
+                          self.value_loss_coef * u_value_loss -
+                          self.entropy_coef * u_entropy_loss)
+
+                self.optimizer_u.zero_grad()
+                u_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.Actor_Critic_u.parameters(), self.max_grad_norm)
+                self.optimizer_u.step()
+                self.scheduler_u.step()
+
+                print(f'Utility Network - Policy Loss: {u_policy_loss.item():.4f}, '
+                      f'Value Loss: {u_value_loss.item():.4f}, '
+                      f'Entropy Loss: {u_entropy_loss.item():.4f}')
+            else:
+                u_policy_loss = torch.tensor(0.0)
+                u_value_loss = torch.tensor(0.0)
+                u_entropy_loss = torch.tensor(0.0)
+
+            print(f'Decision Network - Policy Loss: {d_policy_loss.item():.4f}, '
+                  f'Value Loss: {d_value_loss.item():.4f}, '
+                  f'Entropy Loss: {d_entropy_loss.item():.4f}')
+
+            train_logger.log_losses(
+                d_policy_loss=d_policy_loss.item(), d_value_loss=d_value_loss.item(),
+                d_entropy_loss=d_entropy_loss.item(), u_policy_loss=u_policy_loss.item(),
+                u_value_loss=u_value_loss.item(), u_entropy_loss=u_entropy_loss.item())
 
     def get_max_contiguous_rewards(self, K):
         """
-        Find maximum contiguous subarray of rewards for each episode with minimum length K
+        Find best segments for CEM imitation learning.
+
+        Default: best contiguous subarray of rewards per episode (minimum length K).
+        If self.cem_full_episode=True: rank episodes by total reward, pick top 5 full episodes.
 
         :param K: Minimum length of subarray
-        :return: Dictionary mapping episode -> (start_idx, end_idx, max_sum)
-                 where indices are relative to the episode's trajectory
+        :return: Dictionary mapping episode -> (start_idx, end_idx, max_sum) or None
         """
         if not self.trajectory_buffer:
             return {}
@@ -2072,31 +2569,110 @@ class PPOAgent(GymTradingAgent):
                 episodes[ep] = []
             episodes[ep].append(transition)
 
-        results = {}
+        if self.cem_full_episode:
+            # Top-5 full-episode selection
+            episode_totals = {}
+            for ep, transitions in episodes.items():
+                if len(transitions) < K:
+                    continue
+                episode_totals[ep] = sum(t[3] for t in transitions)
 
+            if not episode_totals:
+                return {ep: None for ep in episodes}
+
+            buy_eps  = [e for e in episode_totals if self.episode_sides.get(e, 0) > 0]
+            sell_eps = [e for e in episode_totals if self.episode_sides.get(e, 0) < 0]
+            # THREE regimes, not two. On a TWAP-absent episode TWAPPresent is
+            # pinned to 0 all the way through, so episode_sides[ep] == 0 and the
+            # episode falls into neither pool. In an alternating run both buy
+            # and sell pools are always non-empty, so the global fallback below
+            # never fires and absent episodes could never be elites -- meaning
+            # self-imitation never reinforced a single standalone
+            # market-making episode, in exactly the runs that exist to test
+            # criterion 2 (profitable when the TWAP is absent).
+            none_eps = [e for e in episode_totals if self.episode_sides.get(e, 0) == 0]
+            pools = [p for p in (buy_eps, sell_eps, none_eps) if p]
+            if len(pools) > 1:
+                # Balance elites across regimes so none is starved, and so a
+                # regime with systematically higher totals cannot monopolise the
+                # set -- absent episodes have no meta-order to trade against, so
+                # their totals are not comparable with present ones.
+                #
+                # The TOTAL is held fixed rather than the per-pool count. Taking
+                # top-3 of each pool would give 9 elites in a three-regime run,
+                # 6 in a two-regime one and 5 in a single-regime one, so the
+                # elite count -- and with it the elite FRACTION of the ~40
+                # episodes the buffer holds, i.e. the strength of the
+                # intervention -- would vary with the arm being tested and
+                # confound it. A looser elite fraction pulls the imitation
+                # target toward the buffer mean, so CEM would do systematically
+                # less in exactly the multi-regime arms.
+                # Water-fill: smallest pool first, so a pool that cannot fill
+                # its equal share passes the shortfall on to the larger pools
+                # instead of silently shrinking the total. An even split alone
+                # would give 5 elites, not 6, whenever one regime is thin --
+                # which is exactly the early-buffer situation.
+                top_eps = set()
+                # None = legacy multi-regime total (top-3 of each of two pools)
+                remaining = 6 if self.cem_n_elites is None else self.cem_n_elites
+                ordered = sorted(pools, key=len)
+                for i, pool in enumerate(ordered):
+                    share = -(-remaining // (len(ordered) - i))   # ceil division
+                    k = min(share, len(pool))
+                    top_eps.update(sorted(pool, key=episode_totals.get, reverse=True)[:k])
+                    remaining -= k
+            else:
+                # Single regime (or untagged): global top-N.
+                sorted_eps = sorted(episode_totals, key=episode_totals.get, reverse=True)
+                # None = legacy single-regime total, which was 5, not 6
+                n = 5 if self.cem_n_elites is None else self.cem_n_elites
+                top_eps = set(sorted_eps[:n])
+
+            if self.cem_elite_floor:
+                # `sorted(...)[:3]` returns three episodes regardless of quality.
+                # Once the reward is PnL-dominated, episode totals are near
+                # zero-mean noise (+-0.2 over ~2,480 steps, 85-88% of which move
+                # no money), so the top-3 of ~40 buffered episodes is roughly the
+                # +1.7 sigma tail -- mostly luck. Cross-entropy toward the
+                # luckiest trajectories turns CEM from a bias into a variance
+                # injector. Require elites to clear the buffer mean by this many
+                # SDs, and skip them otherwise. Standard CEM practice.
+                vals = list(episode_totals.values())
+                if len(vals) > 1:
+                    mu = sum(vals) / len(vals)
+                    sd = (sum((v - mu) ** 2 for v in vals) / (len(vals) - 1)) ** 0.5
+                    thresh = mu + self.cem_elite_floor * sd
+                    top_eps = {e for e in top_eps if episode_totals[e] > thresh}
+
+            results = {}
+            for ep, transitions in episodes.items():
+                if ep in top_eps:
+                    results[ep] = (0, len(transitions) - 1, episode_totals[ep])
+                else:
+                    results[ep] = None
+            return results
+
+        # Default: best contiguous subarray per episode
+        results = {}
         for ep, transitions in episodes.items():
             if len(transitions) < K:
-                # Episode too short for minimum length K
                 results[ep] = None
                 continue
 
-            rewards = [t[3] for t in transitions]  # Extract rewards (index 3 in transition tuple)
+            rewards = [t[3] for t in transitions]
 
             max_sum = float('-inf')
             best_start = 0
             best_end = K - 1
 
-            # Check all possible subarrays of length >= K
             for start in range(len(rewards) - K + 1):
-                current_sum = sum(rewards[start:start + K])  # Initial window of size K
+                current_sum = sum(rewards[start:start + K])
 
-                # Check if this K-length window is better
                 if current_sum > max_sum:
                     max_sum = current_sum
                     best_start = start
                     best_end = start + K - 1
 
-                # Extend the window beyond K if possible
                 for end in range(start + K, len(rewards)):
                     current_sum += rewards[end]
                     if current_sum > max_sum:
@@ -2185,6 +2761,7 @@ class AdversarialPPOAgent(PPOAgent):
         n_a, n_b = np.min(n_as), np.min(n_bs)
         lambdas = data['current_intensity']
         lambdas_norm = lambdas.flatten()/np.sum(lambdas.flatten())
+        self.last_intensity_bucket = self._intensity_bucket(lambdas_norm)
         past_times = data['past_times']
         if self.Inventory['INTC'] ==0: self.init_cash = self.cash
         skew = (n_a - n_b)/(0.5*(q_a + q_b))
